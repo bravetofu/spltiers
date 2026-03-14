@@ -21,9 +21,9 @@ export default function EditionCard({
 }) {
   const badgeStyle: React.CSSProperties =
     format === 'modern'
-      ? { background: '#3d1c1c', color: '#e63946' }
+      ? { background: '#1a2a3d', color: '#58a6ff' }
       : format === 'wild'
-      ? { background: '#1c2840', color: '#3498db' }
+      ? { background: '#2d1a35', color: '#d966ff' }
       : { background: '#21262d', color: '#8b949e' }
 
   return (
