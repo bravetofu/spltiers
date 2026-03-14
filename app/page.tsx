@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import Nav from '@/components/Nav'
+import EditionCard, { type EditionCardData } from '@/components/EditionCard'
 import { createPublicClient } from '@/lib/supabase/server'
 import { getAllCardsByEdition } from '@/app/actions/cards'
 import { getEditionFormat, type EditionFormat } from '@/lib/editions'
@@ -12,12 +13,6 @@ type CardSet = {
   name: string
   is_active: boolean
   sort_order: number
-}
-
-type SetWithMeta = CardSet & {
-  format: EditionFormat
-  totalCards: number | null
-  rankedCount: number
 }
 
 export default async function HomePage() {
@@ -52,12 +47,14 @@ export default async function HomePage() {
 
   // Build ranked counts map: set_id → count
   const rankedMap: Record<string, number> = {}
-  for (const row of tierCounts ?? []) {
+  for (const row of tierCounts) {
     rankedMap[row.set_id] = (rankedMap[row.set_id] ?? 0) + 1
   }
 
-  const setsWithMeta: SetWithMeta[] = (cardSets ?? []).map((s) => ({
-    ...s,
+  const setsWithMeta: EditionCardData[] = cardSets.map((s) => ({
+    id: s.id,
+    slug: s.slug,
+    name: s.name,
     format: getEditionFormat(s.name),
     totalCards: cardsByEdition?.get(s.name)?.length ?? null,
     rankedCount: rankedMap[s.id] ?? 0,
@@ -114,7 +111,14 @@ export default async function HomePage() {
         )}
 
         {setsWithMeta.length === 0 && (
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', textAlign: 'center', padding: '3rem 0' }}>
+          <p
+            style={{
+              color: 'var(--text-muted)',
+              fontSize: '0.95rem',
+              textAlign: 'center',
+              padding: '3rem 0',
+            }}
+          >
             No editions published yet — check back soon.
           </p>
         )}
@@ -146,7 +150,8 @@ export default async function HomePage() {
               Pricing calculator
             </p>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: 0 }}>
-              Select editions + tiers and get live buy &amp; rent prices from the Splinterlands market.
+              Select editions + tiers and get live buy &amp; rent prices from the Splinterlands
+              market.
             </p>
           </div>
           <Link
@@ -172,8 +177,6 @@ export default async function HomePage() {
   )
 }
 
-// ─── Sub-components (server, no state needed) ─────────────────────────────────
-
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <p
@@ -191,7 +194,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   )
 }
 
-function EditionGrid({ sets, format }: { sets: SetWithMeta[]; format: EditionFormat }) {
+function EditionGrid({ sets, format }: { sets: EditionCardData[]; format: EditionFormat }) {
   return (
     <div
       style={{
@@ -203,96 +206,6 @@ function EditionGrid({ sets, format }: { sets: SetWithMeta[]; format: EditionFor
       {sets.map((set) => (
         <EditionCard key={set.id} set={set} format={format} />
       ))}
-    </div>
-  )
-}
-
-function EditionCard({ set, format }: { set: SetWithMeta; format: EditionFormat }) {
-  const badgeStyle: React.CSSProperties =
-    format === 'modern'
-      ? { background: '#3d1c1c', color: '#e63946' }
-      : format === 'wild'
-      ? { background: '#1c2840', color: '#3498db' }
-      : { background: '#21262d', color: '#8b949e' }
-
-  return (
-    <Link
-      href={`/tier-list/${set.slug}`}
-      style={{ textDecoration: 'none' }}
-    >
-      <div
-        style={{
-          background: 'var(--bg-secondary)',
-          border: '1px solid var(--border-default)',
-          borderRadius: 10,
-          padding: '1rem 1.1rem',
-          cursor: 'pointer',
-          transition: 'border-color 0.15s, background 0.15s',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '0.6rem',
-          height: '100%',
-          boxSizing: 'border-box',
-        }}
-        onMouseEnter={(e) => {
-          ;(e.currentTarget as HTMLDivElement).style.borderColor = '#484f58'
-          ;(e.currentTarget as HTMLDivElement).style.background = '#1c2128'
-        }}
-        onMouseLeave={(e) => {
-          ;(e.currentTarget as HTMLDivElement).style.borderColor = 'var(--border-default)'
-          ;(e.currentTarget as HTMLDivElement).style.background = 'var(--bg-secondary)'
-        }}
-      >
-        {/* Name + arrow */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span
-            style={{
-              color: 'var(--text-primary)',
-              fontWeight: 600,
-              fontSize: '0.9rem',
-              lineHeight: 1.3,
-            }}
-          >
-            {set.name}
-          </span>
-          <span style={{ color: 'var(--text-faint)', fontSize: '0.9rem', flexShrink: 0 }}>→</span>
-        </div>
-
-        {/* Format badge */}
-        <span
-          style={{
-            ...badgeStyle,
-            borderRadius: 6,
-            padding: '2px 8px',
-            fontSize: '0.7rem',
-            fontWeight: 600,
-            textTransform: 'uppercase',
-            letterSpacing: '0.05em',
-            width: 'fit-content',
-          }}
-        >
-          {format === 'other' ? 'other' : format}
-        </span>
-
-        {/* Counts */}
-        <div style={{ display: 'flex', gap: 12, marginTop: 'auto' }}>
-          <Stat label="cards" value={set.totalCards ?? '—'} />
-          <Stat label="ranked" value={set.rankedCount > 0 ? set.rankedCount : '—'} />
-        </div>
-      </div>
-    </Link>
-  )
-}
-
-function Stat({ label, value }: { label: string; value: number | string }) {
-  return (
-    <div>
-      <span style={{ color: 'var(--text-primary)', fontWeight: 600, fontSize: '0.85rem' }}>
-        {value}
-      </span>
-      <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem', marginLeft: 3 }}>
-        {label}
-      </span>
     </div>
   )
 }
