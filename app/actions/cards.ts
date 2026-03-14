@@ -54,7 +54,7 @@ function resolveEditionAndSlug(
     if (t === 4)            return { displayName: 'Untamed',    cdnSlug: 'promo' }
     if (t === 7)            return { displayName: 'Chaos Legion', cdnSlug: 'promo' }
     if (t === 12)           return { displayName: 'Rebellion',  cdnSlug: 'promo' }
-    if (t === 14)           return { displayName: 'Conclave Arcana', cdnSlug: 'conclave' }
+    if (t === 14)           return { displayName: 'Conclave Arcana', cdnSlug: 'promo' }
   }
 
   // Reward (editions=3) — branched by tier
