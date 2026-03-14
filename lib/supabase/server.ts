@@ -11,3 +11,14 @@ export function createAdminClient() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   )
 }
+
+/**
+ * Server-side Supabase client using the anon key.
+ * Respects RLS — safe for public read queries in server components.
+ */
+export function createPublicClient() {
+  return createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  )
+}
