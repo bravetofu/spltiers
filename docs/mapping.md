@@ -44,7 +44,7 @@ Retrieve "editions" and "tier" values from https://api.splinterlands.io/cards/ge
 - "editions" = "12":
   - Map edition to "Rebellion"
   - Map image URL slug to "/rebellion/"
-- "editions" = "2" AND "tier" = "12" --> map to "Rebellion"
+- "editions" = "2" AND "tier" = "12":
   - Map edition to "Rebellion"
   - Map image URL slug to "/promo/"
 - "editions" = "13":
@@ -56,7 +56,7 @@ Retrieve "editions" and "tier" values from https://api.splinterlands.io/cards/ge
   - Map image URL slug to "/conclave/"
 - "editions" = "2" AND "tier" = "14":
   - Map edition to "Conclave Arcana"
-  - Map image URL slug to "/conclave/"
+  - Map image URL slug to "/promo/"
 - "editions" = "18":
   - Map edition to "Conclave Arcana"
   - Map image URL slug to "/reward/"
