@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>spltiers — Tier List Page Mockup</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d1117; color: #c9d1d9; }
+
+  .nav { background: #0d1117; padding: 0 24px; height: 52px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #30363d; }
+  .nav-logo { display: flex; align-items: center; gap: 3px; }
+  .nav-logo-main { font-size: 20px; font-weight: 500; color: #e63946; letter-spacing: -0.5px; font-style: italic; }
+  .nav-logo-dot { width: 5px; height: 5px; border-radius: 50%; background: #ffd700; margin-bottom: 1px; }
+  .nav-links { display: flex; gap: 24px; }
+  .nav-links a { font-size: 13px; color: #8b949e; text-decoration: none; }
+  .nav-links a.active { color: #f0f6fc; }
+
+  .subnav { background: #0d1117; padding: 0 24px; height: 44px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #21262d; }
+  .subnav-left { display: flex; align-items: center; gap: 12px; }
+  .subnav-back { font-size: 12px; color: #8b949e; text-decoration: none; }
+  .subnav-sep { color: #30363d; font-size: 12px; }
+  .subnav-title { font-size: 15px; font-weight: 500; color: #f0f6fc; }
+  .format-badge { font-size: 10px; padding: 2px 7px; border-radius: 4px; background: #3d1c1c; color: #e63946; font-weight: 500; }
+
+  .switcher-btn { display: flex; align-items: center; gap: 7px; background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 5px 11px; cursor: pointer; position: relative; }
+  .switcher-btn span { font-size: 12px; color: #c9d1d9; }
+  .switcher-arrow { font-size: 8px; color: #8b949e; }
+  .dropdown { position: absolute; top: calc(100% + 6px); right: 0; background: #161b22; border: 1px solid #30363d; border-radius: 8px; min-width: 200px; z-index: 50; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.6); display: none; }
+  .dropdown.open { display: block; }
+  .dropdown-header { padding: 8px 12px; font-size: 10px; color: #484f58; text-transform: uppercase; letter-spacing: 0.4px; border-bottom: 1px solid #21262d; }
+  .dropdown-item { padding: 8px 12px; font-size: 13px; color: #c9d1d9; cursor: pointer; display: flex; align-items: center; justify-content: space-between; }
+  .dropdown-item:hover { background: #21262d; }
+  .dropdown-item.active { color: #f0f6fc; }
+  .active-dot { width: 5px; height: 5px; border-radius: 50%; background: #e63946; }
+
+  .page-controls { max-width: 1100px; margin: 0 auto; padding: 16px 24px 0; display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+  .toggle-wrap { display: flex; align-items: center; gap: 8px; background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+  .toggle-wrap span { font-size: 12px; color: #8b949e; }
+  .toggle { width: 28px; height: 16px; background: #30363d; border-radius: 8px; position: relative; transition: background 0.2s; flex-shrink: 0; }
+  .toggle.on { background: #238636; }
+  .toggle::after { content: ''; position: absolute; width: 12px; height: 12px; background: #f0f6fc; border-radius: 50%; top: 2px; left: 2px; transition: left 0.2s; }
+  .toggle.on::after { left: 14px; }
+
+  .beginner-tip { max-width: 1100px; margin: 10px auto 0; padding: 0 24px; display: none; }
+  .beginner-tip.show { display: block; }
+  .beginner-tip-inner { background: #1c3a5e; border: 1px solid #1f6feb; border-radius: 8px; padding: 10px 14px; }
+  .beginner-tip-inner p { font-size: 12px; color: #79b8f2; line-height: 1.6; }
+  .beginner-tip-inner strong { color: #f0f6fc; }
+
+  .page { max-width: 1100px; margin: 0 auto; padding: 16px 24px 40px; }
+
+  .tier-row { display: flex; align-items: flex-start; margin-bottom: 4px; border-radius: 10px; overflow: hidden; border: 1px solid #21262d; }
+  .tier-label-wrap { width: 52px; min-width: 52px; display: flex; flex-direction: column; align-items: center; justify-content: center; align-self: stretch; padding: 6px 2px; }
+  .tier-letter { font-size: 22px; font-weight: 500; }
+  .tier-explain { font-size: 9px; opacity: 0.75; text-align: center; padding: 0 2px; margin-top: 2px; display: none; line-height: 1.3; }
+  .beginner-mode .tier-explain { display: block; }
+
+  .tier-cards { background: #161b22; padding: 10px; display: flex; flex-wrap: wrap; gap: 6px; flex: 1; min-height: 88px; }
+
+  .card { position: relative; width: 72px; height: 72px; border-radius: 6px; overflow: hidden; cursor: pointer; border: 1px solid #30363d; transition: transform 0.15s, border-color 0.15s; flex-shrink: 0; background: #21262d; display: flex; align-items: center; justify-content: center; }
+  .card:hover { transform: scale(1.08); border-color: #58a6ff; z-index: 5; }
+  .card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .card-ph { font-size: 8px; color: #484f58; text-align: center; padding: 4px; line-height: 1.3; }
+  .soulbound-icon { position: absolute; top: 3px; right: 3px; width: 14px; height: 14px; background: rgba(0,0,0,0.75); border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 9px; }
+
+  .popover { position: fixed; background: #161b22; border: 1px solid #58a6ff; border-radius: 10px; width: 170px; z-index: 100; pointer-events: none; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.6); display: none; }
+  .popover-img-ph { width: 100%; aspect-ratio: 2/3; background: #21262d; display: flex; align-items: center; justify-content: center; }
+  .popover-img-ph span { font-size: 11px; color: #8b949e; text-align: center; padding: 8px; }
+  .popover-body { padding: 10px 12px; }
+  .popover-name { font-size: 13px; font-weight: 500; color: #f0f6fc; margin-bottom: 5px; }
+  .popover-tags { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 5px; }
+  .tag { font-size: 10px; padding: 2px 7px; border-radius: 4px; font-weight: 500; }
+  .tag-s { background: #3d3000; color: #ffd700; }
+  .tag-a { background: #0d3320; color: #2ecc71; }
+  .tag-b { background: #0d2440; color: #3498db; }
+  .tag-tank { background: #1c3a5e; color: #79b8f2; }
+  .tag-damage { background: #3d1c1c; color: #f47c7c; }
+  .tag-support { background: #1c3d27; color: #7be09b; }
+  .tag-rarity { background: #21262d; color: #8b949e; }
+  .popover-notes { font-size: 11px; color: #8b949e; line-height: 1.5; }
+  .popover-beginner { font-size: 10px; color: #6e7680; margin-top: 4px; font-style: italic; line-height: 1.4; display: none; }
+  .beginner-mode .popover-beginner { display: block; }
+</style>
+</head>
+<body>
+
+<div class="nav">
+  <div class="nav-logo">
+    <span class="nav-logo-main">spltiers</span>
+    <div class="nav-logo-dot"></div>
+  </div>
+  <div class="nav-links">
+    <a href="#" class="active">tier lists</a>
+    <a href="#">pricing</a>
+  </div>
+</div>
+
+<div class="subnav">
+  <div class="subnav-left">
+    <a href="#" class="subnav-back">← all editions</a>
+    <span class="subnav-sep">|</span>
+    <span class="subnav-title">Conclave Arcana</span>
+    <span class="format-badge">modern</span>
+  </div>
+  <div class="switcher-btn" onclick="toggleDropdown()">
+    <span>switch edition</span>
+    <span class="switcher-arrow" id="arrow">▼</span>
+    <div class="dropdown" id="dropdown">
+      <div class="dropdown-header">modern</div>
+      <div class="dropdown-item active">Conclave Arcana <div class="active-dot"></div></div>
+      <div class="dropdown-item">Rebellion</div>
+      <div class="dropdown-item">Escalation</div>
+      <div class="dropdown-header">wild</div>
+      <div class="dropdown-item">Chaos Legion</div>
+      <div class="dropdown-item">Riftwatchers</div>
+      <div class="dropdown-item">Untamed</div>
+      <div class="dropdown-item">Alpha / Beta</div>
+      <div class="dropdown-item">Dice</div>
+    </div>
+  </div>
+</div>
+
+<div class="page-controls">
+  <div class="toggle-wrap" onclick="toggleBeginner()">
+    <span>beginner mode</span>
+    <div class="toggle" id="toggle"></div>
+  </div>
+</div>
+
+<div class="beginner-tip" id="beginner-tip">
+  <div class="beginner-tip-inner">
+    <p><strong>How to read this tier list:</strong> S-tier cards are the most powerful and game-defining. A-tier are strong picks for most teams. B-tier are solid situational choices. C and D tiers are niche or outclassed options.</p>
+  </div>
+</div>
+
+<div class="page" id="page">
+  <div id="tier-container"></div>
+</div>
+
+<div class="popover" id="popover">
+  <div class="popover-img-ph"><span>full card art<br>with stats &amp; abilities</span></div>
+  <div class="popover-body">
+    <div class="popover-name" id="pop-name"></div>
+    <div class="popover-tags" id="pop-tags"></div>
+    <div class="popover-notes" id="pop-notes"></div>
+    <div class="popover-beginner" id="pop-beginner"></div>
+  </div>
+</div>
+
+<script>
+const tiers = {
+  S: {
+    color: '#ffd700', textColor: '#0d1117', explain: 'Best-in-slot, game-defining',
+    cards: [
+      { name: 'Abyssal Elemental', rarity: 'Epic', role: 'Damage', notes: 'Strongest magic damage dealer. Must-have for water lineups.' },
+      { name: 'Void Dragon', rarity: 'Legendary', role: 'Tank', notes: 'Flying + Void makes it nearly unkillable in magic-heavy metas.' },
+      { name: 'Thornwood Sentinel', rarity: 'Rare', role: 'Tank', notes: null },
+      { name: 'Cursed Windeku', rarity: 'Rare', role: 'Damage', notes: 'Thorns + high speed = great frontline.' },
+      { name: 'Runic Archer', rarity: 'Common', role: 'Damage', notes: null },
+      { name: 'Plague Gorgon', rarity: 'Legendary', role: 'Support', notes: 'Affliction on hit counters healing comps entirely.' },
+    ]
+  },
+  A: {
+    color: '#2ecc71', textColor: '#0d1117', explain: 'Strong picks for most lineups',
+    cards: [
+      { name: 'Storm Caller', rarity: 'Epic', role: 'Damage', notes: null },
+      { name: 'Iron Juggernaut', rarity: 'Rare', role: 'Tank', notes: null },
+      { name: 'Marsh Stalker', rarity: 'Common', role: 'Damage', notes: null },
+      { name: 'Dusk Oracle', rarity: 'Legendary', role: 'Support', notes: 'Scattershot creates chaos in backline-heavy teams.' },
+      { name: 'Tide Binder', rarity: 'Rare', role: 'Support', notes: null },
+      { name: 'Ember Drake', rarity: 'Epic', role: 'Damage', notes: null },
+      { name: 'Root Golem', rarity: 'Common', role: 'Tank', notes: null },
+    ]
+  },
+  B: {
+    color: '#3498db', textColor: '#0d1117', explain: 'Solid situational choices',
+    cards: [
+      { name: 'Crypt Shade', rarity: 'Rare', role: 'Damage', notes: null },
+      { name: 'Gilded Harpy', rarity: 'Common', role: 'Damage', notes: null },
+      { name: 'Stone Warden', rarity: 'Common', role: 'Tank', notes: null },
+      { name: 'Venom Imp', rarity: 'Common', role: 'Damage', notes: null },
+      { name: 'Glacial Toad', rarity: 'Rare', role: 'Support', notes: null },
+    ]
+  },
+  C: {
+    color: '#95a5a6', textColor: '#0d1117', explain: 'Niche or situational',
+    cards: [
+      { name: 'Bone Collector', rarity: 'Common', role: null, notes: null },
+      { name: 'Dust Devil', rarity: 'Common', role: null, notes: null },
+      { name: 'Mud Golem', rarity: 'Common', role: 'Tank', notes: null },
+      { name: 'Lava Sprite', rarity: 'Common', role: null, notes: null },
+    ]
+  },
+  D: {
+    color: '#555e6a', textColor: '#adb5bd', explain: 'Outclassed in most situations',
+    cards: [
+      { name: 'Cave Slug', rarity: 'Common', role: null, notes: null },
+      { name: 'Creeping Ooze', rarity: 'Common', role: null, notes: null },
+      { name: 'Twisted Jester', rarity: 'Rare', role: 'Damage', notes: null, soulbound: true },
+    ]
+  }
+};
+
+const roleClass = { Tank: 'tag-tank', Damage: 'tag-damage', Support: 'tag-support' };
+const tierClass = { S: 'tag-s', A: 'tag-a', B: 'tag-b' };
+const beginnerRole = { Tank: 'Absorbs damage at the front', Damage: 'Deals direct damage', Support: 'Buffs allies or debuffs enemies' };
+
+let beginner = false;
+
+function build() {
+  const container = document.getElementById('tier-container');
+  container.innerHTML = '';
+  Object.entries(tiers).forEach(([tier, data]) => {
+    const row = document.createElement('div');
+    row.className = 'tier-row';
+
+    const lw = document.createElement('div');
+    lw.className = 'tier-label-wrap';
+    lw.style.background = data.color;
+    const letter = document.createElement('div');
+    letter.className = 'tier-letter';
+    letter.style.color = data.textColor;
+    letter.textContent = tier;
+    const explain = document.createElement('div');
+    explain.className = 'tier-explain';
+    explain.style.color = data.textColor;
+    explain.textContent = data.explain;
+    lw.appendChild(letter);
+    lw.appendChild(explain);
+
+    const cards = document.createElement('div');
+    cards.className = 'tier-cards';
+
+    data.cards.forEach(card => {
+      const el = document.createElement('div');
+      el.className = 'card';
+      const ph = document.createElement('div');
+      ph.className = 'card-ph';
+      ph.textContent = card.name;
+      el.appendChild(ph);
+      if (card.soulbound) {
+        const icon = document.createElement('div');
+        icon.className = 'soulbound-icon';
+        icon.textContent = '🔒';
+        el.appendChild(icon);
+      }
+      el.addEventListener('mouseenter', e => showPop(e, card, tier));
+      el.addEventListener('mouseleave', hidePop);
+      cards.appendChild(el);
+    });
+
+    row.appendChild(lw);
+    row.appendChild(cards);
+    container.appendChild(row);
+  });
+}
+
+function showPop(e, card, tier) {
+  const pop = document.getElementById('popover');
+  document.getElementById('pop-name').textContent = card.name;
+  const tags = document.getElementById('pop-tags');
+  tags.innerHTML = '';
+  if (tierClass[tier]) {
+    const t = document.createElement('span');
+    t.className = `tag ${tierClass[tier]}`;
+    t.textContent = tier + '-tier';
+    tags.appendChild(t);
+  }
+  if (card.role) {
+    const r = document.createElement('span');
+    r.className = `tag ${roleClass[card.role] || ''}`;
+    r.textContent = card.role;
+    tags.appendChild(r);
+  }
+  const rar = document.createElement('span');
+  rar.className = 'tag tag-rarity';
+  rar.textContent = card.rarity;
+  tags.appendChild(rar);
+  document.getElementById('pop-notes').textContent = card.notes || '';
+  document.getElementById('pop-beginner').textContent = card.role ? beginnerRole[card.role] || '' : '';
+  const rect = e.target.getBoundingClientRect();
+  pop.style.display = 'block';
+  const x = Math.min(rect.right + 8, window.innerWidth - 185);
+  const y = Math.max(rect.top - 20, 8);
+  pop.style.left = x + 'px';
+  pop.style.top = y + 'px';
+}
+
+function hidePop() { document.getElementById('popover').style.display = 'none'; }
+
+function toggleBeginner() {
+  beginner = !beginner;
+  document.getElementById('toggle').className = 'toggle' + (beginner ? ' on' : '');
+  document.getElementById('beginner-tip').className = 'beginner-tip' + (beginner ? ' show' : '');
+  document.getElementById('page').className = 'page' + (beginner ? ' beginner-mode' : '');
+}
+
+function toggleDropdown() {
+  const dd = document.getElementById('dropdown');
+  const arrow = document.getElementById('arrow');
+  const open = dd.classList.contains('open');
+  dd.classList.toggle('open');
+  arrow.textContent = open ? '▼' : '▲';
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.switcher-btn')) {
+    document.getElementById('dropdown').classList.remove('open');
+    document.getElementById('arrow').textContent = '▼';
+  }
+});
+
+build();
+</script>
+</body>
+</html>

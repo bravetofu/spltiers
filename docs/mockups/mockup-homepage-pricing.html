@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>spltiers — Homepage & Pricing Calculator Mockup</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d1117; color: #c9d1d9; }
+
+  .nav { background: #0d1117; padding: 0 24px; height: 52px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #30363d; position: sticky; top: 0; z-index: 10; }
+  .nav-logo { display: flex; align-items: center; gap: 3px; }
+  .nav-logo-main { font-size: 20px; font-weight: 500; color: #e63946; letter-spacing: -0.5px; font-style: italic; }
+  .nav-logo-dot { width: 5px; height: 5px; border-radius: 50%; background: #ffd700; margin-bottom: 1px; }
+  .nav-links { display: flex; gap: 24px; }
+  .nav-links a { font-size: 13px; text-decoration: none; cursor: pointer; }
+  .nav-links a.active { color: #f0f6fc; }
+  .nav-links a:not(.active) { color: #8b949e; }
+
+  .view-toggle { max-width: 1000px; margin: 16px auto 0; padding: 0 24px; display: flex; gap: 8px; }
+  .vbtn { background: #21262d; border: 1px solid #30363d; border-radius: 6px; padding: 6px 14px; font-size: 12px; color: #8b949e; cursor: pointer; }
+  .vbtn.active { background: #1c3a5e; border-color: #1f6feb; color: #79b8f2; }
+
+  .view { display: none; }
+  .view.show { display: block; }
+
+  /* ── HOMEPAGE ── */
+  .home { max-width: 1000px; margin: 0 auto; padding: 40px 24px; }
+  .hero { text-align: center; margin-bottom: 40px; }
+  .hero h1 { font-size: 32px; font-weight: 500; color: #f0f6fc; margin-bottom: 8px; letter-spacing: -0.5px; }
+  .hero h1 span { color: #e63946; }
+  .hero p { font-size: 14px; color: #8b949e; }
+  .section-label { font-size: 11px; color: #8b949e; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 500; margin-bottom: 12px; }
+  .editions-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-bottom: 32px; }
+  .edition-card { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 16px; cursor: pointer; transition: border-color 0.15s, background 0.15s; display: flex; flex-direction: column; gap: 10px; }
+  .edition-card:hover { border-color: #58a6ff; background: #1c2128; }
+  .edition-card-header { display: flex; align-items: center; justify-content: space-between; }
+  .edition-name { font-size: 14px; font-weight: 500; color: #f0f6fc; }
+  .format-badge { font-size: 10px; padding: 2px 7px; border-radius: 4px; font-weight: 500; }
+  .fmt-modern { background: #3d1c1c; color: #e63946; }
+  .fmt-wild { background: #1c2840; color: #3498db; }
+  .fmt-new { background: #3d3000; color: #ffd700; }
+  .edition-stats { display: flex; gap: 12px; }
+  .edition-stat { font-size: 11px; color: #484f58; }
+  .edition-stat strong { color: #8b949e; font-weight: 500; }
+  .edition-arrow { font-size: 12px; color: #30363d; align-self: flex-end; }
+  .edition-card:hover .edition-arrow { color: #58a6ff; }
+  .divider { border: none; border-top: 1px solid #21262d; margin: 28px 0; }
+  .pricing-promo { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 20px 24px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+  .pricing-promo-text h3 { font-size: 15px; font-weight: 500; color: #f0f6fc; margin-bottom: 4px; }
+  .pricing-promo-text p { font-size: 12px; color: #8b949e; }
+  .pricing-promo-btn { background: #21262d; border: 1px solid #30363d; border-radius: 8px; padding: 8px 18px; font-size: 13px; color: #c9d1d9; cursor: pointer; white-space: nowrap; }
+  .pricing-promo-btn:hover { border-color: #58a6ff; color: #f0f6fc; }
+
+  /* ── PRICING ── */
+  .pricing { max-width: 1000px; margin: 0 auto; padding: 28px 24px 60px; }
+  .page-title { font-size: 22px; font-weight: 500; color: #f0f6fc; margin-bottom: 4px; }
+  .page-sub { font-size: 13px; color: #8b949e; margin-bottom: 24px; }
+  .config-card { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+  .config-row { display: flex; gap: 24px; flex-wrap: wrap; }
+  .config-group { flex: 1; min-width: 180px; }
+  .config-label { font-size: 11px; color: #8b949e; font-weight: 500; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 8px; }
+  .chip-group { display: flex; flex-wrap: wrap; gap: 5px; }
+  .chip { background: #21262d; border: 1px solid #30363d; border-radius: 6px; padding: 4px 10px; font-size: 12px; color: #8b949e; cursor: pointer; transition: all 0.12s; user-select: none; }
+  .chip.on { background: #1c3a5e; border-color: #1f6feb; color: #79b8f2; }
+  .chip.ts.on { background: #3d3000; border-color: #6e4c00; color: #ffd700; }
+  .chip.ta.on { background: #0d3320; border-color: #145e30; color: #2ecc71; }
+  .chip.tb.on { background: #0d2440; border-color: #1a4a7a; color: #3498db; }
+  .chip.tc.on { background: #1c2128; border-color: #3d4450; color: #95a5a6; }
+  .chip.td.on { background: #161b22; border-color: #30363d; color: #6e7680; }
+  .level-select { background: #21262d; border: 1px solid #30363d; border-radius: 6px; padding: 6px 10px; font-size: 12px; color: #f0f6fc; }
+  .calc-btn { background: #e63946; border: none; border-radius: 8px; padding: 10px 28px; font-size: 14px; font-weight: 500; color: #fff; cursor: pointer; margin-top: 16px; transition: background 0.15s; }
+  .calc-btn:hover { background: #c1121f; }
+  .totals-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+  .total-card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 14px 16px; }
+  .total-label { font-size: 11px; color: #8b949e; margin-bottom: 4px; }
+  .total-value { font-size: 22px; font-weight: 500; color: #f0f6fc; }
+  .total-sub { font-size: 11px; color: #484f58; margin-top: 2px; }
+  .results-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .results-title { font-size: 14px; font-weight: 500; color: #f0f6fc; }
+  .results-meta { font-size: 11px; color: #484f58; }
+  .csv-btn { background: #21262d; border: 1px solid #30363d; border-radius: 6px; padding: 4px 10px; font-size: 11px; color: #8b949e; cursor: pointer; }
+  .table-wrap { background: #161b22; border: 1px solid #30363d; border-radius: 10px; overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { background: #0d1117; padding: 8px 12px; text-align: left; font-size: 10px; color: #8b949e; font-weight: 500; text-transform: uppercase; letter-spacing: 0.4px; border-bottom: 1px solid #21262d; }
+  td { padding: 8px 12px; border-bottom: 1px solid #21262d; color: #c9d1d9; vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #1c2128; }
+  .tier-badge { display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: 10px; font-weight: 500; }
+  .tb-S { background: #3d3000; color: #ffd700; }
+  .tb-A { background: #0d3320; color: #2ecc71; }
+  .tb-B { background: #0d2440; color: #3498db; }
+  .edition-badge { display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: 10px; background: #21262d; color: #8b949e; }
+  .subtotal-row td { background: #0d1117; font-size: 11px; color: #8b949e; font-weight: 500; }
+  .card-thumb { width: 32px; height: 32px; border-radius: 4px; background: #21262d; border: 1px solid #30363d; display: inline-block; vertical-align: middle; margin-right: 8px; }
+  .no-listing { color: #484f58; }
+  .results-section { display: none; }
+  .results-section.show { display: block; }
+</style>
+</head>
+<body>
+
+<div class="nav">
+  <div class="nav-logo">
+    <span class="nav-logo-main">spltiers</span>
+    <div class="nav-logo-dot"></div>
+  </div>
+  <div class="nav-links">
+    <a href="#" id="nav-tiers" class="active" onclick="showView('home',this)">tier lists</a>
+    <a href="#" id="nav-pricing" onclick="showView('pricing',this)">pricing</a>
+  </div>
+</div>
+
+<div class="view-toggle">
+  <button class="vbtn active" onclick="showView('home',null,this)">homepage</button>
+  <button class="vbtn" onclick="showView('pricing',null,this)">pricing calculator</button>
+</div>
+
+<!-- HOMEPAGE -->
+<div class="view show" id="view-home">
+  <div class="home">
+    <div class="hero">
+      <h1>Splinterlands <span>tier lists</span></h1>
+      <p>Community card rankings and live market pricing. Pick an edition to get started.</p>
+    </div>
+
+    <div class="section-label">modern format</div>
+    <div class="editions-grid">
+      <div class="edition-card">
+        <div class="edition-card-header"><span class="edition-name">Conclave Arcana</span><span class="format-badge fmt-modern">modern</span></div>
+        <div class="edition-stats"><span class="edition-stat"><strong>94</strong> cards</span><span class="edition-stat"><strong>87</strong> ranked</span></div>
+        <div class="edition-arrow">→</div>
+      </div>
+      <div class="edition-card">
+        <div class="edition-card-header"><span class="edition-name">Rebellion</span><span class="format-badge fmt-modern">modern</span></div>
+        <div class="edition-stats"><span class="edition-stat"><strong>116</strong> cards</span><span class="edition-stat"><strong>112</strong> ranked</span></div>
+        <div class="edition-arrow">→</div>
+      </div>
+      <div class="edition-card">
+        <div class="edition-card-header"><span class="edition-name">Escalation</span><span class="format-badge fmt-new">new</span></div>
+        <div class="edition-stats"><span class="edition-stat"><strong>24</strong> cards</span><span class="edition-stat"><strong>0</strong> ranked</span></div>
+        <div class="edition-arrow">→</div>
+      </div>
+    </div>
+
+    <div class="section-label">wild format</div>
+    <div class="editions-grid">
+      <div class="edition-card">
+        <div class="edition-card-header"><span class="edition-name">Chaos Legion</span><span class="format-badge fmt-wild">wild</span></div>
+        <div class="edition-stats"><span class="edition-stat"><strong>140</strong> cards</span><span class="edition-stat"><strong>138</strong> ranked</span></div>
+        <div class="edition-arrow">→</div>
+      </div>
+      <div class="edition-card">
+        <div class="edition-card-header"><span class="edition-name">Riftwatchers</span><span class="format-badge fmt-wild">wild</span></div>
+        <div class="edition-stats"><span class="edition-stat"><strong>43</strong> cards</span><span class="edition-stat"><strong>40</strong> ranked</span></div>
+        <div class="edition-arrow">→</div>
+      </div>
+      <div class="edition-card">
+        <div class="edition-card-header"><span class="edition-name">Untamed</span><span class="format-badge fmt-wild">wild</span></div>
+        <div class="edition-stats"><span class="edition-stat"><strong>103</strong> cards</span><span class="edition-stat"><strong>98</strong> ranked</span></div>
+        <div class="edition-arrow">→</div>
+      </div>
+      <div class="edition-card">
+        <div class="edition-card-header"><span class="edition-name">Alpha / Beta</span><span class="format-badge fmt-wild">wild</span></div>
+        <div class="edition-stats"><span class="edition-stat"><strong>280</strong> cards</span><span class="edition-stat"><strong>210</strong> ranked</span></div>
+        <div class="edition-arrow">→</div>
+      </div>
+      <div class="edition-card">
+        <div class="edition-card-header"><span class="edition-name">Dice</span><span class="format-badge fmt-wild">wild</span></div>
+        <div class="edition-stats"><span class="edition-stat"><strong>21</strong> cards</span><span class="edition-stat"><strong>18</strong> ranked</span></div>
+        <div class="edition-arrow">→</div>
+      </div>
+    </div>
+
+    <hr class="divider">
+    <div class="pricing-promo">
+      <div class="pricing-promo-text">
+        <h3>pricing calculator</h3>
+        <p>Calculate the cost to buy or rent any combination of cards across editions and tiers.</p>
+      </div>
+      <button class="pricing-promo-btn" onclick="showView('pricing')">open calculator →</button>
+    </div>
+  </div>
+</div>
+
+<!-- PRICING -->
+<div class="view" id="view-pricing">
+  <div class="pricing">
+    <div class="page-title">pricing calculator</div>
+    <div class="page-sub">Select editions and tiers to get live buy and rent prices from the Splinterlands market.</div>
+
+    <div class="config-card">
+      <div class="config-row">
+        <div class="config-group">
+          <div class="config-label">editions</div>
+          <div class="chip-group">
+            <div class="chip on" onclick="this.classList.toggle('on')">Rebellion</div>
+            <div class="chip on" onclick="this.classList.toggle('on')">Conclave Arcana</div>
+            <div class="chip" onclick="this.classList.toggle('on')">Chaos Legion</div>
+            <div class="chip" onclick="this.classList.toggle('on')">Riftwatchers</div>
+            <div class="chip" onclick="this.classList.toggle('on')">Untamed</div>
+            <div class="chip" onclick="this.classList.toggle('on')">Escalation</div>
+            <div class="chip" onclick="this.classList.toggle('on')">Dice</div>
+            <div class="chip" onclick="this.classList.toggle('on')">Alpha / Beta</div>
+          </div>
+        </div>
+        <div class="config-group" style="max-width:230px;">
+          <div class="config-label">tiers</div>
+          <div class="chip-group">
+            <div class="chip ts on" onclick="this.classList.toggle('on')">S</div>
+            <div class="chip ta on" onclick="this.classList.toggle('on')">A</div>
+            <div class="chip tb on" onclick="this.classList.toggle('on')">B</div>
+            <div class="chip tc" onclick="this.classList.toggle('on')">C</div>
+            <div class="chip td" onclick="this.classList.toggle('on')">D</div>
+          </div>
+          <div style="height:14px;"></div>
+          <div class="config-label">card level</div>
+          <select class="level-select">
+            <option selected>max level (by rarity)</option>
+            <option>level 1</option><option>level 2</option><option>level 3</option>
+            <option>level 4</option><option>level 5</option>
+          </select>
+        </div>
+      </div>
+      <button class="calc-btn" onclick="calculate()">calculate prices</button>
+    </div>
+
+    <div class="results-section show" id="results">
+      <div class="totals-row">
+        <div class="total-card">
+          <div class="total-label">total buy cost</div>
+          <div class="total-value">$69.50</div>
+          <div class="total-sub">11 of 12 cards have listings</div>
+        </div>
+        <div class="total-card">
+          <div class="total-label">total rent / day</div>
+          <div class="total-value">$1.04</div>
+          <div class="total-sub">daily rental cost</div>
+        </div>
+        <div class="total-card">
+          <div class="total-label">total rent / month</div>
+          <div class="total-value">$31.20</div>
+          <div class="total-sub">estimated 30-day cost</div>
+        </div>
+      </div>
+      <div class="results-header">
+        <div class="results-title">12 cards across 2 editions</div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div class="results-meta">prices as of just now · mock data</div>
+          <button class="csv-btn">export CSV</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>card</th><th>edition</th><th>tier</th><th>rarity</th>
+              <th style="text-align:right;">buy price</th><th style="text-align:right;">rent / day</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><span class="card-thumb"></span>Void Dragon</td><td><span class="edition-badge">Conclave Arcana</span></td><td><span class="tier-badge tb-S">S</span></td><td style="color:#8b949e;">Legendary</td><td style="text-align:right;">$12.40</td><td style="text-align:right;">$0.180</td></tr>
+            <tr><td><span class="card-thumb"></span>Abyssal Elemental</td><td><span class="edition-badge">Conclave Arcana</span></td><td><span class="tier-badge tb-S">S</span></td><td style="color:#8b949e;">Epic</td><td style="text-align:right;">$3.20</td><td style="text-align:right;">$0.060</td></tr>
+            <tr><td><span class="card-thumb"></span>Thornwood Sentinel</td><td><span class="edition-badge">Conclave Arcana</span></td><td><span class="tier-badge tb-S">S</span></td><td style="color:#8b949e;">Rare</td><td style="text-align:right;">$1.85</td><td style="text-align:right;">$0.030</td></tr>
+            <tr><td><span class="card-thumb"></span>Plague Gorgon</td><td><span class="edition-badge">Conclave Arcana</span></td><td><span class="tier-badge tb-A">A</span></td><td style="color:#8b949e;">Legendary</td><td style="text-align:right;">$8.60</td><td style="text-align:right;">$0.120</td></tr>
+            <tr><td><span class="card-thumb"></span>Dusk Oracle</td><td><span class="edition-badge">Conclave Arcana</span></td><td><span class="tier-badge tb-A">A</span></td><td style="color:#8b949e;">Legendary</td><td style="text-align:right;">$6.40</td><td style="text-align:right;">$0.090</td></tr>
+            <tr class="subtotal-row"><td colspan="4">Conclave Arcana subtotal (5 cards)</td><td style="text-align:right;">$32.45</td><td style="text-align:right;">$0.480/day</td></tr>
+            <tr><td><span class="card-thumb"></span>Helios Matriarch</td><td><span class="edition-badge">Rebellion</span></td><td><span class="tier-badge tb-S">S</span></td><td style="color:#8b949e;">Legendary</td><td style="text-align:right;">$18.50</td><td style="text-align:right;">$0.250</td></tr>
+            <tr><td><span class="card-thumb"></span>Ravenhood Warden</td><td><span class="edition-badge">Rebellion</span></td><td><span class="tier-badge tb-S">S</span></td><td style="color:#8b949e;">Epic</td><td style="text-align:right;">$4.80</td><td style="text-align:right;">$0.080</td></tr>
+            <tr><td><span class="card-thumb"></span>Tatiana Harness</td><td><span class="edition-badge">Rebellion</span></td><td><span class="tier-badge tb-A">A</span></td><td style="color:#8b949e;">Legendary</td><td style="text-align:right;">$9.20</td><td style="text-align:right;">$0.140</td></tr>
+            <tr><td><span class="card-thumb"></span>Lobb Lowland</td><td><span class="edition-badge">Rebellion</span></td><td><span class="tier-badge tb-A">A</span></td><td style="color:#8b949e;">Rare</td><td style="text-align:right;"><span class="no-listing">—</span></td><td style="text-align:right;">$0.020</td></tr>
+            <tr><td><span class="card-thumb"></span>Crypt Shade</td><td><span class="edition-badge">Rebellion</span></td><td><span class="tier-badge tb-B">B</span></td><td style="color:#8b949e;">Rare</td><td style="text-align:right;">$0.90</td><td style="text-align:right;">$0.010</td></tr>
+            <tr><td><span class="card-thumb"></span>Stone Warden</td><td><span class="edition-badge">Rebellion</span></td><td><span class="tier-badge tb-B">B</span></td><td style="color:#8b949e;">Common</td><td style="text-align:right;">$0.35</td><td style="text-align:right;"><span class="no-listing">—</span></td></tr>
+            <tr class="subtotal-row"><td colspan="4">Rebellion subtotal (7 cards)</td><td style="text-align:right;">$33.75</td><td style="text-align:right;">$0.500/day</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function showView(view, navEl, toggleEl) {
+  document.getElementById('view-home').className = 'view' + (view === 'home' ? ' show' : '');
+  document.getElementById('view-pricing').className = 'view' + (view === 'pricing' ? ' show' : '');
+  document.querySelectorAll('.vbtn').forEach(b => b.classList.remove('active'));
+  if (toggleEl) toggleEl.classList.add('active');
+  else document.querySelectorAll('.vbtn')[view === 'pricing' ? 1 : 0].classList.add('active');
+  document.querySelectorAll('.nav-links a').forEach(a => a.classList.remove('active'));
+  document.getElementById(view === 'pricing' ? 'nav-pricing' : 'nav-tiers').classList.add('active');
+}
+function calculate() {
+  document.getElementById('results').className = 'results-section show';
+}
+</script>
+</body>
+</html>
