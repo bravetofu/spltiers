@@ -2,6 +2,7 @@
 
 This file is the primary reference for all development on this project.
 Read it fully before writing any code.
+UI mockups (open in browser to interact): docs/mockups/mockup-tier-list.html, docs/mockups/mockup-backoffice.html, docs/mockups/mockup-homepage-pricing.html
 
 ---
 
