@@ -7,6 +7,20 @@ const ADMIN_ACCOUNT = process.env.NEXT_PUBLIC_HIVE_ADMIN_ACCOUNT ?? 'brave.sps'
 const HIVE_API = 'https://api.hive.blog'
 
 /**
+ * GET /admin/verify
+ * Diagnostic endpoint — returns which expected env vars are present (not their values).
+ * Remove this once the deployment environment is confirmed working.
+ */
+export async function GET() {
+  return NextResponse.json({
+    JWT_SECRET: !!process.env.JWT_SECRET,
+    NEXT_PUBLIC_SUPABASE_URL: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+    SUPABASE_SERVICE_ROLE_KEY: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+    NODE_ENV: process.env.NODE_ENV,
+  })
+}
+
+/**
  * POST /admin/verify
  * Body: { account: string, challenge: string, signature: string }
  *
@@ -19,6 +33,14 @@ const HIVE_API = 'https://api.hive.blog'
  */
 export async function POST(req: NextRequest) {
   console.log('[verify] request received')
+
+  // Check JWT_SECRET first — fail fast before any expensive operations
+  const jwtSecret = process.env.JWT_SECRET
+  console.log('[verify] JWT_SECRET present:', !!jwtSecret)
+  if (!jwtSecret) {
+    console.error('[verify] JWT_SECRET env var is not set!')
+    return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 })
+  }
 
   let body: { account?: string; challenge?: string; signature?: string }
   try {
@@ -88,12 +110,6 @@ export async function POST(req: NextRequest) {
   }
 
   // Issue a JWT stored in an httpOnly cookie (expires in 7 days)
-  const jwtSecret = process.env.JWT_SECRET
-  if (!jwtSecret) {
-    console.error('[verify] JWT_SECRET env var is not set!')
-    return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 })
-  }
-
   const secret = new TextEncoder().encode(jwtSecret)
   const token = await new SignJWT({ account })
     .setProtectedHeader({ alg: 'HS256' })
