@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { rarityMaxLevel } from '@/lib/editions'
 
@@ -49,23 +49,38 @@ export default function CardHoverPopover({
   isSoulbound = false,
   beginnerMode = false,
 }: Props) {
-  const [visible, setVisible] = useState(false)
+  const [hoverVisible, setHoverVisible] = useState(false)
+  const [modalOpen, setModalOpen] = useState(false)
   const [pos, setPos] = useState({ x: 0, y: 0 })
   const [imgErrored, setImgErrored] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const [isTouchDevice, setIsTouchDevice] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setMounted(true)
+    // Devices where hover is the primary input (mice) → false; touch-only → true
+    setIsTouchDevice(window.matchMedia('(hover: none)').matches)
   }, [])
+
+  // Close modal on Escape
+  useEffect(() => {
+    if (!modalOpen) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setModalOpen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [modalOpen])
 
   const maxLevel = rarityMaxLevel(rarity)
   const imgSrc = `https://d36mxiodymuqjm.cloudfront.net/cards_by_level/${cdnSlug}/${encodeURIComponent(cardName)}_lv${maxLevel}.png`
 
-  const POPOVER_W = 220
-  const POPOVER_H = 390 // conservative estimate
+  const POPOVER_W = 240
+  const POPOVER_H = 420 // conservative estimate for viewport clamping
 
   function handleMouseEnter() {
+    if (isTouchDevice) return
     if (!containerRef.current) return
     const rect = containerRef.current.getBoundingClientRect()
 
@@ -82,12 +97,18 @@ export default function CardHoverPopover({
     y = Math.max(8, y)
 
     setPos({ x, y })
-    setVisible(true)
+    setHoverVisible(true)
   }
 
   function handleMouseLeave() {
-    setVisible(false)
+    setHoverVisible(false)
   }
+
+  const handleTap = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    if (!isTouchDevice) return
+    e.preventDefault()
+    setModalOpen(true)
+  }, [isTouchDevice])
 
   const tierCfg = TIER_CONFIG[tier] ?? TIER_CONFIG['C']
 
@@ -96,17 +117,185 @@ export default function CardHoverPopover({
     ? ROLE_DESCRIPTIONS[role.toLowerCase().trim()] ?? null
     : null
 
+  // Shared card info block used in both popover and modal
+  function CardInfoBody() {
+    return (
+      <>
+        {/* Card name */}
+        <p
+          style={{
+            color: '#f0f6fc',
+            fontWeight: 600,
+            fontSize: '0.85rem',
+            margin: 0,
+            lineHeight: 1.3,
+          }}
+        >
+          {cardName}
+        </p>
+
+        {/* Tier badge */}
+        <span
+          style={{
+            display: 'inline-block',
+            background: tierCfg.pillBg,
+            color: tierCfg.pillText,
+            borderRadius: 5,
+            padding: '2px 7px',
+            fontSize: '0.7rem',
+            fontWeight: 700,
+            width: 'fit-content',
+          }}
+        >
+          {tier}-tier
+          {beginnerMode && (
+            <span style={{ fontWeight: 400, marginLeft: 4, fontSize: '0.65rem' }}>
+              {tier === 'S' && '— dominant'}
+              {tier === 'A' && '— very strong'}
+              {tier === 'B' && '— solid pick'}
+              {tier === 'C' && '— situational'}
+              {tier === 'D' && '— rarely used'}
+            </span>
+          )}
+        </span>
+
+        {/* Role tag */}
+        {role && (
+          <div>
+            <span
+              style={{
+                display: 'inline-block',
+                background: '#21262d',
+                border: '1px solid #30363d',
+                color: '#c9d1d9',
+                borderRadius: 5,
+                padding: '2px 7px',
+                fontSize: '0.7rem',
+                fontWeight: 500,
+              }}
+            >
+              {role}
+            </span>
+            {beginnerMode && roleDesc && (
+              <p
+                style={{
+                  color: '#8b949e',
+                  fontSize: '0.68rem',
+                  margin: '3px 0 0',
+                  lineHeight: 1.4,
+                }}
+              >
+                {roleDesc}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Notes */}
+        {notes && (
+          <p
+            style={{
+              color: '#8b949e',
+              fontSize: '0.72rem',
+              margin: 0,
+              lineHeight: 1.4,
+            }}
+          >
+            {notes}
+          </p>
+        )}
+      </>
+    )
+  }
+
+  // Shared image section
+  function CardImageSection({ width }: { width: number }) {
+    const innerW = width - 16
+    const imgH = Math.round(innerW * (3 / 2))
+    return (
+      <div
+        style={{
+          width,
+          background: '#161b22',
+          position: 'relative',
+          flexShrink: 0,
+          padding: 8,
+          boxSizing: 'border-box',
+        }}
+      >
+        {imgErrored ? (
+          <div
+            style={{
+              width: innerW,
+              height: imgH,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: '#21262d',
+              borderRadius: 4,
+            }}
+          >
+            <span style={{ color: '#484f58', fontSize: 11, textAlign: 'center' }}>
+              {cardName}
+            </span>
+          </div>
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={imgSrc}
+            alt={cardName}
+            style={{
+              width: innerW,
+              height: imgH,
+              objectFit: 'contain',
+              background: '#161b22',
+              display: 'block',
+              borderRadius: 4,
+            }}
+            onError={() => setImgErrored(true)}
+          />
+        )}
+
+        {/* Soulbound lock badge */}
+        {isSoulbound && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 14,
+              right: 14,
+              background: 'rgba(0,0,0,0.7)',
+              borderRadius: 4,
+              padding: '2px 5px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 3,
+            }}
+          >
+            <svg width="9" height="10" viewBox="0 0 9 10" fill="none">
+              <rect x="1" y="4" width="7" height="6" rx="1" fill="#c9d1d9" />
+              <path d="M2.5 4V3a2 2 0 0 1 4 0v1" stroke="#c9d1d9" strokeWidth="1.2" fill="none" />
+            </svg>
+            <span style={{ color: '#c9d1d9', fontSize: 9, fontWeight: 600 }}>Soulbound</span>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div
       ref={containerRef}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      style={{ display: 'inline-block' }}
+      onClick={handleTap}
+      style={{ display: 'inline-block', cursor: isTouchDevice ? 'pointer' : undefined }}
     >
       {children}
 
+      {/* Desktop hover popover */}
       {mounted &&
-        visible &&
+        hoverVisible &&
+        !isTouchDevice &&
         createPortal(
           <div
             style={{
@@ -123,156 +312,74 @@ export default function CardHoverPopover({
               pointerEvents: 'none',
             }}
           >
-            {/* Full card image — 2:3 aspect ratio */}
+            <CardImageSection width={POPOVER_W} />
+            <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+              <CardInfoBody />
+            </div>
+          </div>,
+          document.body,
+        )}
+
+      {/* Mobile tap modal */}
+      {mounted &&
+        modalOpen &&
+        createPortal(
+          <div
+            onClick={() => setModalOpen(false)}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(0,0,0,0.72)',
+              zIndex: 10000,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '16px',
+            }}
+          >
             <div
+              onClick={(e) => e.stopPropagation()}
               style={{
-                width: POPOVER_W,
-                background: '#21262d',
+                background: '#161b22',
+                border: '1px solid #30363d',
+                borderRadius: 14,
+                boxShadow: '0 16px 48px rgba(0,0,0,0.7)',
+                width: '100%',
+                maxWidth: 320,
+                overflow: 'hidden',
                 position: 'relative',
-                flexShrink: 0,
-                padding: 8,
-                boxSizing: 'border-box',
               }}
             >
-              {imgErrored ? (
-                <div
-                  style={{
-                    width: '100%',
-                    height: Math.round((POPOVER_W - 16) * (3 / 2)),
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <span style={{ color: '#484f58', fontSize: 11, textAlign: 'center' }}>
-                    {cardName}
-                  </span>
-                </div>
-              ) : (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={imgSrc}
-                  alt={cardName}
-                  style={{
-                    width: '100%',
-                    height: Math.round((POPOVER_W - 16) * (3 / 2)),
-                    objectFit: 'cover',
-                    display: 'block',
-                    borderRadius: 4,
-                  }}
-                  onError={() => setImgErrored(true)}
-                />
-              )}
-
-              {/* Soulbound lock badge */}
-              {isSoulbound && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: 6,
-                    right: 6,
-                    background: 'rgba(0,0,0,0.7)',
-                    borderRadius: 4,
-                    padding: '2px 5px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 3,
-                  }}
-                >
-                  <svg width="9" height="10" viewBox="0 0 9 10" fill="none">
-                    <rect x="1" y="4" width="7" height="6" rx="1" fill="#c9d1d9" />
-                    <path d="M2.5 4V3a2 2 0 0 1 4 0v1" stroke="#c9d1d9" strokeWidth="1.2" fill="none" />
-                  </svg>
-                  <span style={{ color: '#c9d1d9', fontSize: 9, fontWeight: 600 }}>Soulbound</span>
-                </div>
-              )}
-            </div>
-
-            {/* Info section */}
-            <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-              {/* Card name */}
-              <p
+              {/* X close button */}
+              <button
+                onClick={() => setModalOpen(false)}
                 style={{
-                  color: '#f0f6fc',
-                  fontWeight: 600,
-                  fontSize: '0.8rem',
-                  margin: 0,
-                  lineHeight: 1.3,
+                  position: 'absolute',
+                  top: 10,
+                  right: 10,
+                  zIndex: 1,
+                  background: 'rgba(0,0,0,0.6)',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: 28,
+                  height: 28,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  color: '#c9d1d9',
+                  fontSize: 16,
+                  lineHeight: 1,
                 }}
+                aria-label="Close"
               >
-                {cardName}
-              </p>
+                ×
+              </button>
 
-              {/* Tier badge */}
-              <span
-                style={{
-                  display: 'inline-block',
-                  background: tierCfg.pillBg,
-                  color: tierCfg.pillText,
-                  borderRadius: 5,
-                  padding: '2px 7px',
-                  fontSize: '0.7rem',
-                  fontWeight: 700,
-                  width: 'fit-content',
-                }}
-              >
-                {tier}-tier
-                {beginnerMode && (
-                  <span style={{ fontWeight: 400, marginLeft: 4, fontSize: '0.65rem' }}>
-                    {tier === 'S' && '— dominant'}
-                    {tier === 'A' && '— very strong'}
-                    {tier === 'B' && '— solid pick'}
-                    {tier === 'C' && '— situational'}
-                    {tier === 'D' && '— rarely used'}
-                  </span>
-                )}
-              </span>
-
-              {/* Role tag */}
-              {role && (
-                <div>
-                  <span
-                    style={{
-                      display: 'inline-block',
-                      background: '#21262d',
-                      border: '1px solid #30363d',
-                      color: '#c9d1d9',
-                      borderRadius: 5,
-                      padding: '2px 7px',
-                      fontSize: '0.7rem',
-                      fontWeight: 500,
-                    }}
-                  >
-                    {role}
-                  </span>
-                  {beginnerMode && roleDesc && (
-                    <p
-                      style={{
-                        color: '#8b949e',
-                        fontSize: '0.68rem',
-                        margin: '3px 0 0',
-                        lineHeight: 1.4,
-                      }}
-                    >
-                      {roleDesc}
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* Notes */}
-              {notes && (
-                <p
-                  style={{
-                    color: '#8b949e',
-                    fontSize: '0.72rem',
-                    margin: 0,
-                    lineHeight: 1.4,
-                  }}
-                >
-                  {notes}
-                </p>
-              )}
+              <CardImageSection width={320} />
+              <div style={{ padding: '14px 16px 16px', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <CardInfoBody />
+              </div>
             </div>
           </div>,
           document.body,
