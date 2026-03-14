@@ -87,8 +87,14 @@ function resolveEditionAndSlug(
   // Rebellion Soulbound
   if (e === 13) return { displayName: 'Rebellion',     cdnSlug: 'soulboundrb' }
 
-  // Conclave Arcana: editions 14 or 17
-  if (e === 14 || e === 17) return { displayName: 'Conclave Arcana', cdnSlug: 'conclave' }
+  // Conclave Arcana: editions 14 (any tier)
+  if (e === 14) return { displayName: 'Conclave Arcana', cdnSlug: 'conclave' }
+
+  // Conclave Arcana: editions 17, branched by tier
+  if (e === 17) {
+    if (t === 15) return null  // excluded cards
+    return { displayName: 'Conclave Arcana', cdnSlug: 'conclave' }
+  }
 
   // Conclave reward
   if (e === 18) return { displayName: 'Conclave Arcana', cdnSlug: 'reward' }
