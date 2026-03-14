@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { jwtVerify } from 'jose'
+import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/server'
 
 async function requireAdmin(): Promise<boolean> {
@@ -77,6 +78,18 @@ export async function POST(req: NextRequest) {
     if (insError) {
       return NextResponse.json({ error: insError.message }, { status: 500 })
     }
+  }
+
+  // Bust ISR cache for the affected public pages
+  const { data: cardSet } = await supabase
+    .from('card_sets')
+    .select('slug')
+    .eq('id', set_id)
+    .single()
+
+  if (cardSet?.slug) {
+    revalidatePath(`/tier-list/${cardSet.slug}`)
+    revalidatePath('/')
   }
 
   return NextResponse.json({ ok: true, saved: tieredEntries.length })
