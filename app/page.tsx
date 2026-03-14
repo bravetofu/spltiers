@@ -81,9 +81,6 @@ export default async function HomePage() {
           >
             Splinterlands tier lists
           </h1>
-          <p style={{ color: '#8b949e', fontSize: '1rem', margin: 0 }}>
-            Community rankings for every edition — updated by the admin after each meta shift.
-          </p>
         </div>
 
         {/* Modern format */}

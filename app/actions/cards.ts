@@ -39,7 +39,8 @@ function resolveEditionAndSlug(
 ): { displayName: string; cdnSlug: string } | null {
   // editions field can be a single number or comma-separated e.g. "0,1"
   const editionNums = editionsRaw.split(',').map((e) => parseInt(e.trim(), 10))
-  const t = tierValue ?? 0
+  // Normalise to number — the API sometimes returns tier as a string (e.g. "14")
+  const t = Number(tierValue ?? 0)
 
   // Alpha/Beta: editions 0, 1, or 0,1 (any tier)
   if (editionNums.every((e) => e === 0 || e === 1)) {
@@ -54,7 +55,7 @@ function resolveEditionAndSlug(
     if (t === 4)            return { displayName: 'Untamed',    cdnSlug: 'promo' }
     if (t === 7)            return { displayName: 'Chaos Legion', cdnSlug: 'promo' }
     if (t === 12)           return { displayName: 'Rebellion',  cdnSlug: 'promo' }
-    if (t === 14)           return { displayName: 'Conclave Arcana', cdnSlug: 'conclave' }
+    if (t === 14)           return { displayName: 'Conclave Arcana', cdnSlug: 'promo' }
   }
 
   // Reward (editions=3) — branched by tier
@@ -86,8 +87,14 @@ function resolveEditionAndSlug(
   // Rebellion Soulbound
   if (e === 13) return { displayName: 'Rebellion',     cdnSlug: 'soulboundrb' }
 
-  // Conclave Arcana: editions 14 or 17
-  if (e === 14 || e === 17) return { displayName: 'Conclave Arcana', cdnSlug: 'conclave' }
+  // Conclave Arcana: editions 14 (any tier)
+  if (e === 14) return { displayName: 'Conclave Arcana', cdnSlug: 'conclave' }
+
+  // Conclave Arcana: editions 17, branched by tier
+  if (e === 17) {
+    if (t === 15) return null  // excluded cards
+    return { displayName: 'Conclave Arcana', cdnSlug: 'conclave' }
+  }
 
   // Conclave reward
   if (e === 18) return { displayName: 'Conclave Arcana', cdnSlug: 'reward' }

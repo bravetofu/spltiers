@@ -1,47 +1,12 @@
 'use client'
 
 import Link from 'next/link'
-
-/**
- * Logo: italic "spltiers" in accent-red (#e63946)
- * followed immediately by a 5px gold (#ffd700) circle dot.
- */
-function Logo() {
-  return (
-    <Link href="/" className="nav-logo">
-      <span className="nav-logo-text">spltiers</span>
-      <span className="nav-logo-dot" />
-    </Link>
-  )
-}
+import Logo from '@/components/Logo'
 
 export default function Nav() {
   return (
     <>
       <style>{`
-        .nav-logo {
-          display: inline-flex;
-          align-items: flex-start;
-          text-decoration: none;
-          line-height: 1;
-        }
-        .nav-logo-text {
-          font-style: italic;
-          font-weight: 700;
-          font-size: 1.25rem;
-          color: #e63946;
-          letter-spacing: -0.02em;
-        }
-        .nav-logo-dot {
-          display: inline-block;
-          width: 5px;
-          height: 5px;
-          border-radius: 50%;
-          background: #ffd700;
-          margin-left: 2px;
-          margin-top: 4px;
-          flex-shrink: 0;
-        }
         .nav-link {
           color: var(--text-secondary);
           text-decoration: none;
@@ -75,7 +40,7 @@ export default function Nav() {
             margin: '0 auto',
           }}
         >
-          <Logo />
+          <Logo size="nav" />
           <div
             style={{
               display: 'flex',

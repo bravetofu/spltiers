@@ -218,7 +218,7 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
   // Read localStorage on mount
   useEffect(() => {
     try {
-      setBeginnerMode(localStorage.getItem('spltiers_beginner_mode') === 'true')
+      setBeginnerMode(localStorage.getItem('splintiers_beginner_mode') === 'true')
     } catch {
       // localStorage unavailable (SSR guard — shouldn't happen in useEffect but be safe)
     }
@@ -228,7 +228,7 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
     const next = !beginnerMode
     setBeginnerMode(next)
     try {
-      localStorage.setItem('spltiers_beginner_mode', String(next))
+      localStorage.setItem('splintiers_beginner_mode', String(next))
     } catch {
       // ignore
     }
