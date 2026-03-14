@@ -219,7 +219,7 @@ export default function CardHoverPopover({
           background: '#161b22',
           position: 'relative',
           flexShrink: 0,
-          padding: 8,
+          padding: '4px 8px',
           boxSizing: 'border-box',
         }}
       >
