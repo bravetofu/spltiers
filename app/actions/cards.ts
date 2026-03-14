@@ -93,6 +93,7 @@ function resolveEditionAndSlug(
   // Conclave Arcana: editions 17, branched by tier
   if (e === 17) {
     if (t === 15) return null  // excluded cards
+    if (t === 14) return { displayName: 'Conclave Arcana', cdnSlug: 'extra' }
     return { displayName: 'Conclave Arcana', cdnSlug: 'conclave' }
   }
 
