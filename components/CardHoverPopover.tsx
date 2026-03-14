@@ -62,8 +62,8 @@ export default function CardHoverPopover({
   const maxLevel = rarityMaxLevel(rarity)
   const imgSrc = `https://d36mxiodymuqjm.cloudfront.net/cards_by_level/${cdnSlug}/${encodeURIComponent(cardName)}_lv${maxLevel}.png`
 
-  const POPOVER_W = 170
-  const POPOVER_H = 340 // conservative estimate
+  const POPOVER_W = 220
+  const POPOVER_H = 390 // conservative estimate
 
   function handleMouseEnter() {
     if (!containerRef.current) return
@@ -127,23 +127,24 @@ export default function CardHoverPopover({
             <div
               style={{
                 width: POPOVER_W,
-                height: Math.round(POPOVER_W * (3 / 2)),
                 background: '#21262d',
                 position: 'relative',
                 flexShrink: 0,
+                padding: 8,
+                boxSizing: 'border-box',
               }}
             >
               {imgErrored ? (
                 <div
                   style={{
                     width: '100%',
-                    height: '100%',
+                    height: Math.round((POPOVER_W - 16) * (3 / 2)),
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                   }}
                 >
-                  <span style={{ color: '#484f58', fontSize: 11, textAlign: 'center', padding: 8 }}>
+                  <span style={{ color: '#484f58', fontSize: 11, textAlign: 'center' }}>
                     {cardName}
                   </span>
                 </div>
@@ -152,7 +153,13 @@ export default function CardHoverPopover({
                 <img
                   src={imgSrc}
                   alt={cardName}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                  style={{
+                    width: '100%',
+                    height: Math.round((POPOVER_W - 16) * (3 / 2)),
+                    objectFit: 'cover',
+                    display: 'block',
+                    borderRadius: 4,
+                  }}
                   onError={() => setImgErrored(true)}
                 />
               )}
@@ -182,7 +189,7 @@ export default function CardHoverPopover({
             </div>
 
             {/* Info section */}
-            <div style={{ padding: '0.6rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+            <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
               {/* Card name */}
               <p
                 style={{
