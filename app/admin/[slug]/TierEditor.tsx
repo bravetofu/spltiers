@@ -226,6 +226,7 @@ export default function TierEditor({ cardSet, allCards, existingEntries }: Props
     setCards((prev) =>
       prev.map((c) => (c.card_id === cardId ? { ...c, [field]: value } : c)),
     )
+    setDirty(true)
   }
 
   // ── Save ──────────────────────────────────────────────────────────────────────
