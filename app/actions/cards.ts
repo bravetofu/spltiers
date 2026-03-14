@@ -39,7 +39,8 @@ function resolveEditionAndSlug(
 ): { displayName: string; cdnSlug: string } | null {
   // editions field can be a single number or comma-separated e.g. "0,1"
   const editionNums = editionsRaw.split(',').map((e) => parseInt(e.trim(), 10))
-  const t = tierValue ?? 0
+  // Normalise to number — the API sometimes returns tier as a string (e.g. "14")
+  const t = Number(tierValue ?? 0)
 
   // Alpha/Beta: editions 0, 1, or 0,1 (any tier)
   if (editionNums.every((e) => e === 0 || e === 1)) {
