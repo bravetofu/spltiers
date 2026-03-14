@@ -51,9 +51,14 @@ Retrieve "editions" and "tier" values from https://api.splinterlands.io/cards/ge
   - Map edition to "Rebellion"
   - Map image URL slug to "/soulboundrb/"
 
-- "editions" = "14" or "17":
+- "editions" = "14":
   - Map edition to "Conclave Arcana"
   - Map image URL slug to "/conclave/"
+- "editions" = "17" AND tier = "14":
+  - Map edition to "Conclave Arcana"
+  - Map image URL slug to "/conclave/"
+- "editions" = "17" AND tier = "15":
+  - DO NOT MAP (exclude these cards)
 - "editions" = "2" AND "tier" = "14":
   - Map edition to "Conclave Arcana"
   - Map image URL slug to "/promo/"
