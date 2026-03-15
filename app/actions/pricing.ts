@@ -125,16 +125,25 @@ async function fetchGroupedRentListings(): Promise<SLGroupedRentListing[]> {
       'https://api2.splinterlands.com/market/for_rent_grouped',
       { next: { revalidate: 60 } },
     )
-    if (!res.ok) return []
-    const data = await res.json()
-    if (!Array.isArray(data)) return []
-    // DEBUG: log first listing for card 720 to confirm field names — remove once verified
-    const card720 = data.filter((l: SLGroupedRentListing) => l.card_detail_id === 720)
-    if (card720.length > 0) {
-      console.log('[rent debug grouped] card 720 first listing:', JSON.stringify(card720[0]))
+    console.log('[rent debug] for_rent_grouped status:', res.status, res.ok)
+    if (!res.ok) {
+      console.log('[rent debug] for_rent_grouped not ok, returning []')
+      return []
     }
+    const data = await res.json()
+    console.log('[rent debug] for_rent_grouped isArray:', Array.isArray(data), 'type:', typeof data)
+    if (!Array.isArray(data)) {
+      // Log top-level keys so we can find the right nested field
+      console.log('[rent debug] for_rent_grouped non-array keys:', data && typeof data === 'object' ? Object.keys(data) : data)
+      return []
+    }
+    console.log('[rent debug] for_rent_grouped length:', data.length, 'sample keys:', data.length > 0 ? Object.keys(data[0]) : [])
+    // Log first listing for card 720 to confirm field names
+    const card720 = data.filter((l: SLGroupedRentListing) => l.card_detail_id === 720)
+    console.log('[rent debug] card 720 matches in grouped:', card720.length, card720.length > 0 ? JSON.stringify(card720[0]) : '(none)')
     return data
-  } catch {
+  } catch (e) {
+    console.log('[rent debug] for_rent_grouped fetch error:', e)
     return []
   }
 }
