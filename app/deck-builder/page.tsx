@@ -9,6 +9,7 @@ import {
   fetchPrices,
   type BuyMethod,
   type CardInput,
+  type FoilType,
   type PricingResult,
 } from '@/app/actions/pricing'
 import { getEditionFormat } from '@/lib/editions'
@@ -29,6 +30,7 @@ type FullResult = CardInput & {
   buy_method: BuyMethod | null
   insufficient_supply: boolean
   is_outlier: boolean
+  foil_type: FoilType | null
 }
 
 const TIERS = ['S', 'A', 'B', 'C', 'D'] as const
@@ -328,6 +330,7 @@ export default function DeckBuilderPage() {
       buy_method: price?.buy_method ?? null,
       insufficient_supply: price?.insufficient_supply ?? false,
       is_outlier: price?.is_outlier ?? false,
+      foil_type: price?.foil_type ?? null,
     }
   })
 
@@ -733,23 +736,79 @@ export default function DeckBuilderPage() {
                           </span>
 
                           {/* Buy price + BCX sub-label */}
-                          <div>
-                            <div style={{ fontSize: '0.85rem', color: card.insufficient_supply ? '#f85149' : card.is_outlier ? '#f85149' : (card.buy_usd !== null ? 'var(--text-primary)' : 'var(--text-faint)'), fontVariantNumeric: 'tabular-nums' }}>
-                              {formatUsd(card.buy_usd)}
-                            </div>
-                            {card.insufficient_supply ? (
-                              <div
-                                title="Not enough cards on the market to reach this level. Showing maximum achievable BCX."
-                                style={{ fontSize: '0.62rem', color: '#f85149', marginTop: 1, whiteSpace: 'nowrap', cursor: 'help' }}
-                              >
-                                {card.buy_bcx} / {card.buy_target_bcx} BCX available
+                          {(() => {
+                            const foil = card.foil_type
+                            const isOutlier = card.is_outlier
+
+                            // Cell container styling — foil colour coding; outlier red takes precedence
+                            let cellStyle: React.CSSProperties = {}
+                            let cellTitle: string | undefined
+                            if (!isOutlier && !card.insufficient_supply) {
+                              if (foil === 'gold' || foil === 'arcane') {
+                                cellStyle = { background: '#2a2200', borderLeft: '3px solid #ffd700', paddingLeft: 6 }
+                                cellTitle = 'Cheapest option is a gold foil card — stats and BCX requirements differ from regular foil'
+                              } else if (foil === 'black') {
+                                cellStyle = { background: '#0a1a0a', borderLeft: '3px solid #2ecc71', paddingLeft: 6 }
+                                cellTitle = 'Cheapest option is a black foil card — already at max level, no combining needed'
+                              }
+                            }
+
+                            // Price text colour
+                            const priceColor =
+                              card.insufficient_supply || isOutlier ? '#f85149'
+                              : foil === 'gold' || foil === 'arcane' ? '#ffd700'
+                              : foil === 'black' ? '#2ecc71'
+                              : card.buy_usd !== null ? 'var(--text-primary)' : 'var(--text-faint)'
+
+                            // Sub-label
+                            let subLabel: React.ReactNode = null
+                            if (card.insufficient_supply) {
+                              subLabel = (
+                                <div
+                                  title="Not enough cards on the market to reach this level. Showing maximum achievable BCX."
+                                  style={{ fontSize: '0.62rem', color: '#f85149', marginTop: 1, whiteSpace: 'nowrap', cursor: 'help' }}
+                                >
+                                  {card.buy_bcx} / {card.buy_target_bcx} BCX available
+                                </div>
+                              )
+                            } else if (foil === 'arcane') {
+                              subLabel = (
+                                <div style={{ fontSize: '0.62rem', color: isOutlier ? 'rgba(255,215,0,0.5)' : '#ffd700', marginTop: 1, whiteSpace: 'nowrap' }}>
+                                  ✦ gold foil arcane
+                                </div>
+                              )
+                            } else if (foil === 'black') {
+                              subLabel = (
+                                <div style={{ fontSize: '0.62rem', color: isOutlier ? 'rgba(46,204,113,0.5)' : '#2ecc71', marginTop: 1, whiteSpace: 'nowrap' }}>
+                                  ◆ black foil
+                                </div>
+                              )
+                            } else if (foil === 'gold') {
+                              const goldLabel = card.buy_target_bcx !== null
+                                ? `${card.buy_target_bcx} BCX · ✦ gold foil`
+                                : '✦ gold foil'
+                              subLabel = (
+                                <div style={{ fontSize: '0.62rem', color: isOutlier ? 'rgba(255,215,0,0.5)' : '#ffd700', marginTop: 1, whiteSpace: 'nowrap' }}>
+                                  {goldLabel}
+                                </div>
+                              )
+                            } else if (card.buy_target_bcx !== null && card.buy_method !== null) {
+                              subLabel = (
+                                <div style={{ fontSize: '0.62rem', color: 'var(--text-faint)', marginTop: 1, whiteSpace: 'nowrap' }}>
+                                  {card.buy_target_bcx} BCX · {card.buy_method}
+                                </div>
+                              )
+                            }
+
+                            return (
+                              <div style={cellStyle} title={cellTitle}>
+                                <div style={{ fontSize: '0.85rem', color: priceColor, fontVariantNumeric: 'tabular-nums' }}>
+                                  {formatUsd(card.buy_usd)}
+                                </div>
+                                {subLabel}
                               </div>
-                            ) : card.buy_target_bcx !== null && card.buy_method !== null ? (
-                              <div style={{ fontSize: '0.62rem', color: 'var(--text-faint)', marginTop: 1, whiteSpace: 'nowrap' }}>
-                                {card.buy_target_bcx} BCX · {card.buy_method}
-                              </div>
-                            ) : null}
-                          </div>
+                            )
+                          })()}
                         </div>
                       ))}
 

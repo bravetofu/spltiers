@@ -24,6 +24,25 @@ const STANDARD_BCX: Record<number, number[]> = {
   4: [1, 3, 6, 11],                                // Legendary (levels 1-4)
 }
 
+// BCX thresholds for Alpha/Beta GOLD FOIL cards (foil === 1, editions 0 or 1)
+// Note: gold foil cards start at a higher base level — levels showing 0 BCX
+// mean that level is achievable with a single 1-BCX gold foil card
+const ALPHA_BETA_GOLD_BCX: Record<number, number[]> = {
+  1: [0, 0, 0, 1, 2, 4, 8, 13, 23, 38],  // Common (levels 1-10)
+  2: [0, 0, 1, 2, 4, 7, 12, 22],          // Rare (levels 1-8)
+  3: [0, 0, 1, 3, 5, 10],                 // Epic (levels 1-6)
+  4: [0, 1, 2, 4],                        // Legendary (levels 1-4)
+}
+
+// BCX thresholds for Standard (Untamed+) GOLD FOIL cards (foil === 1, editions 4+)
+// Note: same as above — levels showing 0 BCX are achievable with 1 BCX
+const STANDARD_GOLD_BCX: Record<number, number[]> = {
+  1: [0, 0, 1, 2, 5, 9, 14, 20, 27, 38],  // Common (levels 1-10)
+  2: [0, 1, 2, 4, 7, 11, 16, 22],          // Rare (levels 1-8)
+  3: [0, 1, 2, 4, 7, 10],                  // Epic (levels 1-6)
+  4: [0, 1, 2, 4],                         // Legendary (levels 1-4)
+}
+
 // A card is flagged as an outlier if its price_per_bcx exceeds the 75th percentile
 // price_per_bcx for its rarity group by more than this multiplier.
 // Byzantine Kitty (~8x 75th percentile) should NOT be flagged.
@@ -42,6 +61,9 @@ export type CardInput = {
 
 export type BuyMethod = 'pre-combined' | 'buy & combine'
 
+// Which foil type provided the cheapest buy price for a card
+export type FoilType = 'regular' | 'gold' | 'arcane' | 'black'
+
 export type CardPrice = {
   card_id: number
   buy_usd: number | null          // null if no listings exist at all
@@ -50,6 +72,7 @@ export type CardPrice = {
   buy_method: BuyMethod | null
   insufficient_supply: boolean    // true if buy_bcx < buy_target_bcx
   is_outlier: boolean             // true if price_per_bcx > p75 * OUTLIER_THRESHOLD for rarity group
+  foil_type: FoilType | null      // which foil type gave the cheapest price; null if no listings
 }
 
 export type PricingResult = {
@@ -61,19 +84,29 @@ type SLSaleListing = {
   level: number
   buy_price: string | number  // USD
   bcx: number
+  foil?: number               // 0=regular, 1=gold, 2=arcane, 3/4=black foil; undefined treated as 0
 }
 
-/** Look up how many BCX are required to reach targetLevel for this card. */
+/** Look up how many BCX are required to reach targetLevel for this card (regular foil). */
 function getTargetBcx(card: CardInput, targetLevel: number): number {
   const table = card.edition === 'Alpha/Beta' ? ALPHA_BETA_BCX : STANDARD_BCX
   return table[card.rarity]?.[targetLevel - 1] ?? 1
 }
 
+/**
+ * Look up how many BCX are required to reach targetLevel for gold foil.
+ * Returns 0 if a single 1-BCX gold foil card already reaches that level.
+ */
+function getTargetBcxGold(card: CardInput, targetLevel: number): number {
+  const table = card.edition === 'Alpha/Beta' ? ALPHA_BETA_GOLD_BCX : STANDARD_GOLD_BCX
+  return table[card.rarity]?.[targetLevel - 1] ?? 0
+}
+
 // Market API calls are never cached — prices must always be live
-async function fetchSaleListings(cardId: number): Promise<SLSaleListing[]> {
+async function fetchSaleListings(cardId: number, gold: boolean): Promise<SLSaleListing[]> {
   try {
     const res = await fetch(
-      `https://api2.splinterlands.com/market/for_sale_by_card?card_detail_id=${cardId}&gold=false`,
+      `https://api2.splinterlands.com/market/for_sale_by_card?card_detail_id=${cardId}&gold=${gold}`,
       { cache: 'no-store' },
     )
     if (!res.ok) return []
@@ -152,19 +185,133 @@ function computeBuyUsd(
     : { usd: bestBCost, bcx: targetBcx, method: 'buy & combine', insufficient_supply: false }
 }
 
-async function priceOneCard(card: CardInput, targetLevel: number): Promise<CardPrice> {
-  const targetBcx = getTargetBcx(card, targetLevel)
-  const listings = await fetchSaleListings(card.card_id)
-  const result = computeBuyUsd(listings, targetLevel, targetBcx)
+/**
+ * Find the cheapest pre-combined listing at or above targetLevel.
+ * Used for arcane gold foil (foil === 2) and black foil (foil === 3/4), which are
+ * already at max level and do not support BCX combining.
+ */
+function computePreCombinedOnly(listings: SLSaleListing[], targetLevel: number): number | null {
+  const valid = listings.filter(
+    (l) => l.level >= targetLevel && !isNaN(parseFloat(String(l.buy_price))),
+  )
+  if (valid.length === 0) return null
+  return Math.min(...valid.map((l) => parseFloat(String(l.buy_price))))
+}
 
+async function priceOneCard(card: CardInput, targetLevel: number): Promise<CardPrice> {
+  const [regularRaw, goldRaw] = await Promise.all([
+    fetchSaleListings(card.card_id, false),
+    fetchSaleListings(card.card_id, true),
+  ])
+
+  // Split by foil field value
+  const regularListings = regularRaw.filter((l) => (l.foil ?? 0) === 0)
+  const goldListings    = goldRaw.filter((l) => (l.foil ?? 0) === 1)
+  const arcaneListings  = goldRaw.filter((l) => (l.foil ?? 0) === 2)
+  const blackListings   = regularRaw.filter((l) => { const f = l.foil ?? 0; return f === 3 || f === 4 })
+
+  // Regular foil (foil === 0): full Option A / B BCX logic
+  const regularTargetBcx = getTargetBcx(card, targetLevel)
+  const regularResult = computeBuyUsd(regularListings, targetLevel, regularTargetBcx)
+
+  // Gold foil (foil === 1): full Option A / B BCX logic with gold BCX table
+  const goldTargetBcx = getTargetBcxGold(card, targetLevel)
+  let goldResult: { usd: number; bcx: number; method: BuyMethod; insufficient_supply: boolean } | null = null
+  if (goldListings.length > 0) {
+    if (goldTargetBcx === 0) {
+      // A single 1-BCX gold foil card already reaches this level — find cheapest listing
+      const prices = goldListings
+        .map((l) => parseFloat(String(l.buy_price)))
+        .filter((p) => !isNaN(p))
+      if (prices.length > 0) {
+        goldResult = { usd: Math.min(...prices), bcx: 1, method: 'pre-combined', insufficient_supply: false }
+      }
+    } else {
+      goldResult = computeBuyUsd(goldListings, targetLevel, goldTargetBcx)
+    }
+  }
+
+  // Arcane gold foil (foil === 2): pre-combined only — already at max level
+  const arcaneUsd = computePreCombinedOnly(arcaneListings, targetLevel)
+
+  // Black foil (foil === 3 or 4): pre-combined only — already at max level
+  const blackUsd = computePreCombinedOnly(blackListings, targetLevel)
+
+  // Collect all complete (non-insufficient-supply) options and pick the cheapest
+  type CompleteOption = {
+    usd: number
+    foil: FoilType
+    bcx: number | null
+    target_bcx: number | null
+    method: BuyMethod | null
+  }
+  const complete: CompleteOption[] = []
+
+  if (regularResult && !regularResult.insufficient_supply) {
+    complete.push({
+      usd: regularResult.usd,
+      foil: 'regular',
+      bcx: regularResult.bcx,
+      target_bcx: regularTargetBcx,
+      method: regularResult.method,
+    })
+  }
+  if (goldResult && !goldResult.insufficient_supply) {
+    // When goldTargetBcx === 0, a single card reaches the level — no BCX count to show
+    const showBcx = goldTargetBcx > 0
+    complete.push({
+      usd: goldResult.usd,
+      foil: 'gold',
+      bcx: showBcx ? goldResult.bcx : null,
+      target_bcx: showBcx ? goldTargetBcx : null,
+      method: showBcx ? goldResult.method : null,
+    })
+  }
+  if (arcaneUsd !== null) {
+    complete.push({ usd: arcaneUsd, foil: 'arcane', bcx: null, target_bcx: null, method: null })
+  }
+  if (blackUsd !== null) {
+    complete.push({ usd: blackUsd, foil: 'black', bcx: null, target_bcx: null, method: null })
+  }
+
+  if (complete.length > 0) {
+    const best = complete.reduce((a, b) => a.usd <= b.usd ? a : b)
+    return {
+      card_id: card.card_id,
+      buy_usd: best.usd,
+      buy_bcx: best.bcx,
+      buy_target_bcx: best.target_bcx,
+      buy_method: best.method,
+      insufficient_supply: false,
+      is_outlier: false, // computed by flagOutliers() after all prices are known
+      foil_type: best.foil,
+    }
+  }
+
+  // No complete options — fall back to regular foil insufficient supply result
+  if (regularResult) {
+    return {
+      card_id: card.card_id,
+      buy_usd: regularResult.usd,
+      buy_bcx: regularResult.bcx,
+      buy_target_bcx: regularTargetBcx,
+      buy_method: regularResult.method,
+      insufficient_supply: regularResult.insufficient_supply,
+      is_outlier: false,
+      foil_type: 'regular',
+    }
+  }
+
+  // No listings at all
   return {
     card_id: card.card_id,
-    buy_usd: result?.usd ?? null,
-    buy_bcx: result?.bcx ?? null,
-    buy_target_bcx: targetBcx,
-    buy_method: result?.method ?? null,
-    insufficient_supply: result?.insufficient_supply ?? false,
-    is_outlier: false, // computed by flagOutliers() after all prices are known
+    buy_usd: null,
+    buy_bcx: null,
+    buy_target_bcx: regularTargetBcx,
+    buy_method: null,
+    insufficient_supply: false,
+    is_outlier: false,
+    foil_type: null,
   }
 }
 
