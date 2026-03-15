@@ -39,11 +39,6 @@ export type CardInput = {
 
 export type BuyMethod = 'pre-combined' | 'buy & combine'
 
-// 'ok'         — listing exists at exactly targetLevel (or cheaper one at targetLevel chosen)
-// 'above_only' — no listing at targetLevel, cheapest is at a higher level (overpaying)
-// 'below_only' — no listing at or above targetLevel, showing best available below (underlevelled)
-export type RentStatus = 'ok' | 'above_only' | 'below_only'
-
 export type CardPrice = {
   card_id: number
   buy_usd: number | null          // null if no listings exist at all
@@ -52,14 +47,10 @@ export type CardPrice = {
   buy_method: BuyMethod | null
   insufficient_supply: boolean    // true if buy_bcx < buy_target_bcx
   is_outlier: boolean             // true if price_per_bcx > median * OUTLIER_THRESHOLD for rarity group
-  rent_day_usd: number | null
-  rent_status: RentStatus | null  // null if no listings at all
-  rent_actual_level: number | null
 }
 
 export type PricingResult = {
   prices: CardPrice[]
-  dec_usd_rate: number
   fetched_at: string
 }
 
@@ -69,27 +60,10 @@ type SLSaleListing = {
   bcx: number
 }
 
-// Shape of a single entry in the for_rent_grouped response.
-// low_price is the cheapest DEC/day rate for that card+level+gold combination.
-type SLGroupedRentListing = {
-  card_detail_id: number
-  level: number
-  gold: boolean
-  low_price: string | number    // DEC per day — confirmed field name from API
-}
-
-async function fetchDecRate(): Promise<number> {
-  try {
-    const res = await fetch(
-      'https://api.coingecko.com/api/v3/simple/price?ids=dark-energy-crystals&vs_currencies=usd',
-      { next: { revalidate: 60 } },
-    )
-    if (!res.ok) return 0
-    const data = await res.json()
-    return data['dark-energy-crystals']?.usd ?? 0
-  } catch {
-    return 0
-  }
+/** Look up how many BCX are required to reach targetLevel for this card. */
+function getTargetBcx(card: CardInput, targetLevel: number): number {
+  const table = card.edition === 'Alpha/Beta' ? ALPHA_BETA_BCX : STANDARD_BCX
+  return table[card.rarity]?.[targetLevel - 1] ?? 1
 }
 
 // Market API calls are never cached — prices must always be live
@@ -105,40 +79,6 @@ async function fetchSaleListings(cardId: number): Promise<SLSaleListing[]> {
   } catch {
     return []
   }
-}
-
-/**
- * Fetch all non-gold rental listings from the grouped endpoint once.
- * Cached for 60 seconds — one call serves all cards in a pricing run.
- */
-async function fetchGroupedRentListings(): Promise<SLGroupedRentListing[]> {
-  try {
-    const res = await fetch(
-      'https://api2.splinterlands.com/market/for_rent_grouped',
-      { next: { revalidate: 60 } },
-    )
-    if (!res.ok) return []
-    const data = await res.json()
-    if (!Array.isArray(data)) return []
-    // Only non-gold cards; low_price is DEC/day
-    return (data as SLGroupedRentListing[]).filter((l) => l.gold === false)
-  } catch {
-    return []
-  }
-}
-
-/** Return grouped rent listings for a single card (already gold-filtered). */
-function rentListingsForCard(
-  grouped: SLGroupedRentListing[],
-  cardId: number,
-): SLGroupedRentListing[] {
-  return grouped.filter((l) => l.card_detail_id === cardId)
-}
-
-/** Look up how many BCX are required to reach targetLevel for this card. */
-function getTargetBcx(card: CardInput, targetLevel: number): number {
-  const table = card.edition === 'Alpha/Beta' ? ALPHA_BETA_BCX : STANDARD_BCX
-  return table[card.rarity]?.[targetLevel - 1] ?? 1
 }
 
 /**
@@ -209,81 +149,19 @@ function computeBuyUsd(
     : { usd: bestBCost, bcx: targetBcx, method: 'buy & combine', insufficient_supply: false }
 }
 
-/** Extract the DEC/day price from a grouped rental listing. */
-function rentListingDec(l: SLGroupedRentListing): number {
-  return parseFloat(String(l.low_price ?? ''))
-}
-
-/**
- * Determine the cheapest rent price and status for a card at targetLevel.
- *
- * Case 1 — 'ok':         listing at exactly targetLevel exists; cheapest of all >= target.
- * Case 2 — 'above_only': no listing at targetLevel, but listings exist above it;
- *                         cheapest of all > target (may be overpaying).
- * Case 3 — 'below_only': no listing at or above targetLevel; cheapest at the highest
- *                         available level below target (card is underlevelled).
- * Case 4 — null:         no listings at all.
- *
- * Daily DEC price is converted to USD via decRate.
- * Returns null usd (but keeps status) if decRate is unavailable.
- */
-function computeRentResult(
-  listings: SLGroupedRentListing[],
-  targetLevel: number,
-  decRate: number,
-): { usd: number | null; status: RentStatus; actual_level: number } | null {
-  const valid = listings.filter((l) => l.level > 0 && !isNaN(rentListingDec(l)) && rentListingDec(l) > 0)
-  if (valid.length === 0) return null
-
-  const toUsd = (dec: number) => decRate > 0 ? dec * decRate : null
-
-  // Cases 1 & 2: any listing at or above target
-  const atOrAbove = valid.filter((l) => l.level >= targetLevel)
-  if (atOrAbove.length > 0) {
-    const cheapest = atOrAbove.reduce((best, l) => rentListingDec(l) < rentListingDec(best) ? l : best)
-    const hasExact = atOrAbove.some((l) => l.level === targetLevel)
-    return {
-      usd: toUsd(rentListingDec(cheapest)),
-      status: hasExact ? 'ok' : 'above_only',
-      actual_level: cheapest.level,
-    }
-  }
-
-  // Case 3: only listings below target — use highest available level, cheapest at that level
-  const maxLevel = Math.max(...valid.map((l) => l.level))
-  const atMax = valid.filter((l) => l.level === maxLevel)
-  const cheapest = atMax.reduce((best, l) => rentListingDec(l) < rentListingDec(best) ? l : best)
-  return {
-    usd: toUsd(rentListingDec(cheapest)),
-    status: 'below_only',
-    actual_level: maxLevel,
-  }
-}
-
-async function priceOneCard(
-  card: CardInput,
-  targetLevel: number,
-  decRate: number,
-  groupedRentListings: SLGroupedRentListing[],
-): Promise<CardPrice> {
+async function priceOneCard(card: CardInput, targetLevel: number): Promise<CardPrice> {
   const targetBcx = getTargetBcx(card, targetLevel)
-  const buyListings = await fetchSaleListings(card.card_id)
-  const rentListings = rentListingsForCard(groupedRentListings, card.card_id)
-
-  const buyResult = computeBuyUsd(buyListings, targetLevel, targetBcx)
-  const rentResult = computeRentResult(rentListings, targetLevel, decRate)
+  const listings = await fetchSaleListings(card.card_id)
+  const result = computeBuyUsd(listings, targetLevel, targetBcx)
 
   return {
     card_id: card.card_id,
-    buy_usd: buyResult?.usd ?? null,
-    buy_bcx: buyResult?.bcx ?? null,
+    buy_usd: result?.usd ?? null,
+    buy_bcx: result?.bcx ?? null,
     buy_target_bcx: targetBcx,
-    buy_method: buyResult?.method ?? null,
-    insufficient_supply: buyResult?.insufficient_supply ?? false,
+    buy_method: result?.method ?? null,
+    insufficient_supply: result?.insufficient_supply ?? false,
     is_outlier: false, // computed by flagOutliers() after all prices are known
-    rent_day_usd: rentResult?.usd ?? null,
-    rent_status: rentResult?.status ?? null,
-    rent_actual_level: rentResult?.actual_level ?? null,
   }
 }
 
@@ -328,19 +206,13 @@ function flagOutliers(prices: CardPrice[], cards: CardInput[]): void {
 }
 
 /**
- * Fetch live buy and rent prices for a list of cards at the given league.
+ * Fetch live buy prices for a list of cards at the given league.
  * Each card's target level is derived from LEAGUE_LEVEL_CAPS[league][card.rarity].
  * Runs up to 20 cards concurrently to avoid overwhelming the SL API.
- * Market calls are never cached; DEC rate revalidates every 60s.
+ * Market calls are never cached.
  * Outlier detection runs on the full result set after all prices are fetched.
  */
 export async function fetchPrices(cards: CardInput[], league: string): Promise<PricingResult> {
-  // Fetch DEC rate and grouped rent listings concurrently — both are shared across all cards
-  const [decRate, groupedRentListings] = await Promise.all([
-    fetchDecRate(),
-    fetchGroupedRentListings(),
-  ])
-
   const CHUNK = 20
   const prices: CardPrice[] = []
   for (let i = 0; i < cards.length; i += CHUNK) {
@@ -348,7 +220,7 @@ export async function fetchPrices(cards: CardInput[], league: string): Promise<P
     const chunkPrices = await Promise.all(
       chunk.map((c) => {
         const targetLevel = LEAGUE_LEVEL_CAPS[league]?.[c.rarity] ?? 1
-        return priceOneCard(c, targetLevel, decRate, groupedRentListings)
+        return priceOneCard(c, targetLevel)
       }),
     )
     prices.push(...chunkPrices)
@@ -359,7 +231,6 @@ export async function fetchPrices(cards: CardInput[], league: string): Promise<P
 
   return {
     prices,
-    dec_usd_rate: decRate,
     fetched_at: new Date().toISOString(),
   }
 }
