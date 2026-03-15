@@ -17,6 +17,9 @@ export default function Nav() {
         .nav-link:hover {
           color: var(--text-primary);
         }
+        @media (max-width: 400px) {
+          .nav-links { display: none; }
+        }
       `}</style>
       <nav
         style={{
@@ -42,6 +45,7 @@ export default function Nav() {
         >
           <Logo size="nav" />
           <div
+            className="nav-links"
             style={{
               display: 'flex',
               alignItems: 'center',
