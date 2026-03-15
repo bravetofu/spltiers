@@ -60,7 +60,7 @@ export default function CardHoverPopover({
     if (x + POPOVER_W > window.innerWidth - 8) {
       x = rect.left - POPOVER_W - 10
     }
-    let y = rect.top
+    let y = rect.top - 25
     if (y + POPOVER_H > window.innerHeight - 8) {
       y = window.innerHeight - POPOVER_H - 8
     }
