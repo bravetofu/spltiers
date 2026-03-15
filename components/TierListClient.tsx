@@ -335,7 +335,10 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
         </div>
 
         {/* Rarity filter bar */}
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: '1rem' }}>
+          <span style={{ fontSize: 11, fontWeight: 500, color: '#8b949e', textTransform: 'uppercase', letterSpacing: '0.5px', flexShrink: 0 }}>
+            Filter:
+          </span>
           {RARITIES.map(({ value, label, color }) => {
             const active = activeRarities.has(value)
             return (
