@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import Nav from '@/components/Nav'
 import CardThumb from '@/components/CardThumb'
 import { createClient } from '@/lib/supabase/client'
@@ -11,6 +11,7 @@ import {
   type CardInput,
   type PricingResult,
 } from '@/app/actions/pricing'
+import { getEditionFormat } from '@/lib/editions'
 
 type TierEntry = {
   card_id: number
@@ -124,10 +125,113 @@ const LABEL_STYLE = {
   fontWeight: 500,
 }
 
+const FORMAT_ROW_LABEL: React.CSSProperties = {
+  fontSize: 11,
+  fontWeight: 500,
+  color: '#8b949e',
+  textTransform: 'uppercase',
+  letterSpacing: '0.5px',
+  flexShrink: 0,
+  width: 52,
+}
+
+function EditionChip({
+  edition,
+  active,
+  onToggle,
+}: {
+  edition: string
+  active: boolean
+  onToggle: () => void
+}) {
+  return (
+    <button
+      className="chip-btn"
+      onClick={onToggle}
+      style={{
+        padding: '4px 12px',
+        borderRadius: 6,
+        border: active ? '1px solid #1f6feb' : '1px solid var(--border-default)',
+        background: active ? '#1c3a5e' : 'var(--bg-tertiary)',
+        color: active ? '#79b8f2' : 'var(--text-secondary)',
+        fontSize: '0.8rem',
+        cursor: 'pointer',
+        fontWeight: active ? 600 : 400,
+      }}
+    >
+      {edition}
+    </button>
+  )
+}
+
+function AllNoneToggle({
+  editions,
+  selectedEditions,
+  setSelectedEditions,
+}: {
+  editions: string[]
+  selectedEditions: Set<string>
+  setSelectedEditions: React.Dispatch<React.SetStateAction<Set<string>>>
+}) {
+  const btnStyle: React.CSSProperties = {
+    background: 'none',
+    border: 'none',
+    padding: 0,
+    fontSize: 11,
+    color: '#8b949e',
+    cursor: 'pointer',
+    fontWeight: 500,
+  }
+  return (
+    <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, marginLeft: 4 }}>
+      <button style={btnStyle} onClick={() => setSelectedEditions((prev) => { const next = new Set(prev); editions.forEach((e) => next.add(e)); return next })}>All</button>
+      <span style={{ color: '#484f58', fontSize: 11 }}>·</span>
+      <button style={btnStyle} onClick={() => setSelectedEditions((prev) => { const next = new Set(prev); editions.forEach((e) => next.delete(e)); return next })}>None</button>
+    </span>
+  )
+}
+
+function EditionGroups({
+  availableEditions,
+  selectedEditions,
+  toggleEdition,
+  setSelectedEditions,
+}: {
+  availableEditions: string[]
+  selectedEditions: Set<string>
+  toggleEdition: (e: string) => void
+  setSelectedEditions: React.Dispatch<React.SetStateAction<Set<string>>>
+}) {
+  const modernEditions = availableEditions.filter((e) => getEditionFormat(e) === 'modern')
+  const wildEditions   = availableEditions.filter((e) => getEditionFormat(e) === 'wild')
+  const otherEditions  = availableEditions.filter((e) => getEditionFormat(e) === 'other')
+
+  const groups = [
+    { label: 'Modern', editions: modernEditions },
+    { label: 'Wild',   editions: wildEditions },
+    ...(otherEditions.length > 0 ? [{ label: 'Other', editions: otherEditions }] : []),
+  ].filter((g) => g.editions.length > 0)
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {groups.map(({ label, editions }) => (
+        <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={FORMAT_ROW_LABEL}>{label}</span>
+          {editions.map((edition) => (
+            <EditionChip key={edition} edition={edition} active={selectedEditions.has(edition)} onToggle={() => toggleEdition(edition)} />
+          ))}
+          <AllNoneToggle editions={editions} selectedEditions={selectedEditions} setSelectedEditions={setSelectedEditions} />
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function DeckBuilderPage() {
   const [entries, setEntries] = useState<TierEntry[]>([])
   const [loadingEntries, setLoadingEntries] = useState(true)
   const [selectedEditions, setSelectedEditions] = useState<Set<string>>(new Set())
+  const editionsInitialized = useRef(false)
   const [selectedTiers, setSelectedTiers] = useState<Set<string>>(new Set(['S', 'A']))
   const [selectedLeague, setSelectedLeague] = useState<League>('diamond')
   const [isPending, startTransition] = useTransition()
@@ -147,8 +251,14 @@ export default function DeckBuilderPage() {
       .eq('is_soulbound', false)
       .not('tier', 'is', null)
       .then(({ data }) => {
-        setEntries((data as TierEntry[]) ?? [])
+        const rows = (data as TierEntry[]) ?? []
+        setEntries(rows)
         setLoadingEntries(false)
+        // Select all editions on first load
+        if (!editionsInitialized.current) {
+          editionsInitialized.current = true
+          setSelectedEditions(new Set(rows.map((e) => e.edition)))
+        }
       })
   }, [])
 
@@ -282,36 +392,22 @@ export default function DeckBuilderPage() {
             <div style={{ marginBottom: '1rem' }}>
               <div style={LABEL_STYLE}>Editions</div>
               {loadingEntries ? (
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {[100, 120, 90, 110, 80].map((w, i) => (
-                    <div key={i} style={{ height: 28, width: w, background: '#21262d', borderRadius: 6, animation: 'pulse 1.5s ease-in-out infinite' }} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {[0, 1].map((row) => (
+                    <div key={row} style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      {[80, 100, 120, 90].map((w, i) => (
+                        <div key={i} style={{ height: 28, width: w, background: '#21262d', borderRadius: 6, animation: 'pulse 1.5s ease-in-out infinite' }} />
+                      ))}
+                    </div>
                   ))}
                 </div>
               ) : (
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {availableEditions.map((edition) => {
-                    const active = selectedEditions.has(edition)
-                    return (
-                      <button
-                        key={edition}
-                        className="chip-btn"
-                        onClick={() => toggleEdition(edition)}
-                        style={{
-                          padding: '4px 12px',
-                          borderRadius: 6,
-                          border: active ? '1px solid #1f6feb' : '1px solid var(--border-default)',
-                          background: active ? '#1c3a5e' : 'var(--bg-tertiary)',
-                          color: active ? '#79b8f2' : 'var(--text-secondary)',
-                          fontSize: '0.8rem',
-                          cursor: 'pointer',
-                          fontWeight: active ? 600 : 400,
-                        }}
-                      >
-                        {edition}
-                      </button>
-                    )
-                  })}
-                </div>
+                <EditionGroups
+                  availableEditions={availableEditions}
+                  selectedEditions={selectedEditions}
+                  toggleEdition={toggleEdition}
+                  setSelectedEditions={setSelectedEditions}
+                />
               )}
             </div>
 
