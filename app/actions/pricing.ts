@@ -148,20 +148,26 @@ function computeBuyUsd(
     bestA = Math.min(...atOrAbove.map((l) => parseFloat(String(l.buy_price))))
   }
 
-  // Option B: greedily accumulate cheapest-per-BCX listings
-  const sorted = valid
-    .slice()
-    .sort(
-      (a, b) =>
-        parseFloat(String(a.buy_price)) / a.bcx -
-        parseFloat(String(b.buy_price)) / b.bcx,
-    )
+  // Option B: adaptive greedy accumulation.
+  // At each step, pick the listing that minimises price / min(bcx, needed).
+  // This prevents cheap-per-BCX multi-BCX listings from being preferred when
+  // they would overshoot — e.g. a 36-BCX card at $5.11 is $0.14/BCX but costs
+  // $5.11/needed when you only need a few more BCX, far more than a $0.15 single.
+  const pool = valid.map((l) => ({ usd: parseFloat(String(l.buy_price)), bcx: l.bcx }))
   let totalUsd = 0
   let totalBcx = 0
-  for (const l of sorted) {
-    if (totalBcx >= targetBcx) break
-    totalUsd += parseFloat(String(l.buy_price))
-    totalBcx += l.bcx
+
+  while (totalBcx < targetBcx && pool.length > 0) {
+    const needed = targetBcx - totalBcx
+    let bestIdx = 0
+    let bestEff = pool[0].usd / Math.min(pool[0].bcx, needed)
+    for (let i = 1; i < pool.length; i++) {
+      const eff = pool[i].usd / Math.min(pool[i].bcx, needed)
+      if (eff < bestEff) { bestEff = eff; bestIdx = i }
+    }
+    const [chosen] = pool.splice(bestIdx, 1)
+    totalUsd += chosen.usd
+    totalBcx += chosen.bcx
   }
   const bSucceeded = totalBcx >= targetBcx
 
