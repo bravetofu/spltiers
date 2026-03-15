@@ -231,7 +231,8 @@ create policy "public read tier_entries" on tier_entries for select using (true)
 | Data | Endpoint |
 |---|---|
 | Card details (name, rarity, editions, tier) | `GET https://api.splinterlands.io/cards/get_details` |
-| Market buy listings | `GET https://api2.splinterlands.com/market/for_sale_by_card?card_detail_id={id}&gold=false` |
+| Market buy listings — regular + black foil | `GET https://api2.splinterlands.com/market/for_sale_by_card?card_detail_id={id}&gold=false` |
+| Market buy listings — gold + arcane foil | `GET https://api2.splinterlands.com/market/for_sale_by_card?card_detail_id={id}&gold=true` |
 | Rental listings (grouped) | `GET https://api2.splinterlands.com/market/for_rent_grouped` — see docs/rent-pricing-notes.md |
 
 Cache card details with Next.js `fetch` caching (revalidate: 3600).
@@ -277,6 +278,69 @@ Buy listings: no-store (always live). Grouped rent listings: revalidate 60s.
 - Soulbound cards excluded entirely
 - Supply warnings and price outlier detection with exclusion filter chips
 - `/pricing` and `/deck-cost` redirect to `/deck-builder`
+
+### Deck Builder pricing detail
+
+#### Two API calls per card
+Each card makes two parallel requests:
+- `&gold=false` → returns **regular foil** (foil=0) and **black foil** (foil=3, foil=4)
+- `&gold=true` → returns **gold foil** (foil=1) and **arcane gold foil** (foil=2)
+
+The `foil` field in each listing may be returned as a number or a string — always coerce with `Number(l.foil ?? 0)` before comparing.
+
+#### Foil types
+
+| foil value | Name | BCX table | Pricing strategy |
+|---|---|---|---|
+| 0 | Regular foil | `ALPHA_BETA_BCX` or `STANDARD_BCX` | Full Option A / Option B (accumulate BCX) |
+| 1 | Gold foil | `ALPHA_BETA_GOLD_BCX` or `STANDARD_GOLD_BCX` | Full Option A / Option B. If `target_bcx === 0`, take cheapest single listing (no accumulation). |
+| 2 | Arcane gold foil | — | Option A only: cheapest listing where `listing.level >= target_level` |
+| 3 or 4 | Black foil | — | Cheapest listing at **any** level — a single black foil card plays at max stats regardless of its listed BCX level. Do **not** filter by `listing.level >= target_level`. |
+
+#### Final price selection
+```
+final_price = min(regular_price, gold_foil_price, arcane_price, black_foil_price)
+```
+Only complete (non-insufficient-supply) options are compared. If no complete option exists, fall back to the regular foil partial result (insufficient supply).
+
+#### Gold foil BCX tables
+Levels showing `0` BCX are achievable with a single 1-BCX card.
+
+```typescript
+const ALPHA_BETA_GOLD_BCX: Record<number, number[]> = {
+  1: [0, 0, 0, 1, 2, 4, 8, 13, 23, 38],  // Common (levels 1-10)
+  2: [0, 0, 1, 2, 4, 7, 12, 22],          // Rare (levels 1-8)
+  3: [0, 0, 1, 3, 5, 10],                 // Epic (levels 1-6)
+  4: [0, 1, 2, 4],                        // Legendary (levels 1-4)
+}
+
+const STANDARD_GOLD_BCX: Record<number, number[]> = {
+  1: [0, 0, 1, 2, 5, 9, 14, 20, 27, 38],  // Common (levels 1-10)
+  2: [0, 1, 2, 4, 7, 11, 16, 22],          // Rare (levels 1-8)
+  3: [0, 1, 2, 4, 7, 10],                  // Epic (levels 1-6)
+  4: [0, 1, 2, 4],                         // Legendary (levels 1-4)
+}
+```
+
+**Table selection** (same edition logic as regular foil):
+- editions 0 → `ALPHA_BETA_GOLD_BCX`
+- editions 1, or editions 2, or (editions 3 and `card_detail_id <= 223`) → `ALPHA_BETA_GOLD_BCX`
+- All other editions → `STANDARD_GOLD_BCX`
+
+In code this is expressed as `card.edition === 'Alpha/Beta'` (the display name already encodes the above mapping).
+
+#### Cell colour coding by foil type
+
+| Winner | Cell bg | Text / border | Sub-label | Tooltip |
+|---|---|---|---|---|
+| Regular foil | — | — (default) | `{bcx} BCX · {method}` | — |
+| Gold foil (foil=1) | `#2a2200` | `#ffd700` / `3px solid #ffd700` | `{bcx} BCX · ✦ gold foil` or `✦ gold foil` | "Cheapest option is a gold foil card…" |
+| Arcane foil (foil=2) | `#2a2200` | `#ffd700` / `3px solid #ffd700` | `✦ gold foil arcane` | "Cheapest option is a gold foil card…" |
+| Black foil (foil=3/4) | `#0a1a0a` | `#2ecc71` / `3px solid #2ecc71` | `◆ black foil` | "Cheapest option is a black foil card…" |
+
+**Precedence:** outlier red styling always overrides foil colour coding. When both apply, the price shows red but the sub-label shows the foil badge in a muted version of the foil colour (`rgba(255,215,0,0.5)` for gold, `rgba(46,204,113,0.5)` for black).
+
+When `buy_usd === null` (the `—` dash case), the cell gets a tooltip: `'No listings found on the market for this card at this level'`.
 
 ---
 
