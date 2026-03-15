@@ -24,6 +24,10 @@ const STANDARD_BCX: Record<number, number[]> = {
   4: [1, 3, 6, 11],                                // Legendary (levels 1-4)
 }
 
+// Multiplier above rarity-group median price_per_bcx to flag a card as a price outlier
+// Increase this value to be more lenient, decrease to be more aggressive
+const OUTLIER_THRESHOLD = 5
+
 export type CardInput = {
   card_id: number
   card_name: string
@@ -37,9 +41,12 @@ export type BuyMethod = 'pre-combined' | 'buy & combine'
 
 export type CardPrice = {
   card_id: number
-  buy_usd: number | null
-  buy_bcx: number | null
+  buy_usd: number | null          // null if no listings exist at all
+  buy_bcx: number | null          // BCX actually accumulated (< buy_target_bcx if insufficient supply)
+  buy_target_bcx: number | null   // BCX required to reach target level
   buy_method: BuyMethod | null
+  insufficient_supply: boolean    // true if buy_bcx < buy_target_bcx
+  is_outlier: boolean             // true if price_per_bcx > median * OUTLIER_THRESHOLD for rarity group
   rent_day_usd: number | null
 }
 
@@ -115,20 +122,20 @@ function getTargetBcx(card: CardInput, targetLevel: number): number {
  * buy_price in sale listings is USD.
  *
  * Option A — pre-combined: filter listings where listing.level >= targetLevel,
- * take the cheapest buy_price. No combining needed.
+ * take the cheapest buy_price.
  *
  * Option B — buy & combine: sort all listings by price-per-BCX ascending,
- * then greedily accumulate listings until total BCX >= targetBcx, summing
- * their buy_price. This gives the cheapest way to acquire enough single cards
- * to combine up to targetLevel.
+ * greedily accumulate until total BCX >= targetBcx, sum the buy_prices.
  *
- * Returns min(A, B), or null if neither is available.
+ * Returns min(A, B). If only Option B partially fills (insufficient supply),
+ * returns the partial accumulation with insufficient_supply=true.
+ * Returns null only if there are zero valid listings.
  */
 function computeBuyUsd(
   listings: SLSaleListing[],
   targetLevel: number,
   targetBcx: number,
-): { usd: number; bcx: number; method: BuyMethod } | null {
+): { usd: number; bcx: number; method: BuyMethod; insufficient_supply: boolean } | null {
   const valid = listings.filter(
     (l) => l.level > 0 && l.bcx > 0 && !isNaN(parseFloat(String(l.buy_price))),
   )
@@ -151,19 +158,24 @@ function computeBuyUsd(
     )
   let totalUsd = 0
   let totalBcx = 0
-  for (const listing of sorted) {
+  for (const l of sorted) {
     if (totalBcx >= targetBcx) break
-    totalUsd += parseFloat(String(listing.buy_price))
-    totalBcx += listing.bcx
+    totalUsd += parseFloat(String(l.buy_price))
+    totalBcx += l.bcx
   }
-  const bestB = totalBcx >= targetBcx ? totalUsd : null
+  const bSucceeded = totalBcx >= targetBcx
 
-  if (bestA === null && bestB === null) return null
-  if (bestA === null) return { usd: bestB!, bcx: targetBcx, method: 'buy & combine' }
-  if (bestB === null) return { usd: bestA, bcx: targetBcx, method: 'pre-combined' }
-  return bestA <= bestB
-    ? { usd: bestA, bcx: targetBcx, method: 'pre-combined' }
-    : { usd: bestB, bcx: targetBcx, method: 'buy & combine' }
+  // A unavailable AND B couldn't reach targetBcx: insufficient supply
+  if (bestA === null && !bSucceeded) {
+    return { usd: totalUsd, bcx: totalBcx, method: 'buy & combine', insufficient_supply: true }
+  }
+
+  const bestBCost = bSucceeded ? totalUsd : null
+  if (bestA === null) return { usd: bestBCost!, bcx: targetBcx, method: 'buy & combine', insufficient_supply: false }
+  if (bestBCost === null) return { usd: bestA, bcx: targetBcx, method: 'pre-combined', insufficient_supply: false }
+  return bestA <= bestBCost
+    ? { usd: bestA, bcx: targetBcx, method: 'pre-combined', insufficient_supply: false }
+    : { usd: bestBCost, bcx: targetBcx, method: 'buy & combine', insufficient_supply: false }
 }
 
 /**
@@ -197,8 +209,51 @@ async function priceOneCard(
     card_id: card.card_id,
     buy_usd: buyResult?.usd ?? null,
     buy_bcx: buyResult?.bcx ?? null,
+    buy_target_bcx: targetBcx,
     buy_method: buyResult?.method ?? null,
+    insufficient_supply: buyResult?.insufficient_supply ?? false,
+    is_outlier: false, // computed by flagOutliers() after all prices are known
     rent_day_usd: rentUsd,
+  }
+}
+
+/**
+ * Group cards by rarity, compute median price_per_bcx within each group,
+ * and flag cards whose price_per_bcx exceeds OUTLIER_THRESHOLD × median.
+ *
+ * Only cards with a valid buy_usd, known buy_target_bcx, and no insufficient
+ * supply are included in the median calculation — partial prices would skew it.
+ *
+ * Mutates the is_outlier field on the CardPrice objects in-place.
+ */
+function flagOutliers(prices: CardPrice[], cards: CardInput[]): void {
+  const rarityMap = new Map(cards.map((c) => [c.card_id, c.rarity]))
+
+  type Candidate = { price: CardPrice; ppb: number }
+  const byRarity = new Map<number, Candidate[]>()
+
+  for (const p of prices) {
+    if (p.buy_usd === null || p.buy_target_bcx === null || p.buy_target_bcx === 0) continue
+    if (p.insufficient_supply) continue // partial data would skew the median
+    const rarity = rarityMap.get(p.card_id)
+    if (rarity === undefined) continue
+    const ppb = p.buy_usd / p.buy_target_bcx
+    const arr = byRarity.get(rarity) ?? []
+    arr.push({ price: p, ppb })
+    byRarity.set(rarity, arr)
+  }
+
+  for (const group of Array.from(byRarity.values())) {
+    if (group.length < 2) continue // need at least 2 data points for a meaningful median
+    const sorted = group.map((g) => g.ppb).sort((a, b) => a - b)
+    const mid = Math.floor(sorted.length / 2)
+    const medianPpb =
+      sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid]
+    for (const { price, ppb } of group) {
+      if (ppb > medianPpb * OUTLIER_THRESHOLD) {
+        price.is_outlier = true
+      }
+    }
   }
 }
 
@@ -207,6 +262,7 @@ async function priceOneCard(
  * Each card's target level is derived from LEAGUE_LEVEL_CAPS[league][card.rarity].
  * Runs up to 20 cards concurrently to avoid overwhelming the SL API.
  * Market calls are never cached; DEC rate revalidates every 60s.
+ * Outlier detection runs on the full result set after all prices are fetched.
  */
 export async function fetchPrices(cards: CardInput[], league: string): Promise<PricingResult> {
   const decRate = await fetchDecRate()
@@ -223,6 +279,9 @@ export async function fetchPrices(cards: CardInput[], league: string): Promise<P
     )
     prices.push(...chunkPrices)
   }
+
+  // Run outlier detection on the complete set — never re-run after filtering
+  flagOutliers(prices, cards)
 
   return {
     prices,
