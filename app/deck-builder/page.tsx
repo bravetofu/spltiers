@@ -743,7 +743,9 @@ export default function DeckBuilderPage() {
                             // Cell container styling — foil colour coding; outlier red takes precedence
                             let cellStyle: React.CSSProperties = {}
                             let cellTitle: string | undefined
-                            if (!isOutlier && !card.insufficient_supply) {
+                            if (card.buy_usd === null) {
+                              cellTitle = 'No listings found on the market for this card at this level'
+                            } else if (!isOutlier && !card.insufficient_supply) {
                               if (foil === 'gold' || foil === 'arcane') {
                                 cellStyle = { background: '#2a2200', borderLeft: '3px solid #ffd700', paddingLeft: 6 }
                                 cellTitle = 'Cheapest option is a gold foil card — stats and BCX requirements differ from regular foil'
