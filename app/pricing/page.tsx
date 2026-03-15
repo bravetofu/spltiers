@@ -591,23 +591,21 @@ export default function PricingPage() {
 
                           {/* Buy price + BCX sub-label */}
                           <div>
+                            <div style={{ fontSize: '0.85rem', color: card.insufficient_supply ? '#f85149' : card.is_outlier ? '#f85149' : (card.buy_usd !== null ? 'var(--text-primary)' : 'var(--text-faint)'), fontVariantNumeric: 'tabular-nums' }}>
+                              {formatUsd(card.buy_usd)}
+                            </div>
                             {card.insufficient_supply ? (
                               <div
                                 title="Not enough cards on the market to reach this level. Showing maximum achievable BCX."
-                                style={{ fontSize: '0.82rem', color: '#f85149', fontVariantNumeric: 'tabular-nums', cursor: 'help', lineHeight: 1.3 }}
+                                style={{ fontSize: '0.62rem', color: '#f85149', marginTop: 1, whiteSpace: 'nowrap', cursor: 'help' }}
                               >
                                 {card.buy_bcx} / {card.buy_target_bcx} BCX available
                               </div>
-                            ) : (
-                              <div style={{ fontSize: '0.85rem', color: card.is_outlier ? '#f85149' : (card.buy_usd !== null ? 'var(--text-primary)' : 'var(--text-faint)'), fontVariantNumeric: 'tabular-nums' }}>
-                                {formatUsd(card.buy_usd)}
-                              </div>
-                            )}
-                            {!card.insufficient_supply && card.buy_target_bcx !== null && card.buy_method !== null && (
+                            ) : card.buy_target_bcx !== null && card.buy_method !== null ? (
                               <div style={{ fontSize: '0.62rem', color: 'var(--text-faint)', marginTop: 1, whiteSpace: 'nowrap' }}>
                                 {card.buy_target_bcx} BCX · {card.buy_method}
                               </div>
-                            )}
+                            ) : null}
                           </div>
 
                           {/* Rent price */}
