@@ -77,6 +77,14 @@ type SLRentListing = {
   buy_price?: string | number   // fallback in case the field name ever changes
 }
 
+// Shape of a single entry in the for_rent_grouped response
+type SLGroupedRentListing = {
+  card_detail_id: number
+  level: number
+  price: string | number        // DEC per day
+  buy_price?: string | number   // fallback
+}
+
 async function fetchDecRate(): Promise<number> {
   try {
     const res = await fetch(
@@ -106,23 +114,39 @@ async function fetchSaleListings(cardId: number): Promise<SLSaleListing[]> {
   }
 }
 
-async function fetchRentListings(cardId: number): Promise<SLRentListing[]> {
+/**
+ * Fetch all rental listings from the grouped endpoint once.
+ * Cached for 60 seconds to avoid repeated upstream calls across cards.
+ * Returns the raw array of grouped listings or [] on failure.
+ */
+async function fetchGroupedRentListings(): Promise<SLGroupedRentListing[]> {
   try {
     const res = await fetch(
-      `https://api2.splinterlands.com/market/for_rent_by_card?card_detail_id=${cardId}`,
-      { cache: 'no-store' },
+      'https://api2.splinterlands.com/market/for_rent_grouped',
+      { next: { revalidate: 60 } },
     )
     if (!res.ok) return []
     const data = await res.json()
     if (!Array.isArray(data)) return []
-    // DEBUG: log first listing to confirm field names — remove once verified
-    if (data.length > 0 && cardId === 720) {
-      console.log('[rent debug] card 720 first listing:', JSON.stringify(data[0]))
+    // DEBUG: log first listing for card 720 to confirm field names — remove once verified
+    const card720 = data.filter((l: SLGroupedRentListing) => l.card_detail_id === 720)
+    if (card720.length > 0) {
+      console.log('[rent debug grouped] card 720 first listing:', JSON.stringify(card720[0]))
     }
     return data
   } catch {
     return []
   }
+}
+
+/** Filter grouped rent listings down to a single card's listings. */
+function rentListingsForCard(
+  grouped: SLGroupedRentListing[],
+  cardId: number,
+): SLRentListing[] {
+  return grouped
+    .filter((l) => l.card_detail_id === cardId)
+    .map((l) => ({ level: l.level, price: l.price, buy_price: l.buy_price }))
 }
 
 /** Look up how many BCX are required to reach targetLevel for this card. */
@@ -254,12 +278,11 @@ async function priceOneCard(
   card: CardInput,
   targetLevel: number,
   decRate: number,
+  groupedRentListings: SLGroupedRentListing[],
 ): Promise<CardPrice> {
   const targetBcx = getTargetBcx(card, targetLevel)
-  const [buyListings, rentListings] = await Promise.all([
-    fetchSaleListings(card.card_id),
-    fetchRentListings(card.card_id),
-  ])
+  const buyListings = await fetchSaleListings(card.card_id)
+  const rentListings = rentListingsForCard(groupedRentListings, card.card_id)
 
   const buyResult = computeBuyUsd(buyListings, targetLevel, targetBcx)
   const rentResult = computeRentResult(rentListings, targetLevel, decRate)
@@ -326,7 +349,11 @@ function flagOutliers(prices: CardPrice[], cards: CardInput[]): void {
  * Outlier detection runs on the full result set after all prices are fetched.
  */
 export async function fetchPrices(cards: CardInput[], league: string): Promise<PricingResult> {
-  const decRate = await fetchDecRate()
+  // Fetch DEC rate and grouped rent listings concurrently — both are shared across all cards
+  const [decRate, groupedRentListings] = await Promise.all([
+    fetchDecRate(),
+    fetchGroupedRentListings(),
+  ])
 
   const CHUNK = 20
   const prices: CardPrice[] = []
@@ -335,7 +362,7 @@ export async function fetchPrices(cards: CardInput[], league: string): Promise<P
     const chunkPrices = await Promise.all(
       chunk.map((c) => {
         const targetLevel = LEAGUE_LEVEL_CAPS[league]?.[c.rarity] ?? 1
-        return priceOneCard(c, targetLevel, decRate)
+        return priceOneCard(c, targetLevel, decRate, groupedRentListings)
       }),
     )
     prices.push(...chunkPrices)
