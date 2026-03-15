@@ -93,6 +93,7 @@ function resolveEditionAndSlug(
   // Conclave Arcana: editions 17, branched by tier
   if (e === 17) {
     if (t === 15) return null  // excluded cards
+    if (t === 14) return { displayName: 'Conclave Arcana', cdnSlug: 'extra' }
     return { displayName: 'Conclave Arcana', cdnSlug: 'conclave' }
   }
 
@@ -118,6 +119,8 @@ async function fetchAllCards(): Promise<CardData[]> {
   for (const card of raw) {
     const resolved = resolveEditionAndSlug(card.editions, card.tier)
     if (!resolved) continue
+    if (card.id === 803) resolved.cdnSlug = 'conclave'
+    if ([243, 96, 216, 119].includes(card.id)) resolved.cdnSlug = 'beta'
     const editionNums = card.editions.split(',').map((e) => parseInt(e.trim(), 10))
     const isSoulbound = editionNums.some((e) => SOULBOUND_EDITIONS.has(e))
     cards.push({
