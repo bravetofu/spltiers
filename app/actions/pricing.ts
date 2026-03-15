@@ -204,11 +204,31 @@ async function priceOneCard(card: CardInput, targetLevel: number): Promise<CardP
     fetchSaleListings(card.card_id, true),
   ])
 
-  // Split by foil field value
-  const regularListings = regularRaw.filter((l) => (l.foil ?? 0) === 0)
-  const goldListings    = goldRaw.filter((l) => (l.foil ?? 0) === 1)
-  const arcaneListings  = goldRaw.filter((l) => (l.foil ?? 0) === 2)
-  const blackListings   = regularRaw.filter((l) => { const f = l.foil ?? 0; return f === 3 || f === 4 })
+  // Split by foil field value.
+  // Use Number() to coerce in case the API returns foil as a string ("3", "4", etc.)
+  const regularListings = regularRaw.filter((l) => Number(l.foil ?? 0) === 0)
+  const goldListings    = goldRaw.filter((l) => Number(l.foil ?? 0) === 1)
+  const arcaneListings  = goldRaw.filter((l) => Number(l.foil ?? 0) === 2)
+  const blackListings   = regularRaw.filter((l) => { const f = Number(l.foil ?? 0); return f === 3 || f === 4 })
+
+  // Diagnostic log for card 720 — remove once black foil is confirmed working
+  if (card.card_id === 720) {
+    console.log(`[card 720] &gold=false raw listings: ${regularRaw.length}`)
+    console.log(`[card 720] black foil listings found (foil 3/4): ${blackListings.length}`)
+    if (blackListings.length > 0) {
+      blackListings.forEach((l, i) =>
+        console.log(`  [${i}] foil=${l.foil} level=${l.level} buy_price=${l.buy_price}`),
+      )
+    } else {
+      // Show foil value distribution so we can see what the API is actually returning
+      const dist: Record<string, number> = {}
+      for (const l of regularRaw) {
+        const key = String(l.foil ?? 'undefined')
+        dist[key] = (dist[key] ?? 0) + 1
+      }
+      console.log(`[card 720] foil distribution in &gold=false response:`, dist)
+    }
+  }
 
   // Regular foil (foil === 0): full Option A / B BCX logic
   const regularTargetBcx = getTargetBcx(card, targetLevel)
