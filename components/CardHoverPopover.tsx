@@ -84,16 +84,19 @@ export default function CardHoverPopover({
     const imgH = Math.round(width * (3 / 2))
     if (imgErrored) return null
     return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={imgSrc}
-        alt={cardName}
-        loading="lazy"
-        width={width}
-        height={imgH}
-        style={{ width, height: imgH, objectFit: 'contain', display: 'block', pointerEvents: 'none' }}
-        onError={() => setImgErrored(true)}
-      />
+      <div style={{ position: 'relative', width: width + 10, height: imgH + 10, pointerEvents: 'none' }}>
+        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.25)' }} />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={imgSrc}
+          alt={cardName}
+          loading="lazy"
+          width={width}
+          height={imgH}
+          style={{ position: 'absolute', top: 5, left: 5, width, height: imgH, objectFit: 'contain', display: 'block' }}
+          onError={() => setImgErrored(true)}
+        />
+      </div>
     )
   }
 
