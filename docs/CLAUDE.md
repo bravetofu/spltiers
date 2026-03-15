@@ -10,7 +10,7 @@ UI mockups (open in browser to interact): docs/mockups/mockup-tier-list.html, do
 
 A Splinterlands card tier list and market pricing tool. Two public features:
 1. **Tier lists** — per-edition card rankings (S/A/B/C/D) displayed as visual card grids
-2. **Pricing calculator** — select editions + tiers → live buy/rent prices from the Splinterlands market
+2. **Deck Builder** — select editions + tiers → live buy prices from the Splinterlands market
 
 Plus an **admin backoffice** for updating tier data without redeployment.
 
@@ -78,7 +78,7 @@ Italic "spltiers" in #e63946, followed immediately by a 5px gold (#ffd700) circl
 ### Typography
 - Font: system font stack via Tailwind (font-sans)
 - Nav height: 52px
-- Max content width: 1100px (tier lists), 1000px (pricing), centered
+- Max content width: 1100px (tier lists), 1000px (deck builder), centered
 
 ### Component patterns
 - Cards/panels: bg #161b22, border 1px #30363d, border-radius 10px
@@ -95,7 +95,7 @@ Italic "spltiers" in #e63946, followed immediately by a 5px gold (#ffd700) circl
 |---|---|---|
 | `/` | Homepage — edition selector | Public |
 | `/tier-list/[edition-slug]` | Tier list for an edition | Public |
-| `/pricing` | Pricing calculator | Public |
+| `/deck-builder` | Deck Builder | Public |
 | `/admin` | Backoffice — edition list | brave.sps only |
 | `/admin/[edition-slug]` | Drag-and-drop tier editor | brave.sps only |
 | `/admin/unauthorized` | Access denied page | Public |
@@ -175,7 +175,7 @@ Derived from `editions` + `tier` fields in `GET https://api.splinterlands.io/car
 
 ### Soulbound cards
 - editions=10 (CL soulbound) and editions=13 (Rebellion soulbound) are **shown in tier lists** with a lock icon overlay
-- Soulbound cards are **excluded from the pricing calculator**
+- Soulbound cards are **excluded from the Deck Builder**
 
 ---
 
@@ -232,11 +232,10 @@ create policy "public read tier_entries" on tier_entries for select using (true)
 |---|---|
 | Card details (name, rarity, editions, tier) | `GET https://api.splinterlands.io/cards/get_details` |
 | Market buy listings | `GET https://api2.splinterlands.com/market/for_sale_by_card?card_detail_id={id}&gold=false` |
-| Rental listings | `GET https://api2.splinterlands.com/market/for_rent_by_card?card_detail_id={id}` |
-| DEC/USD price | CoinGecko: `GET https://api.coingecko.com/api/v3/simple/price?ids=dark-energy-crystals&vs_currencies=usd` |
+| Rental listings (grouped) | `GET https://api2.splinterlands.com/market/for_rent_grouped` — see docs/rent-pricing-notes.md |
 
 Cache card details with Next.js `fetch` caching (revalidate: 3600).
-Cache market prices with revalidate: 60.
+Buy listings: no-store (always live). Grouped rent listings: revalidate 60s.
 
 ---
 
@@ -247,7 +246,7 @@ Cache market prices with revalidate: 60.
 - Each edition card shows: name, format badge, card count, ranked count, arrow
 - Modern editions: Conclave Arcana, Rebellion, Escalation
 - Wild editions: Chaos Legion, Riftwatchers, Untamed, Alpha/Beta, Dice
-- Pricing calculator promo block at the bottom
+- Deck Builder promo block at the bottom
 
 ---
 
@@ -265,17 +264,19 @@ Cache market prices with revalidate: 60.
 
 ---
 
-## Pricing calculator (`/pricing`)
+## Deck Builder (`/deck-builder`)
 
-- Config panel: edition multi-select chips, tier multi-select chips (S/A/B/C/D), card level selector
+- Config panel: edition multi-select chips, tier multi-select chips (S/A/B/C/D), league selector (Bronze/Silver/Gold/Diamond+)
 - "Calculate prices" button fetches live market data
-- Results: 3 summary cards (total buy cost, rent/day, rent/month estimated)
-- Results table: card thumbnail, name, edition badge, tier badge, rarity, buy price (USD), rent/day (USD)
+- Results: 3 summary cards (total buy cost, avg per card, most expensive card)
+- Results table: card thumbnail, name, edition badge, tier badge, rarity, buy price (USD)
 - Per-edition subtotal rows
-- "No active listing" shown as "—" with tooltip
+- "No active listing" shown as "—"
 - Fetch timestamp shown
 - Export CSV button
 - Soulbound cards excluded entirely
+- Supply warnings and price outlier detection with exclusion filter chips
+- `/pricing` and `/deck-cost` redirect to `/deck-builder`
 
 ---
 
@@ -300,5 +301,5 @@ Cache market prices with revalidate: 60.
 - The `editions` + `tier` combo is required to correctly resolve CDN slug — do not use `editions` alone
 - Supabase admin writes use `SUPABASE_SERVICE_ROLE_KEY` (server-side only, never exposed to client)
 - Hive Keychain is a browser extension — detection and signing must happen client-side; verification happens server-side in a Next.js API route or Server Action
-- DEC prices from market API are in DEC — always convert to USD using live rate before displaying
+- DEC prices from rental API are in DEC — always convert to USD using live CoinGecko rate before displaying
 - Server-side fetch caching: card details revalidate 3600s, market prices revalidate 60s

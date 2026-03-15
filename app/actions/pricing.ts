@@ -24,9 +24,31 @@ const STANDARD_BCX: Record<number, number[]> = {
   4: [1, 3, 6, 11],                                // Legendary (levels 1-4)
 }
 
-// Multiplier above rarity-group median price_per_bcx to flag a card as a price outlier
-// Increase this value to be more lenient, decrease to be more aggressive
-const OUTLIER_THRESHOLD = 5
+// BCX thresholds for Alpha/Beta GOLD FOIL cards (foil === 1, editions 0 or 1)
+// Note: gold foil cards start at a higher base level — levels showing 0 BCX
+// mean that level is achievable with a single 1-BCX gold foil card
+const ALPHA_BETA_GOLD_BCX: Record<number, number[]> = {
+  1: [0, 0, 0, 1, 2, 4, 8, 13, 23, 38],  // Common (levels 1-10)
+  2: [0, 0, 1, 2, 4, 7, 12, 22],          // Rare (levels 1-8)
+  3: [0, 0, 1, 3, 5, 10],                 // Epic (levels 1-6)
+  4: [0, 1, 2, 4],                        // Legendary (levels 1-4)
+}
+
+// BCX thresholds for Standard (Untamed+) GOLD FOIL cards (foil === 1, editions 4+)
+// Note: same as above — levels showing 0 BCX are achievable with 1 BCX
+const STANDARD_GOLD_BCX: Record<number, number[]> = {
+  1: [0, 0, 1, 2, 5, 9, 14, 20, 27, 38],  // Common (levels 1-10)
+  2: [0, 1, 2, 4, 7, 11, 16, 22],          // Rare (levels 1-8)
+  3: [0, 1, 2, 4, 7, 10],                  // Epic (levels 1-6)
+  4: [0, 1, 2, 4],                         // Legendary (levels 1-4)
+}
+
+// A card is flagged as an outlier if its price_per_bcx exceeds the 75th percentile
+// price_per_bcx for its rarity group by more than this multiplier.
+// Byzantine Kitty (~8x 75th percentile) should NOT be flagged.
+// Sira (~38x 75th percentile) SHOULD be flagged.
+// Increase to be more lenient, decrease to flag more aggressively.
+const OUTLIER_THRESHOLD = 10
 
 export type CardInput = {
   card_id: number
@@ -39,10 +61,8 @@ export type CardInput = {
 
 export type BuyMethod = 'pre-combined' | 'buy & combine'
 
-// 'ok'         — listing exists at exactly targetLevel (or cheaper one at targetLevel chosen)
-// 'above_only' — no listing at targetLevel, cheapest is at a higher level (overpaying)
-// 'below_only' — no listing at or above targetLevel, showing best available below (underlevelled)
-export type RentStatus = 'ok' | 'above_only' | 'below_only'
+// Which foil type provided the cheapest buy price for a card
+export type FoilType = 'regular' | 'gold' | 'arcane' | 'black'
 
 export type CardPrice = {
   card_id: number
@@ -51,15 +71,12 @@ export type CardPrice = {
   buy_target_bcx: number | null   // BCX required to reach target level
   buy_method: BuyMethod | null
   insufficient_supply: boolean    // true if buy_bcx < buy_target_bcx
-  is_outlier: boolean             // true if price_per_bcx > median * OUTLIER_THRESHOLD for rarity group
-  rent_day_usd: number | null
-  rent_status: RentStatus | null  // null if no listings at all
-  rent_actual_level: number | null
+  is_outlier: boolean             // true if price_per_bcx > p75 * OUTLIER_THRESHOLD for rarity group
+  foil_type: FoilType | null      // which foil type gave the cheapest price; null if no listings
 }
 
 export type PricingResult = {
   prices: CardPrice[]
-  dec_usd_rate: number
   fetched_at: string
 }
 
@@ -67,35 +84,29 @@ type SLSaleListing = {
   level: number
   buy_price: string | number  // USD
   bcx: number
+  foil?: number               // 0=regular, 1=gold, 2=arcane, 3/4=black foil; undefined treated as 0
 }
 
-type SLRentListing = {
-  level: number
-  // Splinterlands for_rent_by_card uses "price" for the daily DEC rate.
-  // buy_price is present on sale listings but is null/absent on rental listings.
-  price: string | number        // DEC per day — primary field name in the API
-  buy_price?: string | number   // fallback in case the field name ever changes
+/** Look up how many BCX are required to reach targetLevel for this card (regular foil). */
+function getTargetBcx(card: CardInput, targetLevel: number): number {
+  const table = card.edition === 'Alpha/Beta' ? ALPHA_BETA_BCX : STANDARD_BCX
+  return table[card.rarity]?.[targetLevel - 1] ?? 1
 }
 
-async function fetchDecRate(): Promise<number> {
-  try {
-    const res = await fetch(
-      'https://api.coingecko.com/api/v3/simple/price?ids=dark-energy-crystals&vs_currencies=usd',
-      { next: { revalidate: 60 } },
-    )
-    if (!res.ok) return 0
-    const data = await res.json()
-    return data['dark-energy-crystals']?.usd ?? 0
-  } catch {
-    return 0
-  }
+/**
+ * Look up how many BCX are required to reach targetLevel for gold foil.
+ * Returns 0 if a single 1-BCX gold foil card already reaches that level.
+ */
+function getTargetBcxGold(card: CardInput, targetLevel: number): number {
+  const table = card.edition === 'Alpha/Beta' ? ALPHA_BETA_GOLD_BCX : STANDARD_GOLD_BCX
+  return table[card.rarity]?.[targetLevel - 1] ?? 0
 }
 
 // Market API calls are never cached — prices must always be live
-async function fetchSaleListings(cardId: number): Promise<SLSaleListing[]> {
+async function fetchSaleListings(cardId: number, gold: boolean): Promise<SLSaleListing[]> {
   try {
     const res = await fetch(
-      `https://api2.splinterlands.com/market/for_sale_by_card?card_detail_id=${cardId}&gold=false`,
+      `https://api2.splinterlands.com/market/for_sale_by_card?card_detail_id=${cardId}&gold=${gold}`,
       { cache: 'no-store' },
     )
     if (!res.ok) return []
@@ -104,31 +115,6 @@ async function fetchSaleListings(cardId: number): Promise<SLSaleListing[]> {
   } catch {
     return []
   }
-}
-
-async function fetchRentListings(cardId: number): Promise<SLRentListing[]> {
-  try {
-    const res = await fetch(
-      `https://api2.splinterlands.com/market/for_rent_by_card?card_detail_id=${cardId}`,
-      { cache: 'no-store' },
-    )
-    if (!res.ok) return []
-    const data = await res.json()
-    if (!Array.isArray(data)) return []
-    // DEBUG: log first listing to confirm field names — remove once verified
-    if (data.length > 0 && cardId === 720) {
-      console.log('[rent debug] card 720 first listing:', JSON.stringify(data[0]))
-    }
-    return data
-  } catch {
-    return []
-  }
-}
-
-/** Look up how many BCX are required to reach targetLevel for this card. */
-function getTargetBcx(card: CardInput, targetLevel: number): number {
-  const table = card.edition === 'Alpha/Beta' ? ALPHA_BETA_BCX : STANDARD_BCX
-  return table[card.rarity]?.[targetLevel - 1] ?? 1
 }
 
 /**
@@ -199,91 +185,147 @@ function computeBuyUsd(
     : { usd: bestBCost, bcx: targetBcx, method: 'buy & combine', insufficient_supply: false }
 }
 
-/** Extract the DEC price from a rental listing, handling both field names. */
-function rentListingDec(l: SLRentListing): number {
-  return parseFloat(String(l.price ?? l.buy_price ?? ''))
+/**
+ * Find the cheapest pre-combined listing at or above targetLevel.
+ * Used for arcane gold foil (foil === 2) and black foil (foil === 3/4), which are
+ * already at max level and do not support BCX combining.
+ */
+function computePreCombinedOnly(listings: SLSaleListing[], targetLevel: number): number | null {
+  const valid = listings.filter(
+    (l) => l.level >= targetLevel && !isNaN(parseFloat(String(l.buy_price))),
+  )
+  if (valid.length === 0) return null
+  return Math.min(...valid.map((l) => parseFloat(String(l.buy_price))))
 }
 
-/**
- * Determine the cheapest rent price and status for a card at targetLevel.
- *
- * Case 1 — 'ok':         listing at exactly targetLevel exists; cheapest of all >= target.
- * Case 2 — 'above_only': no listing at targetLevel, but listings exist above it;
- *                         cheapest of all > target (may be overpaying).
- * Case 3 — 'below_only': no listing at or above targetLevel; cheapest at the highest
- *                         available level below target (card is underlevelled).
- * Case 4 — null:         no listings at all.
- *
- * Daily DEC price is converted to USD via decRate.
- * Returns null usd (but keeps status) if decRate is unavailable.
- */
-function computeRentResult(
-  listings: SLRentListing[],
-  targetLevel: number,
-  decRate: number,
-): { usd: number | null; status: RentStatus; actual_level: number } | null {
-  const valid = listings.filter((l) => l.level > 0 && !isNaN(rentListingDec(l)) && rentListingDec(l) > 0)
-  if (valid.length === 0) return null
+async function priceOneCard(card: CardInput, targetLevel: number): Promise<CardPrice> {
+  const [regularRaw, goldRaw] = await Promise.all([
+    fetchSaleListings(card.card_id, false),
+    fetchSaleListings(card.card_id, true),
+  ])
 
-  const toUsd = (dec: number) => decRate > 0 ? dec * decRate : null
+  // Split by foil field value
+  const regularListings = regularRaw.filter((l) => (l.foil ?? 0) === 0)
+  const goldListings    = goldRaw.filter((l) => (l.foil ?? 0) === 1)
+  const arcaneListings  = goldRaw.filter((l) => (l.foil ?? 0) === 2)
+  const blackListings   = regularRaw.filter((l) => { const f = l.foil ?? 0; return f === 3 || f === 4 })
 
-  // Cases 1 & 2: any listing at or above target
-  const atOrAbove = valid.filter((l) => l.level >= targetLevel)
-  if (atOrAbove.length > 0) {
-    const cheapest = atOrAbove.reduce((best, l) => rentListingDec(l) < rentListingDec(best) ? l : best)
-    const hasExact = atOrAbove.some((l) => l.level === targetLevel)
-    return {
-      usd: toUsd(rentListingDec(cheapest)),
-      status: hasExact ? 'ok' : 'above_only',
-      actual_level: cheapest.level,
+  // Regular foil (foil === 0): full Option A / B BCX logic
+  const regularTargetBcx = getTargetBcx(card, targetLevel)
+  const regularResult = computeBuyUsd(regularListings, targetLevel, regularTargetBcx)
+
+  // Gold foil (foil === 1): full Option A / B BCX logic with gold BCX table
+  const goldTargetBcx = getTargetBcxGold(card, targetLevel)
+  let goldResult: { usd: number; bcx: number; method: BuyMethod; insufficient_supply: boolean } | null = null
+  if (goldListings.length > 0) {
+    if (goldTargetBcx === 0) {
+      // A single 1-BCX gold foil card already reaches this level — find cheapest listing
+      const prices = goldListings
+        .map((l) => parseFloat(String(l.buy_price)))
+        .filter((p) => !isNaN(p))
+      if (prices.length > 0) {
+        goldResult = { usd: Math.min(...prices), bcx: 1, method: 'pre-combined', insufficient_supply: false }
+      }
+    } else {
+      goldResult = computeBuyUsd(goldListings, targetLevel, goldTargetBcx)
     }
   }
 
-  // Case 3: only listings below target — use highest available level, cheapest at that level
-  const maxLevel = Math.max(...valid.map((l) => l.level))
-  const atMax = valid.filter((l) => l.level === maxLevel)
-  const cheapest = atMax.reduce((best, l) => rentListingDec(l) < rentListingDec(best) ? l : best)
-  return {
-    usd: toUsd(rentListingDec(cheapest)),
-    status: 'below_only',
-    actual_level: maxLevel,
+  // Arcane gold foil (foil === 2): pre-combined only — already at max level
+  const arcaneUsd = computePreCombinedOnly(arcaneListings, targetLevel)
+
+  // Black foil (foil === 3 or 4): pre-combined only — already at max level
+  const blackUsd = computePreCombinedOnly(blackListings, targetLevel)
+
+  // Collect all complete (non-insufficient-supply) options and pick the cheapest
+  type CompleteOption = {
+    usd: number
+    foil: FoilType
+    bcx: number | null
+    target_bcx: number | null
+    method: BuyMethod | null
   }
-}
+  const complete: CompleteOption[] = []
 
-async function priceOneCard(
-  card: CardInput,
-  targetLevel: number,
-  decRate: number,
-): Promise<CardPrice> {
-  const targetBcx = getTargetBcx(card, targetLevel)
-  const [buyListings, rentListings] = await Promise.all([
-    fetchSaleListings(card.card_id),
-    fetchRentListings(card.card_id),
-  ])
+  if (regularResult && !regularResult.insufficient_supply) {
+    complete.push({
+      usd: regularResult.usd,
+      foil: 'regular',
+      bcx: regularResult.bcx,
+      target_bcx: regularTargetBcx,
+      method: regularResult.method,
+    })
+  }
+  if (goldResult && !goldResult.insufficient_supply) {
+    // When goldTargetBcx === 0, a single card reaches the level — no BCX count to show
+    const showBcx = goldTargetBcx > 0
+    complete.push({
+      usd: goldResult.usd,
+      foil: 'gold',
+      bcx: showBcx ? goldResult.bcx : null,
+      target_bcx: showBcx ? goldTargetBcx : null,
+      method: showBcx ? goldResult.method : null,
+    })
+  }
+  if (arcaneUsd !== null) {
+    complete.push({ usd: arcaneUsd, foil: 'arcane', bcx: null, target_bcx: null, method: null })
+  }
+  if (blackUsd !== null) {
+    complete.push({ usd: blackUsd, foil: 'black', bcx: null, target_bcx: null, method: null })
+  }
 
-  const buyResult = computeBuyUsd(buyListings, targetLevel, targetBcx)
-  const rentResult = computeRentResult(rentListings, targetLevel, decRate)
+  if (complete.length > 0) {
+    const best = complete.reduce((a, b) => a.usd <= b.usd ? a : b)
+    return {
+      card_id: card.card_id,
+      buy_usd: best.usd,
+      buy_bcx: best.bcx,
+      buy_target_bcx: best.target_bcx,
+      buy_method: best.method,
+      insufficient_supply: false,
+      is_outlier: false, // computed by flagOutliers() after all prices are known
+      foil_type: best.foil,
+    }
+  }
 
+  // No complete options — fall back to regular foil insufficient supply result
+  if (regularResult) {
+    return {
+      card_id: card.card_id,
+      buy_usd: regularResult.usd,
+      buy_bcx: regularResult.bcx,
+      buy_target_bcx: regularTargetBcx,
+      buy_method: regularResult.method,
+      insufficient_supply: regularResult.insufficient_supply,
+      is_outlier: false,
+      foil_type: 'regular',
+    }
+  }
+
+  // No listings at all
   return {
     card_id: card.card_id,
-    buy_usd: buyResult?.usd ?? null,
-    buy_bcx: buyResult?.bcx ?? null,
-    buy_target_bcx: targetBcx,
-    buy_method: buyResult?.method ?? null,
-    insufficient_supply: buyResult?.insufficient_supply ?? false,
-    is_outlier: false, // computed by flagOutliers() after all prices are known
-    rent_day_usd: rentResult?.usd ?? null,
-    rent_status: rentResult?.status ?? null,
-    rent_actual_level: rentResult?.actual_level ?? null,
+    buy_usd: null,
+    buy_bcx: null,
+    buy_target_bcx: regularTargetBcx,
+    buy_method: null,
+    insufficient_supply: false,
+    is_outlier: false,
+    foil_type: null,
   }
 }
 
 /**
- * Group cards by rarity, compute median price_per_bcx within each group,
- * and flag cards whose price_per_bcx exceeds OUTLIER_THRESHOLD × median.
+ * Group cards by rarity, compute the 75th-percentile price_per_bcx within each
+ * group, and flag cards whose price_per_bcx exceeds OUTLIER_THRESHOLD × p75.
+ *
+ * Using the 75th percentile (rather than the median) as the baseline ensures
+ * the reference point reflects the upper range of normal pricing, so legitimately
+ * expensive cards (e.g. Byzantine Kitty) are not caught by cheap cards dragging
+ * the baseline down.
  *
  * Only cards with a valid buy_usd, known buy_target_bcx, and no insufficient
- * supply are included in the median calculation — partial prices would skew it.
+ * supply are included in the calculation — partial prices would skew it.
  *
  * Mutates the is_outlier field on the CardPrice objects in-place.
  */
@@ -295,7 +337,7 @@ function flagOutliers(prices: CardPrice[], cards: CardInput[]): void {
 
   for (const p of prices) {
     if (p.buy_usd === null || p.buy_target_bcx === null || p.buy_target_bcx === 0) continue
-    if (p.insufficient_supply) continue // partial data would skew the median
+    if (p.insufficient_supply) continue // partial data would skew the baseline
     const rarity = rarityMap.get(p.card_id)
     if (rarity === undefined) continue
     const ppb = p.buy_usd / p.buy_target_bcx
@@ -305,13 +347,15 @@ function flagOutliers(prices: CardPrice[], cards: CardInput[]): void {
   }
 
   for (const group of Array.from(byRarity.values())) {
-    if (group.length < 2) continue // need at least 2 data points for a meaningful median
+    if (group.length < 2) continue // need at least 2 data points for a meaningful baseline
     const sorted = group.map((g) => g.ppb).sort((a, b) => a - b)
-    const mid = Math.floor(sorted.length / 2)
-    const medianPpb =
-      sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid]
+    // 75th percentile: interpolate between the two surrounding values
+    const pos = 0.75 * (sorted.length - 1)
+    const lo = Math.floor(pos)
+    const hi = Math.ceil(pos)
+    const p75 = lo === hi ? sorted[lo] : sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo)
     for (const { price, ppb } of group) {
-      if (ppb > medianPpb * OUTLIER_THRESHOLD) {
+      if (ppb > p75 * OUTLIER_THRESHOLD) {
         price.is_outlier = true
       }
     }
@@ -319,15 +363,13 @@ function flagOutliers(prices: CardPrice[], cards: CardInput[]): void {
 }
 
 /**
- * Fetch live buy and rent prices for a list of cards at the given league.
+ * Fetch live buy prices for a list of cards at the given league.
  * Each card's target level is derived from LEAGUE_LEVEL_CAPS[league][card.rarity].
  * Runs up to 20 cards concurrently to avoid overwhelming the SL API.
- * Market calls are never cached; DEC rate revalidates every 60s.
+ * Market calls are never cached.
  * Outlier detection runs on the full result set after all prices are fetched.
  */
 export async function fetchPrices(cards: CardInput[], league: string): Promise<PricingResult> {
-  const decRate = await fetchDecRate()
-
   const CHUNK = 20
   const prices: CardPrice[] = []
   for (let i = 0; i < cards.length; i += CHUNK) {
@@ -335,7 +377,7 @@ export async function fetchPrices(cards: CardInput[], league: string): Promise<P
     const chunkPrices = await Promise.all(
       chunk.map((c) => {
         const targetLevel = LEAGUE_LEVEL_CAPS[league]?.[c.rarity] ?? 1
-        return priceOneCard(c, targetLevel, decRate)
+        return priceOneCard(c, targetLevel)
       }),
     )
     prices.push(...chunkPrices)
@@ -346,7 +388,6 @@ export async function fetchPrices(cards: CardInput[], league: string): Promise<P
 
   return {
     prices,
-    dec_usd_rate: decRate,
     fetched_at: new Date().toISOString(),
   }
 }

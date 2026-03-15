@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import Nav from '@/components/Nav'
 import CardThumb from '@/components/CardThumb'
 import { createClient } from '@/lib/supabase/client'
@@ -8,10 +8,11 @@ import { rarityMaxLevel, LEAGUE_LEVEL_CAPS } from '@/lib/editions'
 import {
   fetchPrices,
   type BuyMethod,
-  type RentStatus,
   type CardInput,
+  type FoilType,
   type PricingResult,
 } from '@/app/actions/pricing'
+import { getEditionFormat } from '@/lib/editions'
 
 type TierEntry = {
   card_id: number
@@ -29,9 +30,7 @@ type FullResult = CardInput & {
   buy_method: BuyMethod | null
   insufficient_supply: boolean
   is_outlier: boolean
-  rent_day_usd: number | null
-  rent_status: RentStatus | null
-  rent_actual_level: number | null
+  foil_type: FoilType | null
 }
 
 const TIERS = ['S', 'A', 'B', 'C', 'D'] as const
@@ -93,7 +92,7 @@ function sumUsd(vals: (number | null)[]): number {
 
 function exportCsv(rows: FullResult[], league: League) {
   const leagueLabel = LEAGUE_STYLE[league].label
-  const header = 'Card Name,Edition,Tier,Rarity,League,Target Level,Buy USD,Buy BCX,Buy Method,Rent/Day USD'
+  const header = 'Card Name,Edition,Tier,Rarity,League,Target Level,Buy USD,Buy BCX,Buy Method'
   const lines = rows.map((r) =>
     [
       `"${r.card_name.replace(/"/g, '""')}"`,
@@ -105,7 +104,6 @@ function exportCsv(rows: FullResult[], league: League) {
       r.buy_usd !== null ? r.buy_usd.toFixed(4) : '',
       r.buy_bcx !== null ? r.buy_bcx : '',
       r.buy_method ?? '',
-      r.rent_day_usd !== null ? r.rent_day_usd.toFixed(4) : '',
     ].join(','),
   )
   const csv = [header, ...lines].join('\n')
@@ -113,12 +111,12 @@ function exportCsv(rows: FullResult[], league: League) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `spltiers-pricing-${new Date().toISOString().slice(0, 10)}.csv`
+  a.download = `spltiers-deck-builder-${new Date().toISOString().slice(0, 10)}.csv`
   a.click()
   URL.revokeObjectURL(url)
 }
 
-const COL = '40px minmax(130px,1fr) 140px 50px 80px 120px 90px'
+const COL = '40px minmax(130px,1fr) 140px 50px 80px 120px'
 
 const LABEL_STYLE = {
   fontSize: '0.7rem',
@@ -129,13 +127,117 @@ const LABEL_STYLE = {
   fontWeight: 500,
 }
 
-export default function PricingPage() {
+const FORMAT_ROW_LABEL: React.CSSProperties = {
+  fontSize: 11,
+  fontWeight: 500,
+  color: '#8b949e',
+  textTransform: 'uppercase',
+  letterSpacing: '0.5px',
+  flexShrink: 0,
+  width: 52,
+}
+
+function EditionChip({
+  edition,
+  active,
+  onToggle,
+}: {
+  edition: string
+  active: boolean
+  onToggle: () => void
+}) {
+  return (
+    <button
+      className="chip-btn"
+      onClick={onToggle}
+      style={{
+        padding: '4px 12px',
+        borderRadius: 6,
+        border: active ? '1px solid #1f6feb' : '1px solid var(--border-default)',
+        background: active ? '#1c3a5e' : 'var(--bg-tertiary)',
+        color: active ? '#79b8f2' : 'var(--text-secondary)',
+        fontSize: '0.8rem',
+        cursor: 'pointer',
+        fontWeight: active ? 600 : 400,
+      }}
+    >
+      {edition}
+    </button>
+  )
+}
+
+function AllNoneToggle({
+  editions,
+  selectedEditions,
+  setSelectedEditions,
+}: {
+  editions: string[]
+  selectedEditions: Set<string>
+  setSelectedEditions: React.Dispatch<React.SetStateAction<Set<string>>>
+}) {
+  const btnStyle: React.CSSProperties = {
+    background: 'none',
+    border: 'none',
+    padding: 0,
+    fontSize: 11,
+    color: '#8b949e',
+    cursor: 'pointer',
+    fontWeight: 500,
+  }
+  return (
+    <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, marginLeft: 4 }}>
+      <button style={btnStyle} onClick={() => setSelectedEditions((prev) => { const next = new Set(prev); editions.forEach((e) => next.add(e)); return next })}>All</button>
+      <span style={{ color: '#484f58', fontSize: 11 }}>·</span>
+      <button style={btnStyle} onClick={() => setSelectedEditions((prev) => { const next = new Set(prev); editions.forEach((e) => next.delete(e)); return next })}>None</button>
+    </span>
+  )
+}
+
+function EditionGroups({
+  availableEditions,
+  selectedEditions,
+  toggleEdition,
+  setSelectedEditions,
+}: {
+  availableEditions: string[]
+  selectedEditions: Set<string>
+  toggleEdition: (e: string) => void
+  setSelectedEditions: React.Dispatch<React.SetStateAction<Set<string>>>
+}) {
+  const modernEditions = availableEditions.filter((e) => getEditionFormat(e) === 'modern')
+  const wildEditions   = availableEditions.filter((e) => getEditionFormat(e) === 'wild')
+  const otherEditions  = availableEditions.filter((e) => getEditionFormat(e) === 'other')
+
+  const groups = [
+    { label: 'Modern', editions: modernEditions },
+    { label: 'Wild',   editions: wildEditions },
+    ...(otherEditions.length > 0 ? [{ label: 'Other', editions: otherEditions }] : []),
+  ].filter((g) => g.editions.length > 0)
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {groups.map(({ label, editions }) => (
+        <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={FORMAT_ROW_LABEL}>{label}</span>
+          {editions.map((edition) => (
+            <EditionChip key={edition} edition={edition} active={selectedEditions.has(edition)} onToggle={() => toggleEdition(edition)} />
+          ))}
+          <AllNoneToggle editions={editions} selectedEditions={selectedEditions} setSelectedEditions={setSelectedEditions} />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+export default function DeckBuilderPage() {
   const [entries, setEntries] = useState<TierEntry[]>([])
   const [loadingEntries, setLoadingEntries] = useState(true)
   const [selectedEditions, setSelectedEditions] = useState<Set<string>>(new Set())
+  const editionsInitialized = useRef(false)
   const [selectedTiers, setSelectedTiers] = useState<Set<string>>(new Set(['S', 'A']))
   const [selectedLeague, setSelectedLeague] = useState<League>('diamond')
   const [isPending, startTransition] = useTransition()
+  const [showSlowMsg, setShowSlowMsg] = useState(false)
   const [result, setResult] = useState<PricingResult | null>(null)
   const [resultCards, setResultCards] = useState<CardInput[]>([])
   const [resultLeague, setResultLeague] = useState<League>('diamond')
@@ -151,8 +253,14 @@ export default function PricingPage() {
       .eq('is_soulbound', false)
       .not('tier', 'is', null)
       .then(({ data }) => {
-        setEntries((data as TierEntry[]) ?? [])
+        const rows = (data as TierEntry[]) ?? []
+        setEntries(rows)
         setLoadingEntries(false)
+        // Select all editions on first load
+        if (!editionsInitialized.current) {
+          editionsInitialized.current = true
+          setSelectedEditions(new Set(rows.map((e) => e.edition)))
+        }
       })
   }, [])
 
@@ -192,6 +300,13 @@ export default function PricingPage() {
 
   const canCalculate = selectedEditions.size > 0 && selectedTiers.size > 0 && uniqueCards.length > 0
 
+  // Show a 'slow fetch' hint after 3 seconds of pending
+  useEffect(() => {
+    if (!isPending) { setShowSlowMsg(false); return }
+    const t = setTimeout(() => setShowSlowMsg(true), 3000)
+    return () => clearTimeout(t)
+  }, [isPending])
+
   const handleCalculate = () => {
     if (!canCalculate) return
     setResultCards(uniqueCards)
@@ -215,17 +330,13 @@ export default function PricingPage() {
       buy_method: price?.buy_method ?? null,
       insufficient_supply: price?.insufficient_supply ?? false,
       is_outlier: price?.is_outlier ?? false,
-      rent_day_usd: price?.rent_day_usd ?? null,
-      rent_status: price?.rent_status ?? null,
-      rent_actual_level: price?.rent_actual_level ?? null,
+      foil_type: price?.foil_type ?? null,
     }
   })
 
   // Warning flags — always derived from the unfiltered full set
   const hasUnavailable = fullResults.some((r) => r.insufficient_supply)
   const hasOutliers = fullResults.some((r) => r.is_outlier)
-  const hasRentAbove = fullResults.some((r) => r.rent_status === 'above_only')
-  const hasRentBelow = fullResults.some((r) => r.rent_status === 'below_only')
 
   // Display set — filtered by active exclusion chips
   const displayResults = fullResults.filter((r) => {
@@ -241,10 +352,14 @@ export default function PricingPage() {
     byEdition.set(r.edition, arr)
   }
 
-  // Totals reflect only the displayed (possibly filtered) cards
+  // Summary stats — derived from displayed (possibly filtered) cards
   const totalBuy = sumUsd(displayResults.map((r) => r.buy_usd))
-  const totalRentDay = sumUsd(displayResults.map((r) => r.rent_day_usd))
-  const totalRentMonth = totalRentDay * 30
+  const cardsWithPrice = displayResults.filter((r) => r.buy_usd !== null)
+  const avgPerCard = cardsWithPrice.length > 0 ? totalBuy / cardsWithPrice.length : null
+  const mostExpensive = cardsWithPrice.reduce<FullResult | null>(
+    (best, r) => (best === null || (r.buy_usd ?? 0) > (best.buy_usd ?? 0) ? r : best),
+    null,
+  )
 
   const showResults = result !== null && !isPending
 
@@ -252,6 +367,7 @@ export default function PricingPage() {
     <>
       <style>{`
         @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:0.4 } }
+        @keyframes spin { to { transform: rotate(360deg); } }
         .chip-btn { transition: background 0.15s, border-color 0.15s, color 0.15s; }
         .chip-btn:hover { opacity: 0.85; }
       `}</style>
@@ -259,10 +375,10 @@ export default function PricingPage() {
         <Nav />
         <main style={{ maxWidth: '1000px', margin: '0 auto', padding: '2rem 1.5rem 4rem' }}>
           <h1 style={{ color: 'var(--text-primary)', fontSize: '1.6rem', fontWeight: 700, marginBottom: '0.25rem' }}>
-            Pricing Calculator
+            Deck Builder
           </h1>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
-            Select editions and tiers to get live buy and rent prices from the Splinterlands market.
+            Explore the real cost of building a competitive deck — filter by edition, tier, and league to see live market prices.
           </p>
 
           {/* Config panel */}
@@ -279,36 +395,22 @@ export default function PricingPage() {
             <div style={{ marginBottom: '1rem' }}>
               <div style={LABEL_STYLE}>Editions</div>
               {loadingEntries ? (
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {[100, 120, 90, 110, 80].map((w, i) => (
-                    <div key={i} style={{ height: 28, width: w, background: '#21262d', borderRadius: 6, animation: 'pulse 1.5s ease-in-out infinite' }} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {[0, 1].map((row) => (
+                    <div key={row} style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      {[80, 100, 120, 90].map((w, i) => (
+                        <div key={i} style={{ height: 28, width: w, background: '#21262d', borderRadius: 6, animation: 'pulse 1.5s ease-in-out infinite' }} />
+                      ))}
+                    </div>
                   ))}
                 </div>
               ) : (
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {availableEditions.map((edition) => {
-                    const active = selectedEditions.has(edition)
-                    return (
-                      <button
-                        key={edition}
-                        className="chip-btn"
-                        onClick={() => toggleEdition(edition)}
-                        style={{
-                          padding: '4px 12px',
-                          borderRadius: 6,
-                          border: active ? '1px solid #1f6feb' : '1px solid var(--border-default)',
-                          background: active ? '#1c3a5e' : 'var(--bg-tertiary)',
-                          color: active ? '#79b8f2' : 'var(--text-secondary)',
-                          fontSize: '0.8rem',
-                          cursor: 'pointer',
-                          fontWeight: active ? 600 : 400,
-                        }}
-                      >
-                        {edition}
-                      </button>
-                    )
-                  })}
-                </div>
+                <EditionGroups
+                  availableEditions={availableEditions}
+                  selectedEditions={selectedEditions}
+                  toggleEdition={toggleEdition}
+                  setSelectedEditions={setSelectedEditions}
+                />
               )}
             </div>
 
@@ -377,28 +479,54 @@ export default function PricingPage() {
                 </div>
               </div>
 
-              <button
-                onClick={handleCalculate}
-                disabled={!canCalculate || isPending}
-                style={{
-                  padding: '7px 20px',
-                  height: 32,
-                  background: canCalculate && !isPending ? 'var(--accent-red)' : '#3d1c1c',
-                  border: 'none',
-                  borderRadius: 8,
-                  color: canCalculate && !isPending ? '#fff' : '#8b949e',
-                  fontSize: '0.875rem',
-                  fontWeight: 600,
-                  cursor: canCalculate && !isPending ? 'pointer' : 'not-allowed',
-                  transition: 'background 0.15s',
-                }}
-              >
-                {isPending
-                  ? 'Fetching prices…'
-                  : uniqueCards.length > 0
-                  ? `Calculate prices (${uniqueCards.length} cards)`
-                  : 'Calculate prices'}
-              </button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <button
+                  onClick={handleCalculate}
+                  disabled={!canCalculate || isPending}
+                  style={{
+                    padding: '7px 20px',
+                    height: 32,
+                    minWidth: 200,
+                    background: canCalculate && !isPending ? 'var(--accent-red)' : '#3d1c1c',
+                    border: 'none',
+                    borderRadius: 8,
+                    color: canCalculate && !isPending ? '#fff' : '#8b949e',
+                    fontSize: '0.875rem',
+                    fontWeight: 600,
+                    cursor: canCalculate && !isPending ? 'pointer' : 'not-allowed',
+                    transition: 'background 0.15s',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                  }}
+                >
+                  {isPending ? (
+                    <>
+                      <span style={{
+                        display: 'inline-block',
+                        width: 14,
+                        height: 14,
+                        border: '2px solid rgba(255,255,255,0.3)',
+                        borderTopColor: '#fff',
+                        borderRadius: '50%',
+                        animation: 'spin 0.7s linear infinite',
+                        flexShrink: 0,
+                      }} />
+                      Calculating...
+                    </>
+                  ) : uniqueCards.length > 0 ? (
+                    `Calculate prices (${uniqueCards.length} cards)`
+                  ) : (
+                    'Calculate prices'
+                  )}
+                </button>
+                {showSlowMsg && (
+                  <span style={{ fontSize: 12, color: '#8b949e' }}>
+                    Fetching live market data — this may take a moment
+                  </span>
+                )}
+              </div>
 
               {!loadingEntries && selectedEditions.size === 0 && (
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-faint)', alignSelf: 'center' }}>
@@ -436,39 +564,51 @@ export default function PricingPage() {
             <div>
               {/* Summary metric cards */}
               <div style={{ display: 'flex', gap: 12, marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-                {[
-                  { label: 'Total buy cost', value: formatUsdSum(totalBuy) },
-                  { label: 'Rent / day', value: formatUsdSum(totalRentDay) },
-                  { label: 'Rent / month', value: formatUsdSum(totalRentMonth) },
-                ].map(({ label, value }) => (
-                  <div
-                    key={label}
-                    style={{
-                      flex: 1,
-                      minWidth: 140,
-                      background: 'var(--bg-secondary)',
-                      border: '1px solid var(--border-default)',
-                      borderRadius: 10,
-                      padding: '1rem 1.25rem',
-                    }}
-                  >
-                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 500 }}>
-                      {label}
-                    </div>
-                    <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
-                      {value}
-                    </div>
+                {/* Total buy cost */}
+                <div style={{ flex: 1, minWidth: 140, background: 'var(--bg-secondary)', border: '1px solid var(--border-default)', borderRadius: 10, padding: '1rem 1.25rem' }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 500 }}>
+                    Total buy cost
                   </div>
-                ))}
+                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
+                    {formatUsdSum(totalBuy)}
+                  </div>
+                </div>
+
+                {/* Avg per card */}
+                <div style={{ flex: 1, minWidth: 140, background: 'var(--bg-secondary)', border: '1px solid var(--border-default)', borderRadius: 10, padding: '1rem 1.25rem' }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 500 }}>
+                    Avg per card
+                  </div>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
+                    {avgPerCard !== null ? `$${avgPerCard.toFixed(2)}` : '—'}
+                  </div>
+                </div>
+
+                {/* Most expensive card */}
+                <div style={{ flex: 1, minWidth: 140, background: 'var(--bg-secondary)', border: '1px solid var(--border-default)', borderRadius: 10, padding: '1rem 1.25rem' }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 500 }}>
+                    Most expensive card
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                    <span style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
+                      {mostExpensive !== null ? formatUsd(mostExpensive.buy_usd) : '—'}
+                    </span>
+                    {mostExpensive?.is_outlier && !excludeOutliers && (
+                      <span style={{ fontSize: 11, fontWeight: 500, color: '#e63946' }}>outlier</span>
+                    )}
+                  </div>
+                  {mostExpensive !== null && (
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {mostExpensive.card_name}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Timestamp + export */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: 8 }}>
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-faint)' }}>
                   Fetched {fetchedAt} · League: {LEAGUE_STYLE[resultLeague].label}
-                  {result.dec_usd_rate > 0
-                    ? ` · DEC rate: $${result.dec_usd_rate.toFixed(6)}/DEC`
-                    : ' · DEC rate unavailable'}
                 </span>
                 <button
                   onClick={() => exportCsv(fullResults, resultLeague)}
@@ -487,7 +627,7 @@ export default function PricingPage() {
               </div>
 
               {/* Warning banners — always visible even when filters are active */}
-              {(hasUnavailable || hasOutliers || hasRentAbove || hasRentBelow) && (
+              {(hasUnavailable || hasOutliers) && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: '0.75rem' }}>
                   {hasUnavailable && (
                     <div style={{ background: '#2d0f0f', border: '1px solid #f85149', borderRadius: 8, padding: '7px 14px', fontSize: '0.82rem', color: '#f85149', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -497,16 +637,6 @@ export default function PricingPage() {
                   {hasOutliers && (
                     <div style={{ background: '#2d0f0f', border: '1px solid #f85149', borderRadius: 8, padding: '7px 14px', fontSize: '0.82rem', color: '#f85149', display: 'flex', alignItems: 'center', gap: 6 }}>
                       <span style={{ fontWeight: 700 }}>!</span> Some cards have outlier prices and may skew the total
-                    </div>
-                  )}
-                  {hasRentAbove && (
-                    <div style={{ background: '#2d1a00', border: '1px solid #d29922', borderRadius: 8, padding: '7px 14px', fontSize: '0.82rem', color: '#d29922', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontWeight: 700 }}>!</span> Some cards are only available to rent at a higher level than required
-                    </div>
-                  )}
-                  {hasRentBelow && (
-                    <div style={{ background: '#2d0f0f', border: '1px solid #f85149', borderRadius: 8, padding: '7px 14px', fontSize: '0.82rem', color: '#f85149', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontWeight: 700 }}>!</span> Some cards are not available to rent at the required level
                     </div>
                   )}
                 </div>
@@ -558,7 +688,7 @@ export default function PricingPage() {
               <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-default)', borderRadius: 10, overflow: 'hidden' }}>
                 {/* Header */}
                 <div style={{ display: 'grid', gridTemplateColumns: COL, padding: '8px 16px', borderBottom: '1px solid var(--border-default)', background: 'var(--bg-primary)' }}>
-                  {['', 'Card', 'Edition', 'Tier', 'Rarity', 'Buy', 'Rent/day'].map((h) => (
+                  {['', 'Card', 'Edition', 'Tier', 'Rarity', 'Buy'].map((h) => (
                     <div
                       key={h}
                       style={{
@@ -578,7 +708,6 @@ export default function PricingPage() {
                 {/* Edition groups */}
                 {Array.from(byEdition.entries()).map(([edition, cards]) => {
                   const edBuy = sumUsd(cards.map((c) => c.buy_usd))
-                  const edRentDay = sumUsd(cards.map((c) => c.rent_day_usd))
                   return (
                     <div key={edition}>
                       {cards.map((card) => (
@@ -607,56 +736,79 @@ export default function PricingPage() {
                           </span>
 
                           {/* Buy price + BCX sub-label */}
-                          <div>
-                            <div style={{ fontSize: '0.85rem', color: card.insufficient_supply ? '#f85149' : card.is_outlier ? '#f85149' : (card.buy_usd !== null ? 'var(--text-primary)' : 'var(--text-faint)'), fontVariantNumeric: 'tabular-nums' }}>
-                              {formatUsd(card.buy_usd)}
-                            </div>
-                            {card.insufficient_supply ? (
-                              <div
-                                title="Not enough cards on the market to reach this level. Showing maximum achievable BCX."
-                                style={{ fontSize: '0.62rem', color: '#f85149', marginTop: 1, whiteSpace: 'nowrap', cursor: 'help' }}
-                              >
-                                {card.buy_bcx} / {card.buy_target_bcx} BCX available
-                              </div>
-                            ) : card.buy_target_bcx !== null && card.buy_method !== null ? (
-                              <div style={{ fontSize: '0.62rem', color: 'var(--text-faint)', marginTop: 1, whiteSpace: 'nowrap' }}>
-                                {card.buy_target_bcx} BCX · {card.buy_method}
-                              </div>
-                            ) : null}
-                          </div>
+                          {(() => {
+                            const foil = card.foil_type
+                            const isOutlier = card.is_outlier
 
-                          {/* Rent price */}
-                          <div
-                            title={
-                              card.rent_status === 'above_only'
-                                ? 'Only available at a higher level than required — you may be overpaying.'
-                                : card.rent_status === 'below_only'
-                                ? 'Not available at the desired level — this card is below the required level and cannot be used at full strength.'
-                                : undefined
+                            // Cell container styling — foil colour coding; outlier red takes precedence
+                            let cellStyle: React.CSSProperties = {}
+                            let cellTitle: string | undefined
+                            if (!isOutlier && !card.insufficient_supply) {
+                              if (foil === 'gold' || foil === 'arcane') {
+                                cellStyle = { background: '#2a2200', borderLeft: '3px solid #ffd700', paddingLeft: 6 }
+                                cellTitle = 'Cheapest option is a gold foil card — stats and BCX requirements differ from regular foil'
+                              } else if (foil === 'black') {
+                                cellStyle = { background: '#0a1a0a', borderLeft: '3px solid #2ecc71', paddingLeft: 6 }
+                                cellTitle = 'Cheapest option is a black foil card — already at max level, no combining needed'
+                              }
                             }
-                            style={{ cursor: card.rent_status && card.rent_status !== 'ok' ? 'help' : 'default' }}
-                          >
-                            <span style={{
-                              fontSize: '0.85rem',
-                              fontVariantNumeric: 'tabular-nums',
-                              color: card.rent_status === 'below_only' ? '#f85149'
-                                   : card.rent_status === 'above_only' ? '#d29922'
-                                   : card.rent_day_usd !== null ? 'var(--text-primary)'
-                                   : 'var(--text-faint)',
-                            }}>
-                              {formatUsd(card.rent_day_usd)}
-                            </span>
-                            {card.rent_status === 'above_only' && card.rent_actual_level !== null && (
-                              <div style={{ fontSize: '0.62rem', color: '#d29922', marginTop: 1, whiteSpace: 'nowrap' }}>
-                                level {card.rent_actual_level} available
+
+                            // Price text colour
+                            const priceColor =
+                              card.insufficient_supply || isOutlier ? '#f85149'
+                              : foil === 'gold' || foil === 'arcane' ? '#ffd700'
+                              : foil === 'black' ? '#2ecc71'
+                              : card.buy_usd !== null ? 'var(--text-primary)' : 'var(--text-faint)'
+
+                            // Sub-label
+                            let subLabel: React.ReactNode = null
+                            if (card.insufficient_supply) {
+                              subLabel = (
+                                <div
+                                  title="Not enough cards on the market to reach this level. Showing maximum achievable BCX."
+                                  style={{ fontSize: '0.62rem', color: '#f85149', marginTop: 1, whiteSpace: 'nowrap', cursor: 'help' }}
+                                >
+                                  {card.buy_bcx} / {card.buy_target_bcx} BCX available
+                                </div>
+                              )
+                            } else if (foil === 'arcane') {
+                              subLabel = (
+                                <div style={{ fontSize: '0.62rem', color: isOutlier ? 'rgba(255,215,0,0.5)' : '#ffd700', marginTop: 1, whiteSpace: 'nowrap' }}>
+                                  ✦ gold foil arcane
+                                </div>
+                              )
+                            } else if (foil === 'black') {
+                              subLabel = (
+                                <div style={{ fontSize: '0.62rem', color: isOutlier ? 'rgba(46,204,113,0.5)' : '#2ecc71', marginTop: 1, whiteSpace: 'nowrap' }}>
+                                  ◆ black foil
+                                </div>
+                              )
+                            } else if (foil === 'gold') {
+                              const goldLabel = card.buy_target_bcx !== null
+                                ? `${card.buy_target_bcx} BCX · ✦ gold foil`
+                                : '✦ gold foil'
+                              subLabel = (
+                                <div style={{ fontSize: '0.62rem', color: isOutlier ? 'rgba(255,215,0,0.5)' : '#ffd700', marginTop: 1, whiteSpace: 'nowrap' }}>
+                                  {goldLabel}
+                                </div>
+                              )
+                            } else if (card.buy_target_bcx !== null && card.buy_method !== null) {
+                              subLabel = (
+                                <div style={{ fontSize: '0.62rem', color: 'var(--text-faint)', marginTop: 1, whiteSpace: 'nowrap' }}>
+                                  {card.buy_target_bcx} BCX · {card.buy_method}
+                                </div>
+                              )
+                            }
+
+                            return (
+                              <div style={cellStyle} title={cellTitle}>
+                                <div style={{ fontSize: '0.85rem', color: priceColor, fontVariantNumeric: 'tabular-nums' }}>
+                                  {formatUsd(card.buy_usd)}
+                                </div>
+                                {subLabel}
                               </div>
-                            )}
-                            {card.rent_status === 'below_only' && card.rent_actual_level !== null && (
-                              <div style={{ fontSize: '0.62rem', color: '#f85149', marginTop: 1, whiteSpace: 'nowrap' }}>
-                                level {card.rent_actual_level} only
-                              </div>
-                            )}
-                          </div>
+                            )
+                          })()}
                         </div>
                       ))}
 
@@ -669,9 +821,6 @@ export default function PricingPage() {
                         <span /><span /><span />
                         <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
                           {formatUsdSum(edBuy)}
-                        </span>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-                          {formatUsdSum(edRentDay)}
                         </span>
                       </div>
                     </div>
