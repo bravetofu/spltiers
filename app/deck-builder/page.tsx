@@ -8,7 +8,6 @@ import { rarityMaxLevel, LEAGUE_LEVEL_CAPS } from '@/lib/editions'
 import {
   fetchPrices,
   type BuyMethod,
-  type RentStatus,
   type CardInput,
   type PricingResult,
 } from '@/app/actions/pricing'
@@ -29,9 +28,6 @@ type FullResult = CardInput & {
   buy_method: BuyMethod | null
   insufficient_supply: boolean
   is_outlier: boolean
-  rent_day_usd: number | null
-  rent_status: RentStatus | null
-  rent_actual_level: number | null
 }
 
 const TIERS = ['S', 'A', 'B', 'C', 'D'] as const
@@ -93,7 +89,7 @@ function sumUsd(vals: (number | null)[]): number {
 
 function exportCsv(rows: FullResult[], league: League) {
   const leagueLabel = LEAGUE_STYLE[league].label
-  const header = 'Card Name,Edition,Tier,Rarity,League,Target Level,Buy USD,Buy BCX,Buy Method,Rent/Day USD'
+  const header = 'Card Name,Edition,Tier,Rarity,League,Target Level,Buy USD,Buy BCX,Buy Method'
   const lines = rows.map((r) =>
     [
       `"${r.card_name.replace(/"/g, '""')}"`,
@@ -105,7 +101,6 @@ function exportCsv(rows: FullResult[], league: League) {
       r.buy_usd !== null ? r.buy_usd.toFixed(4) : '',
       r.buy_bcx !== null ? r.buy_bcx : '',
       r.buy_method ?? '',
-      r.rent_day_usd !== null ? r.rent_day_usd.toFixed(4) : '',
     ].join(','),
   )
   const csv = [header, ...lines].join('\n')
@@ -113,12 +108,12 @@ function exportCsv(rows: FullResult[], league: League) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `spltiers-pricing-${new Date().toISOString().slice(0, 10)}.csv`
+  a.download = `spltiers-deck-builder-${new Date().toISOString().slice(0, 10)}.csv`
   a.click()
   URL.revokeObjectURL(url)
 }
 
-const COL = '40px minmax(130px,1fr) 140px 50px 80px 120px 90px'
+const COL = '40px minmax(130px,1fr) 140px 50px 80px 120px'
 
 const LABEL_STYLE = {
   fontSize: '0.7rem',
@@ -129,7 +124,7 @@ const LABEL_STYLE = {
   fontWeight: 500,
 }
 
-export default function PricingPage() {
+export default function DeckBuilderPage() {
   const [entries, setEntries] = useState<TierEntry[]>([])
   const [loadingEntries, setLoadingEntries] = useState(true)
   const [selectedEditions, setSelectedEditions] = useState<Set<string>>(new Set())
@@ -215,17 +210,12 @@ export default function PricingPage() {
       buy_method: price?.buy_method ?? null,
       insufficient_supply: price?.insufficient_supply ?? false,
       is_outlier: price?.is_outlier ?? false,
-      rent_day_usd: price?.rent_day_usd ?? null,
-      rent_status: price?.rent_status ?? null,
-      rent_actual_level: price?.rent_actual_level ?? null,
     }
   })
 
   // Warning flags — always derived from the unfiltered full set
   const hasUnavailable = fullResults.some((r) => r.insufficient_supply)
   const hasOutliers = fullResults.some((r) => r.is_outlier)
-  const hasRentAbove = fullResults.some((r) => r.rent_status === 'above_only')
-  const hasRentBelow = fullResults.some((r) => r.rent_status === 'below_only')
 
   // Display set — filtered by active exclusion chips
   const displayResults = fullResults.filter((r) => {
@@ -241,10 +231,14 @@ export default function PricingPage() {
     byEdition.set(r.edition, arr)
   }
 
-  // Totals reflect only the displayed (possibly filtered) cards
+  // Summary stats — derived from displayed (possibly filtered) cards
   const totalBuy = sumUsd(displayResults.map((r) => r.buy_usd))
-  const totalRentDay = sumUsd(displayResults.map((r) => r.rent_day_usd))
-  const totalRentMonth = totalRentDay * 30
+  const cardsWithPrice = displayResults.filter((r) => r.buy_usd !== null)
+  const avgPerCard = cardsWithPrice.length > 0 ? totalBuy / cardsWithPrice.length : null
+  const mostExpensive = cardsWithPrice.reduce<FullResult | null>(
+    (best, r) => (best === null || (r.buy_usd ?? 0) > (best.buy_usd ?? 0) ? r : best),
+    null,
+  )
 
   const showResults = result !== null && !isPending
 
@@ -259,10 +253,10 @@ export default function PricingPage() {
         <Nav />
         <main style={{ maxWidth: '1000px', margin: '0 auto', padding: '2rem 1.5rem 4rem' }}>
           <h1 style={{ color: 'var(--text-primary)', fontSize: '1.6rem', fontWeight: 700, marginBottom: '0.25rem' }}>
-            Pricing Calculator
+            Deck Builder
           </h1>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
-            Select editions and tiers to get live buy and rent prices from the Splinterlands market.
+            Explore the real cost of building a competitive deck — filter by edition, tier, and league to see live market prices.
           </p>
 
           {/* Config panel */}
@@ -436,39 +430,46 @@ export default function PricingPage() {
             <div>
               {/* Summary metric cards */}
               <div style={{ display: 'flex', gap: 12, marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-                {[
-                  { label: 'Total buy cost', value: formatUsdSum(totalBuy) },
-                  { label: 'Rent / day', value: formatUsdSum(totalRentDay) },
-                  { label: 'Rent / month', value: formatUsdSum(totalRentMonth) },
-                ].map(({ label, value }) => (
-                  <div
-                    key={label}
-                    style={{
-                      flex: 1,
-                      minWidth: 140,
-                      background: 'var(--bg-secondary)',
-                      border: '1px solid var(--border-default)',
-                      borderRadius: 10,
-                      padding: '1rem 1.25rem',
-                    }}
-                  >
-                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 500 }}>
-                      {label}
-                    </div>
-                    <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
-                      {value}
-                    </div>
+                {/* Total buy cost */}
+                <div style={{ flex: 1, minWidth: 140, background: 'var(--bg-secondary)', border: '1px solid var(--border-default)', borderRadius: 10, padding: '1rem 1.25rem' }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 500 }}>
+                    Total buy cost
                   </div>
-                ))}
+                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
+                    {formatUsdSum(totalBuy)}
+                  </div>
+                </div>
+
+                {/* Avg per card */}
+                <div style={{ flex: 1, minWidth: 140, background: 'var(--bg-secondary)', border: '1px solid var(--border-default)', borderRadius: 10, padding: '1rem 1.25rem' }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 500 }}>
+                    Avg per card
+                  </div>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
+                    {avgPerCard !== null ? `$${avgPerCard.toFixed(2)}` : '—'}
+                  </div>
+                </div>
+
+                {/* Most expensive */}
+                <div style={{ flex: 1, minWidth: 140, background: 'var(--bg-secondary)', border: '1px solid var(--border-default)', borderRadius: 10, padding: '1rem 1.25rem' }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 500 }}>
+                    Most expensive
+                  </div>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
+                    {mostExpensive !== null ? formatUsd(mostExpensive.buy_usd) : '—'}
+                  </div>
+                  {mostExpensive !== null && (
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {mostExpensive.card_name}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Timestamp + export */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: 8 }}>
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-faint)' }}>
                   Fetched {fetchedAt} · League: {LEAGUE_STYLE[resultLeague].label}
-                  {result.dec_usd_rate > 0
-                    ? ` · DEC rate: $${result.dec_usd_rate.toFixed(6)}/DEC`
-                    : ' · DEC rate unavailable'}
                 </span>
                 <button
                   onClick={() => exportCsv(fullResults, resultLeague)}
@@ -487,7 +488,7 @@ export default function PricingPage() {
               </div>
 
               {/* Warning banners — always visible even when filters are active */}
-              {(hasUnavailable || hasOutliers || hasRentAbove || hasRentBelow) && (
+              {(hasUnavailable || hasOutliers) && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: '0.75rem' }}>
                   {hasUnavailable && (
                     <div style={{ background: '#2d0f0f', border: '1px solid #f85149', borderRadius: 8, padding: '7px 14px', fontSize: '0.82rem', color: '#f85149', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -497,16 +498,6 @@ export default function PricingPage() {
                   {hasOutliers && (
                     <div style={{ background: '#2d0f0f', border: '1px solid #f85149', borderRadius: 8, padding: '7px 14px', fontSize: '0.82rem', color: '#f85149', display: 'flex', alignItems: 'center', gap: 6 }}>
                       <span style={{ fontWeight: 700 }}>!</span> Some cards have outlier prices and may skew the total
-                    </div>
-                  )}
-                  {hasRentAbove && (
-                    <div style={{ background: '#2d1a00', border: '1px solid #d29922', borderRadius: 8, padding: '7px 14px', fontSize: '0.82rem', color: '#d29922', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontWeight: 700 }}>!</span> Some cards are only available to rent at a higher level than required
-                    </div>
-                  )}
-                  {hasRentBelow && (
-                    <div style={{ background: '#2d0f0f', border: '1px solid #f85149', borderRadius: 8, padding: '7px 14px', fontSize: '0.82rem', color: '#f85149', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontWeight: 700 }}>!</span> Some cards are not available to rent at the required level
                     </div>
                   )}
                 </div>
@@ -558,7 +549,7 @@ export default function PricingPage() {
               <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-default)', borderRadius: 10, overflow: 'hidden' }}>
                 {/* Header */}
                 <div style={{ display: 'grid', gridTemplateColumns: COL, padding: '8px 16px', borderBottom: '1px solid var(--border-default)', background: 'var(--bg-primary)' }}>
-                  {['', 'Card', 'Edition', 'Tier', 'Rarity', 'Buy', 'Rent/day'].map((h) => (
+                  {['', 'Card', 'Edition', 'Tier', 'Rarity', 'Buy'].map((h) => (
                     <div
                       key={h}
                       style={{
@@ -578,7 +569,6 @@ export default function PricingPage() {
                 {/* Edition groups */}
                 {Array.from(byEdition.entries()).map(([edition, cards]) => {
                   const edBuy = sumUsd(cards.map((c) => c.buy_usd))
-                  const edRentDay = sumUsd(cards.map((c) => c.rent_day_usd))
                   return (
                     <div key={edition}>
                       {cards.map((card) => (
@@ -624,39 +614,6 @@ export default function PricingPage() {
                               </div>
                             ) : null}
                           </div>
-
-                          {/* Rent price */}
-                          <div
-                            title={
-                              card.rent_status === 'above_only'
-                                ? 'Only available at a higher level than required — you may be overpaying.'
-                                : card.rent_status === 'below_only'
-                                ? 'Not available at the desired level — this card is below the required level and cannot be used at full strength.'
-                                : undefined
-                            }
-                            style={{ cursor: card.rent_status && card.rent_status !== 'ok' ? 'help' : 'default' }}
-                          >
-                            <span style={{
-                              fontSize: '0.85rem',
-                              fontVariantNumeric: 'tabular-nums',
-                              color: card.rent_status === 'below_only' ? '#f85149'
-                                   : card.rent_status === 'above_only' ? '#d29922'
-                                   : card.rent_day_usd !== null ? 'var(--text-primary)'
-                                   : 'var(--text-faint)',
-                            }}>
-                              {formatUsd(card.rent_day_usd)}
-                            </span>
-                            {card.rent_status === 'above_only' && card.rent_actual_level !== null && (
-                              <div style={{ fontSize: '0.62rem', color: '#d29922', marginTop: 1, whiteSpace: 'nowrap' }}>
-                                level {card.rent_actual_level} available
-                              </div>
-                            )}
-                            {card.rent_status === 'below_only' && card.rent_actual_level !== null && (
-                              <div style={{ fontSize: '0.62rem', color: '#f85149', marginTop: 1, whiteSpace: 'nowrap' }}>
-                                level {card.rent_actual_level} only
-                              </div>
-                            )}
-                          </div>
                         </div>
                       ))}
 
@@ -669,9 +626,6 @@ export default function PricingPage() {
                         <span /><span /><span />
                         <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
                           {formatUsdSum(edBuy)}
-                        </span>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-                          {formatUsdSum(edRentDay)}
                         </span>
                       </div>
                     </div>
