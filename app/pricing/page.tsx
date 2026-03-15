@@ -4,8 +4,13 @@ import { useEffect, useState, useTransition } from 'react'
 import Nav from '@/components/Nav'
 import CardThumb from '@/components/CardThumb'
 import { createClient } from '@/lib/supabase/client'
-import { rarityMaxLevel } from '@/lib/editions'
-import { fetchPrices, type CardInput, type PricingResult } from '@/app/actions/pricing'
+import { rarityMaxLevel, LEAGUE_LEVEL_CAPS } from '@/lib/editions'
+import {
+  fetchPrices,
+  type BuyMethod,
+  type CardInput,
+  type PricingResult,
+} from '@/app/actions/pricing'
 
 type TierEntry = {
   card_id: number
@@ -18,6 +23,8 @@ type TierEntry = {
 
 type FullResult = CardInput & {
   buy_usd: number | null
+  buy_bcx: number | null
+  buy_method: BuyMethod | null
   rent_day_usd: number | null
 }
 
@@ -30,7 +37,6 @@ const RARITY_NAMES: Record<number, string> = {
   4: 'Legendary',
 }
 
-// Tier chip colours (active = label bg/text; inactive = default chip)
 const TIER_LABEL_STYLE: Record<string, { bg: string; color: string }> = {
   S: { bg: '#ffd700', color: '#0d1117' },
   A: { bg: '#2ecc71', color: '#0d1117' },
@@ -39,13 +45,28 @@ const TIER_LABEL_STYLE: Record<string, { bg: string; color: string }> = {
   D: { bg: '#555e6a', color: '#adb5bd' },
 }
 
-// Tier pill colours for table badges
 const TIER_PILL_STYLE: Record<string, { bg: string; color: string }> = {
   S: { bg: '#3d3000', color: '#ffd700' },
   A: { bg: '#0d3320', color: '#2ecc71' },
   B: { bg: '#0d2440', color: '#3498db' },
   C: { bg: '#1c2128', color: '#95a5a6' },
   D: { bg: '#161b22', color: '#555e6a' },
+}
+
+const LEAGUES = ['bronze', 'silver', 'gold', 'diamond', 'max'] as const
+type League = typeof LEAGUES[number]
+
+const LEAGUE_STYLE: Record<League, { bg: string; color: string; label: string }> = {
+  bronze:  { bg: '#cd7f32', color: '#0d1117', label: 'Bronze'   },
+  silver:  { bg: '#c0c0c0', color: '#0d1117', label: 'Silver'   },
+  gold:    { bg: '#ffd700', color: '#0d1117', label: 'Gold'     },
+  diamond: { bg: '#6ee7f7', color: '#0d1117', label: 'Diamond+' },
+  max:     { bg: '#e63946', color: '#ffffff', label: 'Max'      },
+}
+
+function leagueTooltip(league: League): string {
+  const caps = LEAGUE_LEVEL_CAPS[league]
+  return `C${caps[1]} · R${caps[2]} · E${caps[3]} · L${caps[4]}`
 }
 
 function formatUsd(val: number | null): string {
@@ -65,16 +86,20 @@ function sumUsd(vals: (number | null)[]): number {
   return vals.reduce<number>((acc, v) => acc + (v ?? 0), 0)
 }
 
-function exportCsv(rows: FullResult[], level: number) {
-  const header = 'Card Name,Edition,Tier,Rarity,Level,Buy USD,Rent/Day USD'
+function exportCsv(rows: FullResult[], league: League) {
+  const leagueLabel = LEAGUE_STYLE[league].label
+  const header = 'Card Name,Edition,Tier,Rarity,League,Target Level,Buy USD,Buy BCX,Buy Method,Rent/Day USD'
   const lines = rows.map((r) =>
     [
       `"${r.card_name.replace(/"/g, '""')}"`,
       `"${r.edition}"`,
       r.tier,
       RARITY_NAMES[r.rarity] ?? '',
-      Math.min(level, rarityMaxLevel(r.rarity)),
+      leagueLabel,
+      LEAGUE_LEVEL_CAPS[league]?.[r.rarity] ?? '',
       r.buy_usd !== null ? r.buy_usd.toFixed(4) : '',
+      r.buy_bcx !== null ? r.buy_bcx : '',
+      r.buy_method ?? '',
       r.rent_day_usd !== null ? r.rent_day_usd.toFixed(4) : '',
     ].join(','),
   )
@@ -88,21 +113,29 @@ function exportCsv(rows: FullResult[], level: number) {
   URL.revokeObjectURL(url)
 }
 
-// ── Grid column template for the results table ──────────────────────────────
-const COL = '40px minmax(130px,1fr) 140px 50px 80px 90px 90px'
+const COL = '40px minmax(130px,1fr) 140px 50px 80px 120px 90px'
+
+const LABEL_STYLE = {
+  fontSize: '0.7rem',
+  color: 'var(--text-muted)',
+  marginBottom: '0.5rem',
+  textTransform: 'uppercase' as const,
+  letterSpacing: '0.05em',
+  fontWeight: 500,
+}
 
 export default function PricingPage() {
   const [entries, setEntries] = useState<TierEntry[]>([])
   const [loadingEntries, setLoadingEntries] = useState(true)
   const [selectedEditions, setSelectedEditions] = useState<Set<string>>(new Set())
   const [selectedTiers, setSelectedTiers] = useState<Set<string>>(new Set(['S', 'A']))
-  const [level, setLevel] = useState(1)
+  const [selectedLeague, setSelectedLeague] = useState<League>('max')
   const [isPending, startTransition] = useTransition()
   const [result, setResult] = useState<PricingResult | null>(null)
   const [resultCards, setResultCards] = useState<CardInput[]>([])
+  const [resultLeague, setResultLeague] = useState<League>('max')
   const [fetchedAt, setFetchedAt] = useState<string | null>(null)
 
-  // Load all non-soulbound tiered entries from Supabase
   useEffect(() => {
     const supabase = createClient()
     supabase
@@ -119,12 +152,9 @@ export default function PricingPage() {
   const availableEditions = Array.from(new Set(entries.map((e) => e.edition))).sort()
 
   const filteredEntries = entries.filter(
-    (e) =>
-      selectedEditions.has(e.edition) &&
-      selectedTiers.has(e.tier),
+    (e) => selectedEditions.has(e.edition) && selectedTiers.has(e.tier),
   )
 
-  // Deduplicate by card_id (same card can appear in multiple card_sets)
   const uniqueCards: CardInput[] = (() => {
     const seen = new Set<number>()
     const cards: CardInput[] = []
@@ -158,24 +188,25 @@ export default function PricingPage() {
   const handleCalculate = () => {
     if (!canCalculate) return
     setResultCards(uniqueCards)
+    setResultLeague(selectedLeague)
     startTransition(async () => {
-      const res = await fetchPrices(uniqueCards, level)
+      const res = await fetchPrices(uniqueCards, selectedLeague)
       setResult(res)
       setFetchedAt(new Date().toLocaleString())
     })
   }
 
-  // Merge cards with prices for display
   const fullResults: FullResult[] = resultCards.map((card) => {
     const price = result?.prices.find((p) => p.card_id === card.card_id)
     return {
       ...card,
       buy_usd: price?.buy_usd ?? null,
+      buy_bcx: price?.buy_bcx ?? null,
+      buy_method: price?.buy_method ?? null,
       rent_day_usd: price?.rent_day_usd ?? null,
     }
   })
 
-  // Group by edition preserving insertion order
   const byEdition = new Map<string, FullResult[]>()
   for (const r of fullResults) {
     const arr = byEdition.get(r.edition) ?? []
@@ -199,27 +230,14 @@ export default function PricingPage() {
       <div style={{ minHeight: '100vh', background: 'var(--bg-primary)' }}>
         <Nav />
         <main style={{ maxWidth: '1000px', margin: '0 auto', padding: '2rem 1.5rem 4rem' }}>
-          <h1
-            style={{
-              color: 'var(--text-primary)',
-              fontSize: '1.6rem',
-              fontWeight: 700,
-              marginBottom: '0.25rem',
-            }}
-          >
+          <h1 style={{ color: 'var(--text-primary)', fontSize: '1.6rem', fontWeight: 700, marginBottom: '0.25rem' }}>
             Pricing Calculator
           </h1>
-          <p
-            style={{
-              color: 'var(--text-muted)',
-              fontSize: '0.9rem',
-              marginBottom: '1.5rem',
-            }}
-          >
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
             Select editions and tiers to get live buy and rent prices from the Splinterlands market.
           </p>
 
-          {/* ── Config panel ─────────────────────────────────────────────── */}
+          {/* Config panel */}
           <div
             style={{
               background: 'var(--bg-secondary)',
@@ -231,31 +249,11 @@ export default function PricingPage() {
           >
             {/* Editions */}
             <div style={{ marginBottom: '1rem' }}>
-              <div
-                style={{
-                  fontSize: '0.7rem',
-                  color: 'var(--text-muted)',
-                  marginBottom: '0.5rem',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  fontWeight: 500,
-                }}
-              >
-                Editions
-              </div>
+              <div style={LABEL_STYLE}>Editions</div>
               {loadingEntries ? (
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   {[100, 120, 90, 110, 80].map((w, i) => (
-                    <div
-                      key={i}
-                      style={{
-                        height: 28,
-                        width: w,
-                        background: '#21262d',
-                        borderRadius: 6,
-                        animation: 'pulse 1.5s ease-in-out infinite',
-                      }}
-                    />
+                    <div key={i} style={{ height: 28, width: w, background: '#21262d', borderRadius: 6, animation: 'pulse 1.5s ease-in-out infinite' }} />
                   ))}
                 </div>
               ) : (
@@ -270,9 +268,7 @@ export default function PricingPage() {
                         style={{
                           padding: '4px 12px',
                           borderRadius: 6,
-                          border: active
-                            ? '1px solid #1f6feb'
-                            : '1px solid var(--border-default)',
+                          border: active ? '1px solid #1f6feb' : '1px solid var(--border-default)',
                           background: active ? '#1c3a5e' : 'var(--bg-tertiary)',
                           color: active ? '#79b8f2' : 'var(--text-secondary)',
                           fontSize: '0.8rem',
@@ -290,18 +286,7 @@ export default function PricingPage() {
 
             {/* Tiers */}
             <div style={{ marginBottom: '1rem' }}>
-              <div
-                style={{
-                  fontSize: '0.7rem',
-                  color: 'var(--text-muted)',
-                  marginBottom: '0.5rem',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  fontWeight: 500,
-                }}
-              >
-                Tiers
-              </div>
+              <div style={LABEL_STYLE}>Tiers</div>
               <div style={{ display: 'flex', gap: 8 }}>
                 {TIERS.map((tier) => {
                   const active = selectedTiers.has(tier)
@@ -330,40 +315,38 @@ export default function PricingPage() {
               </div>
             </div>
 
-            {/* Level + CTA */}
+            {/* League + CTA */}
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, flexWrap: 'wrap' }}>
               <div>
-                <div
-                  style={{
-                    fontSize: '0.7rem',
-                    color: 'var(--text-muted)',
-                    marginBottom: '0.5rem',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.05em',
-                    fontWeight: 500,
-                  }}
-                >
-                  Card level
+                <div style={LABEL_STYLE}>League</div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {LEAGUES.map((league) => {
+                    const active = selectedLeague === league
+                    const col = LEAGUE_STYLE[league]
+                    return (
+                      <button
+                        key={league}
+                        className="chip-btn"
+                        title={leagueTooltip(league)}
+                        onClick={() => setSelectedLeague(league)}
+                        style={{
+                          padding: '4px 12px',
+                          height: 32,
+                          borderRadius: 6,
+                          border: active ? 'none' : '1px solid var(--border-default)',
+                          background: active ? col.bg : 'var(--bg-tertiary)',
+                          color: active ? col.color : 'var(--text-muted)',
+                          fontSize: '0.85rem',
+                          fontWeight: active ? 700 : 400,
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {col.label}
+                      </button>
+                    )
+                  })}
                 </div>
-                <select
-                  value={level}
-                  onChange={(e) => setLevel(Number(e.target.value))}
-                  style={{
-                    background: 'var(--bg-tertiary)',
-                    border: '1px solid var(--border-default)',
-                    borderRadius: 6,
-                    color: 'var(--text-primary)',
-                    fontSize: '0.875rem',
-                    padding: '5px 10px',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((l) => (
-                    <option key={l} value={l}>
-                      Level {l}
-                    </option>
-                  ))}
-                </select>
               </div>
 
               <button
@@ -371,8 +354,8 @@ export default function PricingPage() {
                 disabled={!canCalculate || isPending}
                 style={{
                   padding: '7px 20px',
-                  background:
-                    canCalculate && !isPending ? 'var(--accent-red)' : '#3d1c1c',
+                  height: 32,
+                  background: canCalculate && !isPending ? 'var(--accent-red)' : '#3d1c1c',
                   border: 'none',
                   borderRadius: 8,
                   color: canCalculate && !isPending ? '#fff' : '#8b949e',
@@ -397,63 +380,21 @@ export default function PricingPage() {
             </div>
           </div>
 
-          {/* ── Loading skeleton ─────────────────────────────────────────── */}
+          {/* Loading skeleton */}
           {isPending && (
             <div>
               <div style={{ display: 'flex', gap: 12, marginBottom: '1.5rem' }}>
                 {[1, 2, 3].map((i) => (
-                  <div
-                    key={i}
-                    style={{
-                      flex: 1,
-                      height: 80,
-                      background: 'var(--bg-secondary)',
-                      borderRadius: 10,
-                      animation: 'pulse 1.5s ease-in-out infinite',
-                    }}
-                  />
+                  <div key={i} style={{ flex: 1, height: 80, background: 'var(--bg-secondary)', borderRadius: 10, animation: 'pulse 1.5s ease-in-out infinite' }} />
                 ))}
               </div>
-              <div
-                style={{
-                  background: 'var(--bg-secondary)',
-                  border: '1px solid var(--border-default)',
-                  borderRadius: 10,
-                  overflow: 'hidden',
-                }}
-              >
+              <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-default)', borderRadius: 10, overflow: 'hidden' }}>
                 {[...Array(8)].map((_, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      display: 'flex',
-                      gap: 12,
-                      padding: '10px 16px',
-                      borderBottom: '1px solid var(--border-subtle)',
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: 32,
-                        height: 32,
-                        borderRadius: 4,
-                        background: '#21262d',
-                        flexShrink: 0,
-                        animation: 'pulse 1.5s ease-in-out infinite',
-                      }}
-                    />
+                  <div key={i} style={{ display: 'flex', gap: 12, padding: '10px 16px', borderBottom: '1px solid var(--border-subtle)' }}>
+                    <div style={{ width: 32, height: 32, borderRadius: 4, background: '#21262d', flexShrink: 0, animation: 'pulse 1.5s ease-in-out infinite' }} />
                     <div style={{ flex: 1, display: 'flex', gap: 12, alignItems: 'center' }}>
                       {[2, 1.2, 0.8, 0.7, 0.7].map((w, j) => (
-                        <div
-                          key={j}
-                          style={{
-                            flex: w,
-                            height: 12,
-                            borderRadius: 4,
-                            background: '#21262d',
-                            animation: `pulse ${1.3 + j * 0.1}s ease-in-out infinite`,
-                          }}
-                        />
+                        <div key={j} style={{ flex: w, height: 12, borderRadius: 4, background: '#21262d', animation: `pulse ${1.3 + j * 0.1}s ease-in-out infinite` }} />
                       ))}
                     </div>
                   </div>
@@ -462,18 +403,11 @@ export default function PricingPage() {
             </div>
           )}
 
-          {/* ── Results ──────────────────────────────────────────────────── */}
+          {/* Results */}
           {showResults && (
             <div>
               {/* Summary metric cards */}
-              <div
-                style={{
-                  display: 'flex',
-                  gap: 12,
-                  marginBottom: '1.5rem',
-                  flexWrap: 'wrap',
-                }}
-              >
+              <div style={{ display: 'flex', gap: 12, marginBottom: '1.5rem', flexWrap: 'wrap' }}>
                 {[
                   { label: 'Total buy cost', value: formatUsdSum(totalBuy) },
                   { label: 'Rent / day', value: formatUsdSum(totalRentDay) },
@@ -490,51 +424,26 @@ export default function PricingPage() {
                       padding: '1rem 1.25rem',
                     }}
                   >
-                    <div
-                      style={{
-                        fontSize: '0.72rem',
-                        color: 'var(--text-muted)',
-                        marginBottom: 6,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.05em',
-                        fontWeight: 500,
-                      }}
-                    >
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 500 }}>
                       {label}
                     </div>
-                    <div
-                      style={{
-                        fontSize: '1.5rem',
-                        fontWeight: 700,
-                        color: 'var(--text-primary)',
-                        fontVariantNumeric: 'tabular-nums',
-                      }}
-                    >
+                    <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
                       {value}
                     </div>
                   </div>
                 ))}
               </div>
 
-              {/* Timestamp + export button */}
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginBottom: '0.75rem',
-                  flexWrap: 'wrap',
-                  gap: 8,
-                }}
-              >
+              {/* Timestamp + export */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: 8 }}>
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-faint)' }}>
-                  Fetched {fetchedAt}
+                  Fetched {fetchedAt} · League: {LEAGUE_STYLE[resultLeague].label}
                   {result.dec_usd_rate > 0
                     ? ` · DEC rate: $${result.dec_usd_rate.toFixed(6)}/DEC`
                     : ' · DEC rate unavailable'}
                 </span>
                 <button
-                  onClick={() => exportCsv(fullResults, level)}
+                  onClick={() => exportCsv(fullResults, resultLeague)}
                   style={{
                     padding: '5px 14px',
                     background: 'var(--bg-tertiary)',
@@ -550,25 +459,9 @@ export default function PricingPage() {
               </div>
 
               {/* Results table */}
-              <div
-                style={{
-                  background: 'var(--bg-secondary)',
-                  border: '1px solid var(--border-default)',
-                  borderRadius: 10,
-                  overflow: 'hidden',
-                }}
-              >
-                {/* Header row */}
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: COL,
-                    padding: '8px 16px',
-                    borderBottom: '1px solid var(--border-default)',
-                    background: 'var(--bg-primary)',
-                    gap: 0,
-                  }}
-                >
+              <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-default)', borderRadius: 10, overflow: 'hidden' }}>
+                {/* Header */}
+                <div style={{ display: 'grid', gridTemplateColumns: COL, padding: '8px 16px', borderBottom: '1px solid var(--border-default)', background: 'var(--bg-primary)' }}>
                   {['', 'Card', 'Edition', 'Tier', 'Rarity', 'Buy', 'Rent/day'].map((h) => (
                     <div
                       key={h}
@@ -603,133 +496,50 @@ export default function PricingPage() {
                             borderBottom: '1px solid var(--border-subtle)',
                           }}
                         >
-                          <CardThumb
-                            cardName={card.card_name}
-                            cdnSlug={card.cdn_slug}
-                            rarity={card.rarity}
-                            maxLevel={rarityMaxLevel(card.rarity)}
-                            size={32}
-                          />
-                          <span
-                            style={{
-                              fontSize: '0.85rem',
-                              color: 'var(--text-primary)',
-                              paddingLeft: 8,
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
+                          <CardThumb cardName={card.card_name} cdnSlug={card.cdn_slug} rarity={card.rarity} maxLevel={rarityMaxLevel(card.rarity)} size={32} />
+                          <span style={{ fontSize: '0.85rem', color: 'var(--text-primary)', paddingLeft: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {card.card_name}
                           </span>
-                          <span
-                            style={{
-                              fontSize: '0.68rem',
-                              background: 'var(--bg-tertiary)',
-                              border: '1px solid var(--border-default)',
-                              borderRadius: 4,
-                              padding: '2px 6px',
-                              color: 'var(--text-muted)',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                              width: 'fit-content',
-                              maxWidth: '100%',
-                            }}
-                          >
+                          <span style={{ fontSize: '0.68rem', background: 'var(--bg-tertiary)', border: '1px solid var(--border-default)', borderRadius: 4, padding: '2px 6px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: 'fit-content', maxWidth: '100%' }}>
                             {card.edition}
                           </span>
-                          <span
-                            style={{
-                              fontSize: '0.72rem',
-                              background: TIER_PILL_STYLE[card.tier]?.bg,
-                              color: TIER_PILL_STYLE[card.tier]?.color,
-                              borderRadius: 4,
-                              padding: '2px 7px',
-                              fontWeight: 700,
-                              width: 'fit-content',
-                            }}
-                          >
+                          <span style={{ fontSize: '0.72rem', background: TIER_PILL_STYLE[card.tier]?.bg, color: TIER_PILL_STYLE[card.tier]?.color, borderRadius: 4, padding: '2px 7px', fontWeight: 700, width: 'fit-content' }}>
                             {card.tier}
                           </span>
-                          <span
-                            style={{
-                              fontSize: '0.78rem',
-                              color: 'var(--text-muted)',
-                            }}
-                          >
+                          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
                             {RARITY_NAMES[card.rarity] ?? ''}
                           </span>
-                          <span
-                            style={{
-                              fontSize: '0.85rem',
-                              color:
-                                card.buy_usd !== null
-                                  ? 'var(--text-primary)'
-                                  : 'var(--text-faint)',
-                              fontVariantNumeric: 'tabular-nums',
-                            }}
-                          >
-                            {formatUsd(card.buy_usd)}
-                          </span>
-                          <span
-                            style={{
-                              fontSize: '0.85rem',
-                              color:
-                                card.rent_day_usd !== null
-                                  ? 'var(--text-primary)'
-                                  : 'var(--text-faint)',
-                              fontVariantNumeric: 'tabular-nums',
-                            }}
-                          >
+
+                          {/* Buy price + BCX sub-label */}
+                          <div>
+                            <div style={{ fontSize: '0.85rem', color: card.buy_usd !== null ? 'var(--text-primary)' : 'var(--text-faint)', fontVariantNumeric: 'tabular-nums' }}>
+                              {formatUsd(card.buy_usd)}
+                            </div>
+                            {card.buy_bcx !== null && card.buy_method !== null && (
+                              <div style={{ fontSize: '0.62rem', color: 'var(--text-faint)', marginTop: 1, whiteSpace: 'nowrap' }}>
+                                {card.buy_bcx} BCX · {card.buy_method}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Rent price */}
+                          <span style={{ fontSize: '0.85rem', color: card.rent_day_usd !== null ? 'var(--text-primary)' : 'var(--text-faint)', fontVariantNumeric: 'tabular-nums' }}>
                             {formatUsd(card.rent_day_usd)}
                           </span>
                         </div>
                       ))}
 
-                      {/* Per-edition subtotal row */}
-                      <div
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: COL,
-                          alignItems: 'center',
-                          padding: '6px 16px',
-                          borderBottom: '2px solid var(--border-default)',
-                          background: 'var(--bg-tertiary)',
-                        }}
-                      >
+                      {/* Per-edition subtotal */}
+                      <div style={{ display: 'grid', gridTemplateColumns: COL, alignItems: 'center', padding: '6px 16px', borderBottom: '2px solid var(--border-default)', background: 'var(--bg-tertiary)' }}>
                         <span />
-                        <span
-                          style={{
-                            fontSize: '0.75rem',
-                            color: 'var(--text-muted)',
-                            paddingLeft: 8,
-                            fontWeight: 600,
-                          }}
-                        >
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', paddingLeft: 8, fontWeight: 600 }}>
                           {edition} — {cards.length} card{cards.length !== 1 ? 's' : ''}
                         </span>
-                        <span />
-                        <span />
-                        <span />
-                        <span
-                          style={{
-                            fontSize: '0.8rem',
-                            color: 'var(--text-secondary)',
-                            fontWeight: 600,
-                            fontVariantNumeric: 'tabular-nums',
-                          }}
-                        >
+                        <span /><span /><span />
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
                           {formatUsdSum(edBuy)}
                         </span>
-                        <span
-                          style={{
-                            fontSize: '0.8rem',
-                            color: 'var(--text-secondary)',
-                            fontWeight: 600,
-                            fontVariantNumeric: 'tabular-nums',
-                          }}
-                        >
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
                           {formatUsdSum(edRentDay)}
                         </span>
                       </div>
