@@ -144,15 +144,14 @@ export default async function HomePage() {
                 margin: '0 0 0.3rem',
               }}
             >
-              Pricing calculator
+              Deck Builder
             </p>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: 0 }}>
-              Select editions + tiers and get live buy &amp; rent prices from the Splinterlands
-              market.
+              Explore the real cost of building a competitive deck — filter by edition, tier, and league to see live market prices.
             </p>
           </div>
           <Link
-            href="/pricing"
+            href="/deck-builder"
             style={{
               background: 'var(--accent-red)',
               color: '#fff',
@@ -166,7 +165,7 @@ export default async function HomePage() {
               flexShrink: 0,
             }}
           >
-            Calculate prices →
+            Open Deck Builder →
           </Link>
         </div>
       </main>

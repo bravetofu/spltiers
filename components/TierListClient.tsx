@@ -210,10 +210,22 @@ function DropdownGroup({
   )
 }
 
+// ─── Rarity config ────────────────────────────────────────────────────────────
+
+const RARITIES: { value: number; label: string; color: string }[] = [
+  { value: 1, label: 'Common',    color: '#95a5a6' },
+  { value: 2, label: 'Rare',      color: '#3498db' },
+  { value: 3, label: 'Epic',      color: '#a855f7' },
+  { value: 4, label: 'Legendary', color: '#ffd700' },
+]
+
+const ALL_RARITIES = new Set([1, 2, 3, 4])
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function TierListClient({ currentSet, tierGroups, allSets }: Props) {
   const [beginnerMode, setBeginnerMode] = useState(false)
+  const [activeRarities, setActiveRarities] = useState<Set<number>>(new Set(ALL_RARITIES))
 
   // Read localStorage on mount
   useEffect(() => {
@@ -223,6 +235,11 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
       // localStorage unavailable (SSR guard — shouldn't happen in useEffect but be safe)
     }
   }, [])
+
+  // Reset rarity filters when navigating to a different edition
+  useEffect(() => {
+    setActiveRarities(new Set(ALL_RARITIES))
+  }, [currentSet.slug])
 
   function toggleBeginnerMode() {
     const next = !beginnerMode
@@ -234,7 +251,22 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
     }
   }
 
+  function toggleRarity(value: number) {
+    setActiveRarities((prev) => {
+      const next = new Set(prev)
+      next.has(value) ? next.delete(value) : next.add(value)
+      return next
+    })
+  }
+
   const totalRanked = TIERS.reduce((acc, t) => acc + (tierGroups[t]?.length ?? 0), 0)
+
+  // Filtered view — used for tier rows only; totalRanked always reflects unfiltered count
+  const filteredGroups = Object.fromEntries(
+    TIERS.map((t) => [t, (tierGroups[t] ?? []).filter((c) => activeRarities.has(c.rarity))]),
+  )
+  const anyVisible = TIERS.some((t) => filteredGroups[t].length > 0)
+  const isFiltered = activeRarities.size < 4
 
   return (
     <div>
@@ -302,10 +334,43 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
           </p>
         </div>
 
+        {/* Rarity filter bar */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: '1rem' }}>
+          <span style={{ fontSize: 11, fontWeight: 500, color: '#8b949e', textTransform: 'uppercase', letterSpacing: '0.5px', flexShrink: 0 }}>
+            Filter:
+          </span>
+          {RARITIES.map(({ value, label, color }) => {
+            const active = activeRarities.has(value)
+            return (
+              <button
+                key={value}
+                onClick={() => toggleRarity(value)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '4px 12px',
+                  borderRadius: 6,
+                  border: active ? `1px solid ${color}` : '1px solid #30363d',
+                  background: active ? '#21262d' : '#161b22',
+                  color: active ? '#c9d1d9' : '#484f58',
+                  fontSize: '0.8rem',
+                  cursor: 'pointer',
+                  fontWeight: active ? 500 : 400,
+                  transition: 'border-color 0.15s, color 0.15s, background 0.15s',
+                }}
+              >
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: active ? color : '#484f58', flexShrink: 0, transition: 'background 0.15s' }} />
+                {label}
+              </button>
+            )
+          })}
+        </div>
+
         {/* Tier rows */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {TIERS.map((tier) => {
-            const cards = tierGroups[tier] ?? []
+            const cards = filteredGroups[tier]
             if (cards.length === 0) return null
             const cfg = TIER_CONFIG[tier]
 
@@ -408,6 +473,11 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
         {totalRanked === 0 && (
           <p style={{ color: '#8b949e', textAlign: 'center', padding: '3rem 0', fontSize: '0.95rem' }}>
             No cards have been ranked yet for this edition.
+          </p>
+        )}
+        {totalRanked > 0 && isFiltered && !anyVisible && (
+          <p style={{ color: '#8b949e', textAlign: 'center', padding: '3rem 0', fontSize: '0.95rem' }}>
+            No cards match the selected filters.
           </p>
         )}
       </div>

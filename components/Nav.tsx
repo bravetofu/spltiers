@@ -50,10 +50,10 @@ export default function Nav() {
             }}
           >
             <Link href="/" className="nav-link">
-              tier lists
+              Tier Lists
             </Link>
-            <Link href="/pricing" className="nav-link">
-              pricing
+            <Link href="/deck-builder" className="nav-link">
+              Deck Builder
             </Link>
           </div>
         </div>
