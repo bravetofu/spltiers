@@ -24,9 +24,12 @@ const STANDARD_BCX: Record<number, number[]> = {
   4: [1, 3, 6, 11],                                // Legendary (levels 1-4)
 }
 
-// Multiplier above rarity-group median price_per_bcx to flag a card as a price outlier
-// Increase this value to be more lenient, decrease to be more aggressive
-const OUTLIER_THRESHOLD = 5
+// A card is flagged as an outlier if its price_per_bcx exceeds the 75th percentile
+// price_per_bcx for its rarity group by more than this multiplier.
+// Byzantine Kitty (~8x 75th percentile) should NOT be flagged.
+// Sira (~38x 75th percentile) SHOULD be flagged.
+// Increase to be more lenient, decrease to flag more aggressively.
+const OUTLIER_THRESHOLD = 10
 
 export type CardInput = {
   card_id: number
@@ -46,7 +49,7 @@ export type CardPrice = {
   buy_target_bcx: number | null   // BCX required to reach target level
   buy_method: BuyMethod | null
   insufficient_supply: boolean    // true if buy_bcx < buy_target_bcx
-  is_outlier: boolean             // true if price_per_bcx > median * OUTLIER_THRESHOLD for rarity group
+  is_outlier: boolean             // true if price_per_bcx > p75 * OUTLIER_THRESHOLD for rarity group
 }
 
 export type PricingResult = {
@@ -166,11 +169,16 @@ async function priceOneCard(card: CardInput, targetLevel: number): Promise<CardP
 }
 
 /**
- * Group cards by rarity, compute median price_per_bcx within each group,
- * and flag cards whose price_per_bcx exceeds OUTLIER_THRESHOLD × median.
+ * Group cards by rarity, compute the 75th-percentile price_per_bcx within each
+ * group, and flag cards whose price_per_bcx exceeds OUTLIER_THRESHOLD × p75.
+ *
+ * Using the 75th percentile (rather than the median) as the baseline ensures
+ * the reference point reflects the upper range of normal pricing, so legitimately
+ * expensive cards (e.g. Byzantine Kitty) are not caught by cheap cards dragging
+ * the baseline down.
  *
  * Only cards with a valid buy_usd, known buy_target_bcx, and no insufficient
- * supply are included in the median calculation — partial prices would skew it.
+ * supply are included in the calculation — partial prices would skew it.
  *
  * Mutates the is_outlier field on the CardPrice objects in-place.
  */
@@ -182,7 +190,7 @@ function flagOutliers(prices: CardPrice[], cards: CardInput[]): void {
 
   for (const p of prices) {
     if (p.buy_usd === null || p.buy_target_bcx === null || p.buy_target_bcx === 0) continue
-    if (p.insufficient_supply) continue // partial data would skew the median
+    if (p.insufficient_supply) continue // partial data would skew the baseline
     const rarity = rarityMap.get(p.card_id)
     if (rarity === undefined) continue
     const ppb = p.buy_usd / p.buy_target_bcx
@@ -192,13 +200,15 @@ function flagOutliers(prices: CardPrice[], cards: CardInput[]): void {
   }
 
   for (const group of Array.from(byRarity.values())) {
-    if (group.length < 2) continue // need at least 2 data points for a meaningful median
+    if (group.length < 2) continue // need at least 2 data points for a meaningful baseline
     const sorted = group.map((g) => g.ppb).sort((a, b) => a - b)
-    const mid = Math.floor(sorted.length / 2)
-    const medianPpb =
-      sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid]
+    // 75th percentile: interpolate between the two surrounding values
+    const pos = 0.75 * (sorted.length - 1)
+    const lo = Math.floor(pos)
+    const hi = Math.ceil(pos)
+    const p75 = lo === hi ? sorted[lo] : sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo)
     for (const { price, ppb } of group) {
-      if (ppb > medianPpb * OUTLIER_THRESHOLD) {
+      if (ppb > p75 * OUTLIER_THRESHOLD) {
         price.is_outlier = true
       }
     }
