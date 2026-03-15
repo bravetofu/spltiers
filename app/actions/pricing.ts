@@ -69,20 +69,13 @@ type SLSaleListing = {
   bcx: number
 }
 
-type SLRentListing = {
-  level: number
-  // Splinterlands for_rent_by_card uses "price" for the daily DEC rate.
-  // buy_price is present on sale listings but is null/absent on rental listings.
-  price: string | number        // DEC per day — primary field name in the API
-  buy_price?: string | number   // fallback in case the field name ever changes
-}
-
-// Shape of a single entry in the for_rent_grouped response
+// Shape of a single entry in the for_rent_grouped response.
+// low_price is the cheapest DEC/day rate for that card+level+gold combination.
 type SLGroupedRentListing = {
   card_detail_id: number
   level: number
-  price: string | number        // DEC per day
-  buy_price?: string | number   // fallback
+  gold: boolean
+  low_price: string | number    // DEC per day — confirmed field name from API
 }
 
 async function fetchDecRate(): Promise<number> {
@@ -115,9 +108,8 @@ async function fetchSaleListings(cardId: number): Promise<SLSaleListing[]> {
 }
 
 /**
- * Fetch all rental listings from the grouped endpoint once.
- * Cached for 60 seconds to avoid repeated upstream calls across cards.
- * Returns the raw array of grouped listings or [] on failure.
+ * Fetch all non-gold rental listings from the grouped endpoint once.
+ * Cached for 60 seconds — one call serves all cards in a pricing run.
  */
 async function fetchGroupedRentListings(): Promise<SLGroupedRentListing[]> {
   try {
@@ -125,37 +117,22 @@ async function fetchGroupedRentListings(): Promise<SLGroupedRentListing[]> {
       'https://api2.splinterlands.com/market/for_rent_grouped',
       { next: { revalidate: 60 } },
     )
-    console.log('[rent debug] for_rent_grouped status:', res.status, res.ok)
-    if (!res.ok) {
-      console.log('[rent debug] for_rent_grouped not ok, returning []')
-      return []
-    }
+    if (!res.ok) return []
     const data = await res.json()
-    console.log('[rent debug] for_rent_grouped isArray:', Array.isArray(data), 'type:', typeof data)
-    if (!Array.isArray(data)) {
-      // Log top-level keys so we can find the right nested field
-      console.log('[rent debug] for_rent_grouped non-array keys:', data && typeof data === 'object' ? Object.keys(data) : data)
-      return []
-    }
-    console.log('[rent debug] for_rent_grouped length:', data.length, 'sample keys:', data.length > 0 ? Object.keys(data[0]) : [])
-    // Log first listing for card 720 to confirm field names
-    const card720 = data.filter((l: SLGroupedRentListing) => l.card_detail_id === 720)
-    console.log('[rent debug] card 720 matches in grouped:', card720.length, card720.length > 0 ? JSON.stringify(card720[0]) : '(none)')
-    return data
-  } catch (e) {
-    console.log('[rent debug] for_rent_grouped fetch error:', e)
+    if (!Array.isArray(data)) return []
+    // Only non-gold cards; low_price is DEC/day
+    return (data as SLGroupedRentListing[]).filter((l) => l.gold === false)
+  } catch {
     return []
   }
 }
 
-/** Filter grouped rent listings down to a single card's listings. */
+/** Return grouped rent listings for a single card (already gold-filtered). */
 function rentListingsForCard(
   grouped: SLGroupedRentListing[],
   cardId: number,
-): SLRentListing[] {
-  return grouped
-    .filter((l) => l.card_detail_id === cardId)
-    .map((l) => ({ level: l.level, price: l.price, buy_price: l.buy_price }))
+): SLGroupedRentListing[] {
+  return grouped.filter((l) => l.card_detail_id === cardId)
 }
 
 /** Look up how many BCX are required to reach targetLevel for this card. */
@@ -232,9 +209,9 @@ function computeBuyUsd(
     : { usd: bestBCost, bcx: targetBcx, method: 'buy & combine', insufficient_supply: false }
 }
 
-/** Extract the DEC price from a rental listing, handling both field names. */
-function rentListingDec(l: SLRentListing): number {
-  return parseFloat(String(l.price ?? l.buy_price ?? ''))
+/** Extract the DEC/day price from a grouped rental listing. */
+function rentListingDec(l: SLGroupedRentListing): number {
+  return parseFloat(String(l.low_price ?? ''))
 }
 
 /**
@@ -251,7 +228,7 @@ function rentListingDec(l: SLRentListing): number {
  * Returns null usd (but keeps status) if decRate is unavailable.
  */
 function computeRentResult(
-  listings: SLRentListing[],
+  listings: SLGroupedRentListing[],
   targetLevel: number,
   decRate: number,
 ): { usd: number | null; status: RentStatus; actual_level: number } | null {
