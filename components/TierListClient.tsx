@@ -270,6 +270,23 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
 
   return (
     <div>
+      <style>{`
+        /* Mobile: tier card rows scroll horizontally instead of wrapping */
+        @media (max-width: 640px) {
+          .tier-card-grid {
+            flex-wrap: nowrap !important;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            min-width: 0;
+            padding-bottom: 4px;
+          }
+          /* Shrink card thumbnails from 72px → 60px on mobile */
+          .tier-card-thumb {
+            width: 60px !important;
+            height: 60px !important;
+          }
+        }
+      `}</style>
       {/* Sub-nav */}
       <div
         style={{
@@ -433,6 +450,7 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
 
                 {/* Card grid */}
                 <div
+                  className="tier-card-grid"
                   style={{
                     flex: 1,
                     display: 'flex',
@@ -461,6 +479,7 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
                         maxLevel={rarityMaxLevel(card.rarity)}
                         size={72}
                         isSoulbound={card.is_soulbound}
+                        className="tier-card-thumb"
                       />
                     </CardHoverPopover>
                   ))}

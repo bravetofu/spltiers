@@ -244,6 +244,7 @@ export default function CardHoverPopover({
           <img
             src={imgSrc}
             alt={cardName}
+            loading="lazy"
             style={{
               width: innerW,
               height: imgH,

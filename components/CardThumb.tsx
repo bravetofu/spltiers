@@ -9,6 +9,7 @@ type Props = {
   maxLevel: number
   size?: number
   isSoulbound?: boolean
+  className?: string
 }
 
 export default function CardThumb({
@@ -18,6 +19,7 @@ export default function CardThumb({
   maxLevel,
   size = 62,
   isSoulbound = false,
+  className,
 }: Props) {
   const [errored, setErrored] = useState(false)
 
@@ -25,6 +27,7 @@ export default function CardThumb({
 
   return (
     <div
+      className={className}
       style={{
         position: 'relative',
         width: size,
@@ -57,6 +60,7 @@ export default function CardThumb({
           alt={cardName}
           width={size}
           height={size}
+          loading="lazy"
           style={{ objectFit: 'cover', display: 'block', width: '100%', height: '100%' }}
           onError={() => setErrored(true)}
         />

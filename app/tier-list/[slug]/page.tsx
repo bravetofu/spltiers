@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Nav from '@/components/Nav'
 import TierListClient, { type TierEntry, type SetSummary } from '@/components/TierListClient'
@@ -5,6 +6,27 @@ import { createPublicClient } from '@/lib/supabase/server'
 import { getEditionFormat } from '@/lib/editions'
 
 export const revalidate = 3600
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  try {
+    const supabase = createPublicClient()
+    const { data } = await supabase
+      .from('card_sets')
+      .select('name')
+      .eq('slug', params.slug)
+      .eq('is_active', true)
+      .single()
+    if (data?.name) {
+      return {
+        title: `${data.name} Tier List — splintiers`,
+        description: `S/A/B/C/D card rankings for ${data.name}. Updated by the community.`,
+      }
+    }
+  } catch {
+    // Fall through to default
+  }
+  return { title: 'Tier List — splintiers' }
+}
 
 interface Props {
   params: { slug: string }

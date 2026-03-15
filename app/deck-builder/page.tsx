@@ -684,8 +684,9 @@ export default function DeckBuilderPage() {
                 </div>
               )}
 
-              {/* Results table */}
-              <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-default)', borderRadius: 10, overflow: 'hidden' }}>
+              {/* Results table — horizontal scroll on mobile */}
+              <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+              <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-default)', borderRadius: 10, overflow: 'hidden', minWidth: 560 }}>
                 {/* Header */}
                 <div style={{ display: 'grid', gridTemplateColumns: COL, padding: '8px 16px', borderBottom: '1px solid var(--border-default)', background: 'var(--bg-primary)' }}>
                   {['', 'Card', 'Edition', 'Tier', 'Rarity', 'Buy'].map((h) => (
@@ -829,6 +830,7 @@ export default function DeckBuilderPage() {
                   )
                 })}
               </div>
+              </div>{/* end overflow-x scroll wrapper */}
             </div>
           )}
         </main>
