@@ -53,7 +53,7 @@ const TIER_PILL_STYLE: Record<string, { bg: string; color: string }> = {
   D: { bg: '#161b22', color: '#555e6a' },
 }
 
-const LEAGUES = ['bronze', 'silver', 'gold', 'diamond', 'max'] as const
+const LEAGUES = ['bronze', 'silver', 'gold', 'diamond'] as const
 type League = typeof LEAGUES[number]
 
 const LEAGUE_STYLE: Record<League, { bg: string; color: string; label: string }> = {
@@ -61,7 +61,6 @@ const LEAGUE_STYLE: Record<League, { bg: string; color: string; label: string }>
   silver:  { bg: '#c0c0c0', color: '#0d1117', label: 'Silver'   },
   gold:    { bg: '#ffd700', color: '#0d1117', label: 'Gold'     },
   diamond: { bg: '#6ee7f7', color: '#0d1117', label: 'Diamond+' },
-  max:     { bg: '#e63946', color: '#ffffff', label: 'Max'      },
 }
 
 function leagueTooltip(league: League): string {
@@ -129,11 +128,11 @@ export default function PricingPage() {
   const [loadingEntries, setLoadingEntries] = useState(true)
   const [selectedEditions, setSelectedEditions] = useState<Set<string>>(new Set())
   const [selectedTiers, setSelectedTiers] = useState<Set<string>>(new Set(['S', 'A']))
-  const [selectedLeague, setSelectedLeague] = useState<League>('max')
+  const [selectedLeague, setSelectedLeague] = useState<League>('diamond')
   const [isPending, startTransition] = useTransition()
   const [result, setResult] = useState<PricingResult | null>(null)
   const [resultCards, setResultCards] = useState<CardInput[]>([])
-  const [resultLeague, setResultLeague] = useState<League>('max')
+  const [resultLeague, setResultLeague] = useState<League>('diamond')
   const [fetchedAt, setFetchedAt] = useState<string | null>(null)
 
   useEffect(() => {
