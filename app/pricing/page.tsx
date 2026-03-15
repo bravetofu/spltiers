@@ -8,6 +8,7 @@ import { rarityMaxLevel, LEAGUE_LEVEL_CAPS } from '@/lib/editions'
 import {
   fetchPrices,
   type BuyMethod,
+  type RentStatus,
   type CardInput,
   type PricingResult,
 } from '@/app/actions/pricing'
@@ -29,6 +30,8 @@ type FullResult = CardInput & {
   insufficient_supply: boolean
   is_outlier: boolean
   rent_day_usd: number | null
+  rent_status: RentStatus | null
+  rent_actual_level: number | null
 }
 
 const TIERS = ['S', 'A', 'B', 'C', 'D'] as const
@@ -213,12 +216,16 @@ export default function PricingPage() {
       insufficient_supply: price?.insufficient_supply ?? false,
       is_outlier: price?.is_outlier ?? false,
       rent_day_usd: price?.rent_day_usd ?? null,
+      rent_status: price?.rent_status ?? null,
+      rent_actual_level: price?.rent_actual_level ?? null,
     }
   })
 
   // Warning flags — always derived from the unfiltered full set
   const hasUnavailable = fullResults.some((r) => r.insufficient_supply)
   const hasOutliers = fullResults.some((r) => r.is_outlier)
+  const hasRentAbove = fullResults.some((r) => r.rent_status === 'above_only')
+  const hasRentBelow = fullResults.some((r) => r.rent_status === 'below_only')
 
   // Display set — filtered by active exclusion chips
   const displayResults = fullResults.filter((r) => {
@@ -480,16 +487,26 @@ export default function PricingPage() {
               </div>
 
               {/* Warning banners — always visible even when filters are active */}
-              {(hasUnavailable || hasOutliers) && (
+              {(hasUnavailable || hasOutliers || hasRentAbove || hasRentBelow) && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: '0.75rem' }}>
                   {hasUnavailable && (
                     <div style={{ background: '#2d0f0f', border: '1px solid #f85149', borderRadius: 8, padding: '7px 14px', fontSize: '0.82rem', color: '#f85149', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontWeight: 700 }}>!</span> Some cards are not available at the target level
+                      <span style={{ fontWeight: 700 }}>!</span> Some cards are not available to buy at the target level
                     </div>
                   )}
                   {hasOutliers && (
                     <div style={{ background: '#2d0f0f', border: '1px solid #f85149', borderRadius: 8, padding: '7px 14px', fontSize: '0.82rem', color: '#f85149', display: 'flex', alignItems: 'center', gap: 6 }}>
                       <span style={{ fontWeight: 700 }}>!</span> Some cards have outlier prices and may skew the total
+                    </div>
+                  )}
+                  {hasRentAbove && (
+                    <div style={{ background: '#2d1a00', border: '1px solid #d29922', borderRadius: 8, padding: '7px 14px', fontSize: '0.82rem', color: '#d29922', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontWeight: 700 }}>!</span> Some cards are only available to rent at a higher level than required
+                    </div>
+                  )}
+                  {hasRentBelow && (
+                    <div style={{ background: '#2d0f0f', border: '1px solid #f85149', borderRadius: 8, padding: '7px 14px', fontSize: '0.82rem', color: '#f85149', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontWeight: 700 }}>!</span> Some cards are not available to rent at the required level
                     </div>
                   )}
                 </div>
@@ -591,29 +608,55 @@ export default function PricingPage() {
 
                           {/* Buy price + BCX sub-label */}
                           <div>
+                            <div style={{ fontSize: '0.85rem', color: card.insufficient_supply ? '#f85149' : card.is_outlier ? '#f85149' : (card.buy_usd !== null ? 'var(--text-primary)' : 'var(--text-faint)'), fontVariantNumeric: 'tabular-nums' }}>
+                              {formatUsd(card.buy_usd)}
+                            </div>
                             {card.insufficient_supply ? (
                               <div
                                 title="Not enough cards on the market to reach this level. Showing maximum achievable BCX."
-                                style={{ fontSize: '0.82rem', color: '#f85149', fontVariantNumeric: 'tabular-nums', cursor: 'help', lineHeight: 1.3 }}
+                                style={{ fontSize: '0.62rem', color: '#f85149', marginTop: 1, whiteSpace: 'nowrap', cursor: 'help' }}
                               >
                                 {card.buy_bcx} / {card.buy_target_bcx} BCX available
                               </div>
-                            ) : (
-                              <div style={{ fontSize: '0.85rem', color: card.is_outlier ? '#f85149' : (card.buy_usd !== null ? 'var(--text-primary)' : 'var(--text-faint)'), fontVariantNumeric: 'tabular-nums' }}>
-                                {formatUsd(card.buy_usd)}
-                              </div>
-                            )}
-                            {!card.insufficient_supply && card.buy_target_bcx !== null && card.buy_method !== null && (
+                            ) : card.buy_target_bcx !== null && card.buy_method !== null ? (
                               <div style={{ fontSize: '0.62rem', color: 'var(--text-faint)', marginTop: 1, whiteSpace: 'nowrap' }}>
                                 {card.buy_target_bcx} BCX · {card.buy_method}
                               </div>
-                            )}
+                            ) : null}
                           </div>
 
                           {/* Rent price */}
-                          <span style={{ fontSize: '0.85rem', color: card.rent_day_usd !== null ? 'var(--text-primary)' : 'var(--text-faint)', fontVariantNumeric: 'tabular-nums' }}>
-                            {formatUsd(card.rent_day_usd)}
-                          </span>
+                          <div
+                            title={
+                              card.rent_status === 'above_only'
+                                ? 'Only available at a higher level than required — you may be overpaying.'
+                                : card.rent_status === 'below_only'
+                                ? 'Not available at the desired level — this card is below the required level and cannot be used at full strength.'
+                                : undefined
+                            }
+                            style={{ cursor: card.rent_status && card.rent_status !== 'ok' ? 'help' : 'default' }}
+                          >
+                            <span style={{
+                              fontSize: '0.85rem',
+                              fontVariantNumeric: 'tabular-nums',
+                              color: card.rent_status === 'below_only' ? '#f85149'
+                                   : card.rent_status === 'above_only' ? '#d29922'
+                                   : card.rent_day_usd !== null ? 'var(--text-primary)'
+                                   : 'var(--text-faint)',
+                            }}>
+                              {formatUsd(card.rent_day_usd)}
+                            </span>
+                            {card.rent_status === 'above_only' && card.rent_actual_level !== null && (
+                              <div style={{ fontSize: '0.62rem', color: '#d29922', marginTop: 1, whiteSpace: 'nowrap' }}>
+                                level {card.rent_actual_level} available
+                              </div>
+                            )}
+                            {card.rent_status === 'below_only' && card.rent_actual_level !== null && (
+                              <div style={{ fontSize: '0.62rem', color: '#f85149', marginTop: 1, whiteSpace: 'nowrap' }}>
+                                level {card.rent_actual_level} only
+                              </div>
+                            )}
+                          </div>
                         </div>
                       ))}
 

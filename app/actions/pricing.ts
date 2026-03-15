@@ -39,6 +39,11 @@ export type CardInput = {
 
 export type BuyMethod = 'pre-combined' | 'buy & combine'
 
+// 'ok'         — listing exists at exactly targetLevel (or cheaper one at targetLevel chosen)
+// 'above_only' — no listing at targetLevel, cheapest is at a higher level (overpaying)
+// 'below_only' — no listing at or above targetLevel, showing best available below (underlevelled)
+export type RentStatus = 'ok' | 'above_only' | 'below_only'
+
 export type CardPrice = {
   card_id: number
   buy_usd: number | null          // null if no listings exist at all
@@ -48,6 +53,8 @@ export type CardPrice = {
   insufficient_supply: boolean    // true if buy_bcx < buy_target_bcx
   is_outlier: boolean             // true if price_per_bcx > median * OUTLIER_THRESHOLD for rarity group
   rent_day_usd: number | null
+  rent_status: RentStatus | null  // null if no listings at all
+  rent_actual_level: number | null
 }
 
 export type PricingResult = {
@@ -64,7 +71,10 @@ type SLSaleListing = {
 
 type SLRentListing = {
   level: number
-  buy_price: string | number  // DEC per day
+  // Splinterlands for_rent_by_card uses "price" for the daily DEC rate.
+  // buy_price is present on sale listings but is null/absent on rental listings.
+  price: string | number        // DEC per day — primary field name in the API
+  buy_price?: string | number   // fallback in case the field name ever changes
 }
 
 async function fetchDecRate(): Promise<number> {
@@ -104,7 +114,12 @@ async function fetchRentListings(cardId: number): Promise<SLRentListing[]> {
     )
     if (!res.ok) return []
     const data = await res.json()
-    return Array.isArray(data) ? data : []
+    if (!Array.isArray(data)) return []
+    // DEBUG: log first listing to confirm field names — remove once verified
+    if (data.length > 0 && cardId === 720) {
+      console.log('[rent debug] card 720 first listing:', JSON.stringify(data[0]))
+    }
+    return data
   } catch {
     return []
   }
@@ -148,20 +163,26 @@ function computeBuyUsd(
     bestA = Math.min(...atOrAbove.map((l) => parseFloat(String(l.buy_price))))
   }
 
-  // Option B: greedily accumulate cheapest-per-BCX listings
-  const sorted = valid
-    .slice()
-    .sort(
-      (a, b) =>
-        parseFloat(String(a.buy_price)) / a.bcx -
-        parseFloat(String(b.buy_price)) / b.bcx,
-    )
+  // Option B: adaptive greedy accumulation.
+  // At each step, pick the listing that minimises price / min(bcx, needed).
+  // This prevents cheap-per-BCX multi-BCX listings from being preferred when
+  // they would overshoot — e.g. a 36-BCX card at $5.11 is $0.14/BCX but costs
+  // $5.11/needed when you only need a few more BCX, far more than a $0.15 single.
+  const pool = valid.map((l) => ({ usd: parseFloat(String(l.buy_price)), bcx: l.bcx }))
   let totalUsd = 0
   let totalBcx = 0
-  for (const l of sorted) {
-    if (totalBcx >= targetBcx) break
-    totalUsd += parseFloat(String(l.buy_price))
-    totalBcx += l.bcx
+
+  while (totalBcx < targetBcx && pool.length > 0) {
+    const needed = targetBcx - totalBcx
+    let bestIdx = 0
+    let bestEff = pool[0].usd / Math.min(pool[0].bcx, needed)
+    for (let i = 1; i < pool.length; i++) {
+      const eff = pool[i].usd / Math.min(pool[i].bcx, needed)
+      if (eff < bestEff) { bestEff = eff; bestIdx = i }
+    }
+    const [chosen] = pool.splice(bestIdx, 1)
+    totalUsd += chosen.usd
+    totalBcx += chosen.bcx
   }
   const bSucceeded = totalBcx >= targetBcx
 
@@ -178,17 +199,55 @@ function computeBuyUsd(
     : { usd: bestBCost, bcx: targetBcx, method: 'buy & combine', insufficient_supply: false }
 }
 
+/** Extract the DEC price from a rental listing, handling both field names. */
+function rentListingDec(l: SLRentListing): number {
+  return parseFloat(String(l.price ?? l.buy_price ?? ''))
+}
+
 /**
- * Cheapest daily rent rate in USD for listings at or above targetLevel.
- * Rental buy_price is in DEC per day; multiply by decRate to convert.
+ * Determine the cheapest rent price and status for a card at targetLevel.
+ *
+ * Case 1 — 'ok':         listing at exactly targetLevel exists; cheapest of all >= target.
+ * Case 2 — 'above_only': no listing at targetLevel, but listings exist above it;
+ *                         cheapest of all > target (may be overpaying).
+ * Case 3 — 'below_only': no listing at or above targetLevel; cheapest at the highest
+ *                         available level below target (card is underlevelled).
+ * Case 4 — null:         no listings at all.
+ *
+ * Daily DEC price is converted to USD via decRate.
+ * Returns null usd (but keeps status) if decRate is unavailable.
  */
-function computeRentUsd(listings: SLRentListing[], targetLevel: number, decRate: number): number | null {
-  const valid = listings.filter(
-    (l) => l.level >= targetLevel && !isNaN(parseFloat(String(l.buy_price))),
-  )
-  if (valid.length === 0 || decRate === 0) return null
-  const cheapestDec = Math.min(...valid.map((l) => parseFloat(String(l.buy_price))))
-  return cheapestDec * decRate
+function computeRentResult(
+  listings: SLRentListing[],
+  targetLevel: number,
+  decRate: number,
+): { usd: number | null; status: RentStatus; actual_level: number } | null {
+  const valid = listings.filter((l) => l.level > 0 && !isNaN(rentListingDec(l)) && rentListingDec(l) > 0)
+  if (valid.length === 0) return null
+
+  const toUsd = (dec: number) => decRate > 0 ? dec * decRate : null
+
+  // Cases 1 & 2: any listing at or above target
+  const atOrAbove = valid.filter((l) => l.level >= targetLevel)
+  if (atOrAbove.length > 0) {
+    const cheapest = atOrAbove.reduce((best, l) => rentListingDec(l) < rentListingDec(best) ? l : best)
+    const hasExact = atOrAbove.some((l) => l.level === targetLevel)
+    return {
+      usd: toUsd(rentListingDec(cheapest)),
+      status: hasExact ? 'ok' : 'above_only',
+      actual_level: cheapest.level,
+    }
+  }
+
+  // Case 3: only listings below target — use highest available level, cheapest at that level
+  const maxLevel = Math.max(...valid.map((l) => l.level))
+  const atMax = valid.filter((l) => l.level === maxLevel)
+  const cheapest = atMax.reduce((best, l) => rentListingDec(l) < rentListingDec(best) ? l : best)
+  return {
+    usd: toUsd(rentListingDec(cheapest)),
+    status: 'below_only',
+    actual_level: maxLevel,
+  }
 }
 
 async function priceOneCard(
@@ -203,7 +262,7 @@ async function priceOneCard(
   ])
 
   const buyResult = computeBuyUsd(buyListings, targetLevel, targetBcx)
-  const rentUsd = computeRentUsd(rentListings, targetLevel, decRate)
+  const rentResult = computeRentResult(rentListings, targetLevel, decRate)
 
   return {
     card_id: card.card_id,
@@ -213,7 +272,9 @@ async function priceOneCard(
     buy_method: buyResult?.method ?? null,
     insufficient_supply: buyResult?.insufficient_supply ?? false,
     is_outlier: false, // computed by flagOutliers() after all prices are known
-    rent_day_usd: rentUsd,
+    rent_day_usd: rentResult?.usd ?? null,
+    rent_status: rentResult?.status ?? null,
+    rent_actual_level: rentResult?.actual_level ?? null,
   }
 }
 
