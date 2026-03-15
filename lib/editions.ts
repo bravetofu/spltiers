@@ -7,7 +7,6 @@ export const LEAGUE_LEVEL_CAPS: Record<string, Record<number, number>> = {
   silver:  { 1: 5,  2: 4,  3: 3,  4: 2 },
   gold:    { 1: 8,  2: 6,  3: 5,  4: 3 },
   diamond: { 1: 10, 2: 8,  3: 6,  4: 4 },
-  max:     { 1: 10, 2: 8,  3: 6,  4: 4 },
 }
 
 export const MODERN_EDITION_NAMES = new Set([

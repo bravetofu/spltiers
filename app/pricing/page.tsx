@@ -24,7 +24,10 @@ type TierEntry = {
 type FullResult = CardInput & {
   buy_usd: number | null
   buy_bcx: number | null
+  buy_target_bcx: number | null
   buy_method: BuyMethod | null
+  insufficient_supply: boolean
+  is_outlier: boolean
   rent_day_usd: number | null
 }
 
@@ -53,7 +56,7 @@ const TIER_PILL_STYLE: Record<string, { bg: string; color: string }> = {
   D: { bg: '#161b22', color: '#555e6a' },
 }
 
-const LEAGUES = ['bronze', 'silver', 'gold', 'diamond', 'max'] as const
+const LEAGUES = ['bronze', 'silver', 'gold', 'diamond'] as const
 type League = typeof LEAGUES[number]
 
 const LEAGUE_STYLE: Record<League, { bg: string; color: string; label: string }> = {
@@ -61,7 +64,6 @@ const LEAGUE_STYLE: Record<League, { bg: string; color: string; label: string }>
   silver:  { bg: '#c0c0c0', color: '#0d1117', label: 'Silver'   },
   gold:    { bg: '#ffd700', color: '#0d1117', label: 'Gold'     },
   diamond: { bg: '#6ee7f7', color: '#0d1117', label: 'Diamond+' },
-  max:     { bg: '#e63946', color: '#ffffff', label: 'Max'      },
 }
 
 function leagueTooltip(league: League): string {
@@ -129,12 +131,14 @@ export default function PricingPage() {
   const [loadingEntries, setLoadingEntries] = useState(true)
   const [selectedEditions, setSelectedEditions] = useState<Set<string>>(new Set())
   const [selectedTiers, setSelectedTiers] = useState<Set<string>>(new Set(['S', 'A']))
-  const [selectedLeague, setSelectedLeague] = useState<League>('max')
+  const [selectedLeague, setSelectedLeague] = useState<League>('diamond')
   const [isPending, startTransition] = useTransition()
   const [result, setResult] = useState<PricingResult | null>(null)
   const [resultCards, setResultCards] = useState<CardInput[]>([])
-  const [resultLeague, setResultLeague] = useState<League>('max')
+  const [resultLeague, setResultLeague] = useState<League>('diamond')
   const [fetchedAt, setFetchedAt] = useState<string | null>(null)
+  const [excludeUnavailable, setExcludeUnavailable] = useState(false)
+  const [excludeOutliers, setExcludeOutliers] = useState(false)
 
   useEffect(() => {
     const supabase = createClient()
@@ -189,6 +193,8 @@ export default function PricingPage() {
     if (!canCalculate) return
     setResultCards(uniqueCards)
     setResultLeague(selectedLeague)
+    setExcludeUnavailable(false)
+    setExcludeOutliers(false)
     startTransition(async () => {
       const res = await fetchPrices(uniqueCards, selectedLeague)
       setResult(res)
@@ -202,20 +208,35 @@ export default function PricingPage() {
       ...card,
       buy_usd: price?.buy_usd ?? null,
       buy_bcx: price?.buy_bcx ?? null,
+      buy_target_bcx: price?.buy_target_bcx ?? null,
       buy_method: price?.buy_method ?? null,
+      insufficient_supply: price?.insufficient_supply ?? false,
+      is_outlier: price?.is_outlier ?? false,
       rent_day_usd: price?.rent_day_usd ?? null,
     }
   })
 
+  // Warning flags — always derived from the unfiltered full set
+  const hasUnavailable = fullResults.some((r) => r.insufficient_supply)
+  const hasOutliers = fullResults.some((r) => r.is_outlier)
+
+  // Display set — filtered by active exclusion chips
+  const displayResults = fullResults.filter((r) => {
+    if (excludeUnavailable && r.insufficient_supply) return false
+    if (excludeOutliers && r.is_outlier) return false
+    return true
+  })
+
   const byEdition = new Map<string, FullResult[]>()
-  for (const r of fullResults) {
+  for (const r of displayResults) {
     const arr = byEdition.get(r.edition) ?? []
     arr.push(r)
     byEdition.set(r.edition, arr)
   }
 
-  const totalBuy = sumUsd(fullResults.map((r) => r.buy_usd))
-  const totalRentDay = sumUsd(fullResults.map((r) => r.rent_day_usd))
+  // Totals reflect only the displayed (possibly filtered) cards
+  const totalBuy = sumUsd(displayResults.map((r) => r.buy_usd))
+  const totalRentDay = sumUsd(displayResults.map((r) => r.rent_day_usd))
   const totalRentMonth = totalRentDay * 30
 
   const showResults = result !== null && !isPending
@@ -458,6 +479,64 @@ export default function PricingPage() {
                 </button>
               </div>
 
+              {/* Warning banners — always visible even when filters are active */}
+              {(hasUnavailable || hasOutliers) && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: '0.75rem' }}>
+                  {hasUnavailable && (
+                    <div style={{ background: '#2d0f0f', border: '1px solid #f85149', borderRadius: 8, padding: '7px 14px', fontSize: '0.82rem', color: '#f85149', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontWeight: 700 }}>!</span> Some cards are not available at the target level
+                    </div>
+                  )}
+                  {hasOutliers && (
+                    <div style={{ background: '#2d0f0f', border: '1px solid #f85149', borderRadius: 8, padding: '7px 14px', fontSize: '0.82rem', color: '#f85149', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontWeight: 700 }}>!</span> Some cards have outlier prices and may skew the total
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Exclusion filter chips */}
+              {(hasUnavailable || hasOutliers) && (
+                <div style={{ display: 'flex', gap: 8, marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                  {hasUnavailable && (
+                    <button
+                      className="chip-btn"
+                      onClick={() => setExcludeUnavailable((v) => !v)}
+                      style={{
+                        padding: '4px 12px',
+                        borderRadius: 6,
+                        border: excludeUnavailable ? '1px solid #1f6feb' : '1px solid var(--border-default)',
+                        background: excludeUnavailable ? '#1c3a5e' : 'var(--bg-tertiary)',
+                        color: excludeUnavailable ? '#79b8f2' : 'var(--text-secondary)',
+                        fontSize: '0.8rem',
+                        cursor: 'pointer',
+                        fontWeight: excludeUnavailable ? 600 : 400,
+                      }}
+                    >
+                      Exclude unavailable cards
+                    </button>
+                  )}
+                  {hasOutliers && (
+                    <button
+                      className="chip-btn"
+                      onClick={() => setExcludeOutliers((v) => !v)}
+                      style={{
+                        padding: '4px 12px',
+                        borderRadius: 6,
+                        border: excludeOutliers ? '1px solid #1f6feb' : '1px solid var(--border-default)',
+                        background: excludeOutliers ? '#1c3a5e' : 'var(--bg-tertiary)',
+                        color: excludeOutliers ? '#79b8f2' : 'var(--text-secondary)',
+                        fontSize: '0.8rem',
+                        cursor: 'pointer',
+                        fontWeight: excludeOutliers ? 600 : 400,
+                      }}
+                    >
+                      Exclude price outliers
+                    </button>
+                  )}
+                </div>
+              )}
+
               {/* Results table */}
               <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-default)', borderRadius: 10, overflow: 'hidden' }}>
                 {/* Header */}
@@ -512,12 +591,21 @@ export default function PricingPage() {
 
                           {/* Buy price + BCX sub-label */}
                           <div>
-                            <div style={{ fontSize: '0.85rem', color: card.buy_usd !== null ? 'var(--text-primary)' : 'var(--text-faint)', fontVariantNumeric: 'tabular-nums' }}>
-                              {formatUsd(card.buy_usd)}
-                            </div>
-                            {card.buy_bcx !== null && card.buy_method !== null && (
+                            {card.insufficient_supply ? (
+                              <div
+                                title="Not enough cards on the market to reach this level. Showing maximum achievable BCX."
+                                style={{ fontSize: '0.82rem', color: '#f85149', fontVariantNumeric: 'tabular-nums', cursor: 'help', lineHeight: 1.3 }}
+                              >
+                                {card.buy_bcx} / {card.buy_target_bcx} BCX available
+                              </div>
+                            ) : (
+                              <div style={{ fontSize: '0.85rem', color: card.is_outlier ? '#f85149' : (card.buy_usd !== null ? 'var(--text-primary)' : 'var(--text-faint)'), fontVariantNumeric: 'tabular-nums' }}>
+                                {formatUsd(card.buy_usd)}
+                              </div>
+                            )}
+                            {!card.insufficient_supply && card.buy_target_bcx !== null && card.buy_method !== null && (
                               <div style={{ fontSize: '0.62rem', color: 'var(--text-faint)', marginTop: 1, whiteSpace: 'nowrap' }}>
-                                {card.buy_bcx} BCX · {card.buy_method}
+                                {card.buy_target_bcx} BCX · {card.buy_method}
                               </div>
                             )}
                           </div>
