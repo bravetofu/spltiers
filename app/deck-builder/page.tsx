@@ -131,6 +131,7 @@ export default function DeckBuilderPage() {
   const [selectedTiers, setSelectedTiers] = useState<Set<string>>(new Set(['S', 'A']))
   const [selectedLeague, setSelectedLeague] = useState<League>('diamond')
   const [isPending, startTransition] = useTransition()
+  const [showSlowMsg, setShowSlowMsg] = useState(false)
   const [result, setResult] = useState<PricingResult | null>(null)
   const [resultCards, setResultCards] = useState<CardInput[]>([])
   const [resultLeague, setResultLeague] = useState<League>('diamond')
@@ -186,6 +187,13 @@ export default function DeckBuilderPage() {
   }
 
   const canCalculate = selectedEditions.size > 0 && selectedTiers.size > 0 && uniqueCards.length > 0
+
+  // Show a 'slow fetch' hint after 3 seconds of pending
+  useEffect(() => {
+    if (!isPending) { setShowSlowMsg(false); return }
+    const t = setTimeout(() => setShowSlowMsg(true), 3000)
+    return () => clearTimeout(t)
+  }, [isPending])
 
   const handleCalculate = () => {
     if (!canCalculate) return
@@ -246,6 +254,7 @@ export default function DeckBuilderPage() {
     <>
       <style>{`
         @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:0.4 } }
+        @keyframes spin { to { transform: rotate(360deg); } }
         .chip-btn { transition: background 0.15s, border-color 0.15s, color 0.15s; }
         .chip-btn:hover { opacity: 0.85; }
       `}</style>
@@ -371,28 +380,54 @@ export default function DeckBuilderPage() {
                 </div>
               </div>
 
-              <button
-                onClick={handleCalculate}
-                disabled={!canCalculate || isPending}
-                style={{
-                  padding: '7px 20px',
-                  height: 32,
-                  background: canCalculate && !isPending ? 'var(--accent-red)' : '#3d1c1c',
-                  border: 'none',
-                  borderRadius: 8,
-                  color: canCalculate && !isPending ? '#fff' : '#8b949e',
-                  fontSize: '0.875rem',
-                  fontWeight: 600,
-                  cursor: canCalculate && !isPending ? 'pointer' : 'not-allowed',
-                  transition: 'background 0.15s',
-                }}
-              >
-                {isPending
-                  ? 'Fetching prices…'
-                  : uniqueCards.length > 0
-                  ? `Calculate prices (${uniqueCards.length} cards)`
-                  : 'Calculate prices'}
-              </button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <button
+                  onClick={handleCalculate}
+                  disabled={!canCalculate || isPending}
+                  style={{
+                    padding: '7px 20px',
+                    height: 32,
+                    minWidth: 200,
+                    background: canCalculate && !isPending ? 'var(--accent-red)' : '#3d1c1c',
+                    border: 'none',
+                    borderRadius: 8,
+                    color: canCalculate && !isPending ? '#fff' : '#8b949e',
+                    fontSize: '0.875rem',
+                    fontWeight: 600,
+                    cursor: canCalculate && !isPending ? 'pointer' : 'not-allowed',
+                    transition: 'background 0.15s',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                  }}
+                >
+                  {isPending ? (
+                    <>
+                      <span style={{
+                        display: 'inline-block',
+                        width: 14,
+                        height: 14,
+                        border: '2px solid rgba(255,255,255,0.3)',
+                        borderTopColor: '#fff',
+                        borderRadius: '50%',
+                        animation: 'spin 0.7s linear infinite',
+                        flexShrink: 0,
+                      }} />
+                      Calculating...
+                    </>
+                  ) : uniqueCards.length > 0 ? (
+                    `Calculate prices (${uniqueCards.length} cards)`
+                  ) : (
+                    'Calculate prices'
+                  )}
+                </button>
+                {showSlowMsg && (
+                  <span style={{ fontSize: 12, color: '#8b949e' }}>
+                    Fetching live market data — this may take a moment
+                  </span>
+                )}
+              </div>
 
               {!loadingEntries && selectedEditions.size === 0 && (
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-faint)', alignSelf: 'center' }}>
@@ -450,13 +485,18 @@ export default function DeckBuilderPage() {
                   </div>
                 </div>
 
-                {/* Most expensive */}
+                {/* Most expensive card */}
                 <div style={{ flex: 1, minWidth: 140, background: 'var(--bg-secondary)', border: '1px solid var(--border-default)', borderRadius: 10, padding: '1rem 1.25rem' }}>
                   <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 500 }}>
-                    Most expensive
+                    Most expensive card
                   </div>
-                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
-                    {mostExpensive !== null ? formatUsd(mostExpensive.buy_usd) : '—'}
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                    <span style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
+                      {mostExpensive !== null ? formatUsd(mostExpensive.buy_usd) : '—'}
+                    </span>
+                    {mostExpensive?.is_outlier && !excludeOutliers && (
+                      <span style={{ fontSize: 11, fontWeight: 500, color: '#e63946' }}>outlier</span>
+                    )}
                   </div>
                   {mostExpensive !== null && (
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
