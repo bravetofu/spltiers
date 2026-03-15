@@ -187,8 +187,7 @@ function computeBuyUsd(
 
 /**
  * Find the cheapest pre-combined listing at or above targetLevel.
- * Used for arcane gold foil (foil === 2) and black foil (foil === 3/4), which are
- * already at max level and do not support BCX combining.
+ * Used for arcane gold foil (foil === 2), which is already fully combined.
  */
 function computePreCombinedOnly(listings: SLSaleListing[], targetLevel: number): number | null {
   const valid = listings.filter(
@@ -196,6 +195,20 @@ function computePreCombinedOnly(listings: SLSaleListing[], targetLevel: number):
   )
   if (valid.length === 0) return null
   return Math.min(...valid.map((l) => parseFloat(String(l.buy_price))))
+}
+
+/**
+ * Find the cheapest black foil listing at any level.
+ * Black foil cards (foil === 3/4) play at max stats regardless of their listed
+ * BCX level — a single 1-BCX black foil card is already effectively at max level,
+ * so we must NOT filter by listing.level >= targetLevel here.
+ */
+function computeCheapestBlack(listings: SLSaleListing[]): number | null {
+  const prices = listings
+    .map((l) => parseFloat(String(l.buy_price)))
+    .filter((p) => !isNaN(p))
+  if (prices.length === 0) return null
+  return Math.min(...prices)
 }
 
 async function priceOneCard(card: CardInput, targetLevel: number): Promise<CardPrice> {
@@ -211,10 +224,11 @@ async function priceOneCard(card: CardInput, targetLevel: number): Promise<CardP
   const arcaneListings  = goldRaw.filter((l) => Number(l.foil ?? 0) === 2)
   const blackListings   = regularRaw.filter((l) => { const f = Number(l.foil ?? 0); return f === 3 || f === 4 })
 
-  // Diagnostic log for card 720 — remove once black foil is confirmed working
-  if (card.card_id === 720) {
-    console.log(`[card 720] &gold=false raw listings: ${regularRaw.length}`)
-    console.log(`[card 720] black foil listings found (foil 3/4): ${blackListings.length}`)
+  // Diagnostic log for black foil test cards — remove once confirmed working
+  if (card.card_id === 720 || card.card_id === 901) {
+    const id = card.card_id
+    console.log(`[card ${id}] &gold=false raw listings: ${regularRaw.length}`)
+    console.log(`[card ${id}] black foil listings found (foil 3/4): ${blackListings.length}`)
     if (blackListings.length > 0) {
       blackListings.forEach((l, i) =>
         console.log(`  [${i}] foil=${l.foil} level=${l.level} buy_price=${l.buy_price}`),
@@ -226,7 +240,11 @@ async function priceOneCard(card: CardInput, targetLevel: number): Promise<CardP
         const key = String(l.foil ?? 'undefined')
         dist[key] = (dist[key] ?? 0) + 1
       }
-      console.log(`[card 720] foil distribution in &gold=false response:`, dist)
+      // Also log the raw keys of the first listing to catch field-name mismatches
+      if (regularRaw.length > 0) {
+        console.log(`[card ${id}] first listing keys:`, Object.keys(regularRaw[0]))
+      }
+      console.log(`[card ${id}] foil distribution in &gold=false response:`, dist)
     }
   }
 
@@ -254,8 +272,8 @@ async function priceOneCard(card: CardInput, targetLevel: number): Promise<CardP
   // Arcane gold foil (foil === 2): pre-combined only — already at max level
   const arcaneUsd = computePreCombinedOnly(arcaneListings, targetLevel)
 
-  // Black foil (foil === 3 or 4): pre-combined only — already at max level
-  const blackUsd = computePreCombinedOnly(blackListings, targetLevel)
+  // Black foil (foil === 3 or 4): cheapest listing at any level — single card plays at max stats
+  const blackUsd = computeCheapestBlack(blackListings)
 
   // Collect all complete (non-insufficient-supply) options and pick the cheapest
   type CompleteOption = {
