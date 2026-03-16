@@ -782,6 +782,9 @@ export default function DeckBuilderPage() {
                               } else if (foil === 'black') {
                                 cellStyle = { background: '#0a1a0a', borderLeft: '3px solid #2ecc71', paddingLeft: 6 }
                                 cellTitle = 'Cheapest option is a black foil card — already at max level, no combining needed'
+                              } else if (foil === 'runi') {
+                                cellStyle = { background: '#1a1a2e', borderLeft: '3px solid #a0aec0', paddingLeft: 6 }
+                                cellTitle = 'Runi is an Ethereum NFT — price sourced from OpenSea floor price, converted to USD'
                               }
                             }
 
@@ -790,6 +793,7 @@ export default function DeckBuilderPage() {
                               card.insufficient_supply || isOutlier ? '#f85149'
                               : foil === 'gold' || foil === 'arcane' ? '#ffd700'
                               : foil === 'black' ? '#2ecc71'
+                              : foil === 'runi' ? '#a0aec0'
                               : card.buy_usd !== null ? 'var(--text-primary)' : 'var(--text-faint)'
 
                             // Sub-label
@@ -822,6 +826,12 @@ export default function DeckBuilderPage() {
                               subLabel = (
                                 <div style={{ fontSize: '0.62rem', color: isOutlier ? 'rgba(255,215,0,0.5)' : '#ffd700', marginTop: 1, whiteSpace: 'nowrap' }}>
                                   {goldLabel}
+                                </div>
+                              )
+                            } else if (foil === 'runi') {
+                              subLabel = (
+                                <div style={{ fontSize: '0.62rem', color: '#a0aec0', marginTop: 1, whiteSpace: 'nowrap' }}>
+                                  ◆ OpenSea · ETH floor
                                 </div>
                               )
                             } else if (card.buy_target_bcx !== null && card.buy_method !== null) {
