@@ -24,7 +24,10 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const res = await fetch(url, { next: { revalidate: 60 } })
+    const res = await fetch(url, {
+      next: { revalidate: 60 },
+      headers: { 'Accept-Encoding': 'gzip, deflate, br, zstd' },
+    })
     if (!res.ok) {
       return NextResponse.json({ error: `Upstream error: ${res.status}` }, { status: res.status })
     }

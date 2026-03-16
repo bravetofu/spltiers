@@ -10,7 +10,9 @@ let _subTypePromise: Promise<Map<number, string>> | null = null
 
 function getSubTypeMap(): Promise<Map<number, string>> {
   if (!_subTypePromise) {
-    _subTypePromise = fetch('https://api.splinterlands.io/cards/get_details')
+    _subTypePromise = fetch('https://api.splinterlands.io/cards/get_details', {
+      headers: { 'Accept-Encoding': 'gzip, deflate, br, zstd' },
+    })
       .then((r) => r.json())
       .then((cards: Array<{ id: number; sub_type?: string | null; type?: string }>) => {
         const map = new Map<number, string>()
