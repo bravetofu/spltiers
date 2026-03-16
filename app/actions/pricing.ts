@@ -106,7 +106,10 @@ function getTargetBcxGold(card: CardInput, targetLevel: number): number {
 async function fetchSaleListings(cardId: number, gold: boolean): Promise<SLSaleListing[]> {
   const url = `https://api2.splinterlands.com/market/for_sale_by_card?card_detail_id=${cardId}&gold=${gold}`
   try {
-    const res = await fetch(url, { cache: 'no-store' })
+    const res = await fetch(url, {
+      cache: 'no-store',
+      headers: { 'Accept-Encoding': 'gzip, deflate, br, zstd' },
+    })
     if (!res.ok) {
       console.error(`[deck-builder] Market API non-ok for card ${cardId} (gold=${gold}): HTTP ${res.status} ${res.statusText} — ${url}`)
       return []
