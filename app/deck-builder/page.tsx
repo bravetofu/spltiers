@@ -286,8 +286,8 @@ export default function DeckBuilderPage() {
   const filteredEntries = entries.filter((e) => {
     if (!selectedEditions.has(e.edition)) return false
     if (!selectedTiers.has(e.tier)) return false
-    const isPromo = e.cdn_slug === '/promo/'
-    const isReward = e.cdn_slug === '/reward/'
+    const isPromo = e.cdn_slug === 'promo'
+    const isReward = e.cdn_slug === 'reward'
     const isCore = !isPromo && !isReward
     if (excludeCore && isCore) return false
     if (excludePromo && isPromo) return false
