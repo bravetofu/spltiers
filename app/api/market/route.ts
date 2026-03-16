@@ -1,15 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { fetchRuniFloorPrice } from '@/lib/opensea'
 
 /**
  * Proxy for Splinterlands market API to avoid CORS issues.
  * GET /api/market?type=sale&id=123
  * GET /api/market?type=rent&id=123
+ * GET /api/market?type=opensea-runi   (no id required — Runi only)
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl
   const type = searchParams.get('type')
   const id = searchParams.get('id')
 
+  // ── OpenSea: Runi floor price ────────────────────────────────────────────────
+  if (type === 'opensea-runi') {
+    const data = await fetchRuniFloorPrice()
+    if (!data) {
+      return NextResponse.json(
+        { error: 'Failed to fetch Runi floor price from OpenSea/CoinGecko' },
+        { status: 502 },
+      )
+    }
+    return NextResponse.json(data, {
+      headers: { 'Cache-Control': 'public, max-age=300, stale-while-revalidate=60' },
+    })
+  }
+
+  // ── Splinterlands market ─────────────────────────────────────────────────────
   if (!id || !type) {
     return NextResponse.json({ error: 'Missing params: type and id required' }, { status: 400 })
   }
@@ -20,7 +37,7 @@ export async function GET(request: NextRequest) {
   } else if (type === 'rent') {
     url = `https://api2.splinterlands.com/market/for_rent_by_card?card_detail_id=${encodeURIComponent(id)}`
   } else {
-    return NextResponse.json({ error: 'Invalid type: must be sale or rent' }, { status: 400 })
+    return NextResponse.json({ error: 'Invalid type: must be sale, rent, or opensea-runi' }, { status: 400 })
   }
 
   try {
