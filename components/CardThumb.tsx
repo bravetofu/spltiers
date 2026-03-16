@@ -96,7 +96,7 @@ export default function CardThumb({
             width={size}
             height={size}
             loading="lazy"
-            style={{ objectFit: 'cover', objectPosition: 'top center', display: 'block', width: '100%', height: '100%' }}
+            style={{ objectFit: 'cover', objectPosition: 'center 8%', display: 'block', width: '100%', height: '100%', transform: 'scale(1.7)', transformOrigin: 'center 8%' }}
             onError={() => setErrored(true)}
           />
         )}
