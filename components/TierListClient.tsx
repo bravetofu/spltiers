@@ -74,6 +74,7 @@ function EditionDropdown({
   return (
     <div ref={ref} style={{ position: 'relative' }}>
       <button
+        className="edition-btn"
         onClick={() => setOpen((v) => !v)}
         style={{
           background: '#21262d',
@@ -88,7 +89,7 @@ function EditionDropdown({
           gap: 6,
         }}
       >
-        {currentSet?.name ?? 'Switch edition'}
+        <span className="edition-btn-text">{currentSet?.name ?? 'Switch edition'}</span>
         <svg
           width="10"
           height="6"
@@ -328,6 +329,31 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
             height: 60px !important;
           }
         }
+        /* Mobile: filter bar full-width equal buttons, edition button truncates */
+        @media (max-width: 767px) {
+          .filter-label { display: none !important; }
+          .filter-bar { gap: 0 !important; flex-wrap: nowrap !important; }
+          .filter-btn {
+            flex: 1 1 0 !important;
+            min-width: 0 !important;
+            padding-left: 6px !important;
+            padding-right: 6px !important;
+            justify-content: center !important;
+          }
+          .filter-btn-label {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            min-width: 0;
+          }
+          .edition-btn { max-width: 130px; }
+          .edition-btn-text {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            min-width: 0;
+          }
+        }
       `}</style>
       {/* Sub-nav */}
       <div
@@ -394,8 +420,8 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
         </div>
 
         {/* Rarity filter bar */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: '1rem' }}>
-          <span style={{ fontSize: 11, fontWeight: 500, color: '#8b949e', textTransform: 'uppercase', letterSpacing: '0.5px', flexShrink: 0 }}>
+        <div className="filter-bar" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: '1rem' }}>
+          <span className="filter-label" style={{ fontSize: 11, fontWeight: 500, color: '#8b949e', textTransform: 'uppercase', letterSpacing: '0.5px', flexShrink: 0 }}>
             Filter:
           </span>
           {RARITIES.map(({ value, label, color }) => {
@@ -403,6 +429,7 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
             return (
               <button
                 key={value}
+                className="filter-btn"
                 onClick={() => toggleRarity(value)}
                 style={{
                   display: 'flex',
@@ -420,7 +447,7 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
                 }}
               >
                 <span style={{ width: 7, height: 7, borderRadius: '50%', background: active ? color : '#484f58', flexShrink: 0, transition: 'background 0.15s' }} />
-                {label}
+                <span className="filter-btn-label">{label}</span>
               </button>
             )
           })}
