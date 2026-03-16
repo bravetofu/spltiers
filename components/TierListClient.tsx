@@ -332,7 +332,7 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
         /* Mobile: filter bar full-width equal buttons, edition button truncates */
         @media (max-width: 767px) {
           .filter-label { display: none !important; }
-          .filter-bar { gap: 0 !important; flex-wrap: nowrap !important; }
+          .filter-bar { gap: 3px !important; flex-wrap: nowrap !important; }
           .filter-btn {
             flex: 1 1 0 !important;
             min-width: 0 !important;
@@ -353,6 +353,7 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
             white-space: nowrap;
             min-width: 0;
           }
+          .beginner-btn { display: none !important; }
         }
       `}</style>
       {/* Sub-nav */}
@@ -381,6 +382,7 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
         {/* Right: beginner toggle + dropdown */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <button
+            className="beginner-btn"
             onClick={toggleBeginnerMode}
             title="Beginner mode adds tier explanations and role descriptions"
             style={{
