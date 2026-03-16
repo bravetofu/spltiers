@@ -40,6 +40,7 @@ NEXT_PUBLIC_SUPABASE_URL
 NEXT_PUBLIC_SUPABASE_ANON_KEY
 SUPABASE_SERVICE_ROLE_KEY
 NEXT_PUBLIC_HIVE_ADMIN_ACCOUNT=brave.sps
+OPENSEA_API_KEY                            ← server-side only, never exposed to client
 ```
 
 ---
@@ -234,9 +235,12 @@ create policy "public read tier_entries" on tier_entries for select using (true)
 | Market buy listings — regular + black foil | `GET https://api2.splinterlands.com/market/for_sale_by_card?card_detail_id={id}&gold=false` |
 | Market buy listings — gold + arcane foil | `GET https://api2.splinterlands.com/market/for_sale_by_card?card_detail_id={id}&gold=true` |
 | Rental listings (grouped) | `GET https://api2.splinterlands.com/market/for_rent_grouped` — see docs/rent-pricing-notes.md |
+| OpenSea Runi floor price | `GET https://api.opensea.io/api/v2/collections/runi/stats` (requires `OPENSEA_API_KEY` header) |
+| ETH/USD rate | `GET https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd` |
 
 Cache card details with Next.js `fetch` caching (revalidate: 3600).
 Buy listings: no-store (always live). Grouped rent listings: revalidate 60s.
+OpenSea + CoinGecko: revalidate 300s (5 minutes).
 
 ---
 
@@ -337,10 +341,29 @@ In code this is expressed as `card.edition === 'Alpha/Beta'` (the display name a
 | Gold foil (foil=1) | `#2a2200` | `#ffd700` / `3px solid #ffd700` | `{bcx} BCX · ✦ gold foil` or `✦ gold foil` | "Cheapest option is a gold foil card…" |
 | Arcane foil (foil=2) | `#2a2200` | `#ffd700` / `3px solid #ffd700` | `✦ gold foil arcane` | "Cheapest option is a gold foil card…" |
 | Black foil (foil=3/4) | `#0a1a0a` | `#2ecc71` / `3px solid #2ecc71` | `◆ black foil` | "Cheapest option is a black foil card…" |
+| Runi (card_detail_id 505) | `#1a1a2e` | `#a0aec0` / `3px solid #a0aec0` | `◆ OpenSea · ETH floor` | "Runi is an Ethereum NFT — price sourced from OpenSea floor price, converted to USD" |
 
 **Precedence:** outlier red styling always overrides foil colour coding. When both apply, the price shows red but the sub-label shows the foil badge in a muted version of the foil colour (`rgba(255,215,0,0.5)` for gold, `rgba(46,204,113,0.5)` for black).
 
 When `buy_usd === null` (the `—` dash case), the cell gets a tooltip: `'No listings found on the market for this card at this level'`.
+
+#### Runi special case (card_detail_id 505)
+
+Runi is an Ethereum NFT sold on OpenSea, not on the Splinterlands marketplace. It receives entirely different pricing logic:
+
+- **Skip** all Splinterlands market API calls for card_detail_id 505
+- **Fetch** OpenSea floor price: `GET https://api.opensea.io/api/v2/collections/runi/stats` → `data.total.floor_price` (ETH)
+- **Fetch** ETH/USD rate from CoinGecko: `GET https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd`
+- **Multiply** to get `floor_usd`; return `foil_type: 'runi'`
+- **Cache** both fetches at `revalidate: 300` (5 minutes)
+- **API key** (`OPENSEA_API_KEY`) is read server-side only — never passed to the client
+
+**Shared utility:** `lib/opensea.ts` exports `fetchRuniFloorPrice(): Promise<RuniFloorPrice | null>`.
+It is imported by:
+- `app/actions/pricing.ts` (server action — direct import, no HTTP round-trip)
+- `app/api/market/route.ts` (proxy route — exposed as `GET /api/market?type=opensea-runi`)
+
+The proxy route exists so the client can reach OpenSea data without exposing the API key; the server action uses a direct import to avoid an unnecessary HTTP call.
 
 ---
 
