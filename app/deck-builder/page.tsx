@@ -256,8 +256,16 @@ export default function DeckBuilderPage() {
       .select('card_id, card_name, edition, cdn_slug, rarity, tier, is_soulbound')
       .eq('is_soulbound', false)
       .not('tier', 'is', null)
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('[deck-builder] Supabase tier_entries fetch error:', error)
+        }
         const rows = (data as TierEntry[]) ?? []
+        if (rows.length === 0) {
+          console.error('[deck-builder] Supabase returned no tier entries — table may be empty or query failed')
+        } else {
+          console.log(`[deck-builder] Loaded ${rows.length} tier entries from Supabase`)
+        }
         setEntries(rows)
         setLoadingEntries(false)
         // Select all editions on first load
@@ -319,6 +327,23 @@ export default function DeckBuilderPage() {
     setExcludeOutliers(false)
     startTransition(async () => {
       const res = await fetchPrices(uniqueCards, selectedLeague)
+      const noData   = res.prices.filter((p) => p.buy_usd === null)
+      const partial  = res.prices.filter((p) => p.insufficient_supply)
+      const outliers = res.prices.filter((p) => p.is_outlier)
+      console.log('[deck-builder] Pricing result:', {
+        totalCards: res.prices.length,
+        priced: res.prices.length - noData.length,
+        noData: noData.length,
+        insufficientSupply: partial.length,
+        outliers: outliers.length,
+        fetchedAt: res.fetched_at,
+      })
+      if (noData.length > 0) {
+        console.error(
+          `[deck-builder] ${noData.length} card(s) returned no market data:`,
+          noData.map((p) => p.card_id),
+        )
+      }
       setResult(res)
       setFetchedAt(new Date().toLocaleString())
     })
