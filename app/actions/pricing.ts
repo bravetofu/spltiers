@@ -104,15 +104,24 @@ function getTargetBcxGold(card: CardInput, targetLevel: number): number {
 
 // Market API calls are never cached — prices must always be live
 async function fetchSaleListings(cardId: number, gold: boolean): Promise<SLSaleListing[]> {
+  const url = `https://api2.splinterlands.com/market/for_sale_by_card?card_detail_id=${cardId}&gold=${gold}`
   try {
-    const res = await fetch(
-      `https://api2.splinterlands.com/market/for_sale_by_card?card_detail_id=${cardId}&gold=${gold}`,
-      { cache: 'no-store' },
-    )
-    if (!res.ok) return []
+    const res = await fetch(url, { cache: 'no-store' })
+    if (!res.ok) {
+      console.error(`[deck-builder] Market API non-ok for card ${cardId} (gold=${gold}): HTTP ${res.status} ${res.statusText} — ${url}`)
+      return []
+    }
     const data = await res.json()
-    return Array.isArray(data) ? data : []
-  } catch {
+    if (!Array.isArray(data)) {
+      console.error(`[deck-builder] Market API unexpected response shape for card ${cardId} (gold=${gold}):`, data)
+      return []
+    }
+    if (data.length === 0) {
+      console.log(`[deck-builder] card ${cardId} (gold=${gold}): 0 listings`)
+    }
+    return data
+  } catch (err) {
+    console.error(`[deck-builder] Market API fetch failed for card ${cardId} (gold=${gold}):`, err)
     return []
   }
 }
@@ -423,6 +432,19 @@ export async function fetchPrices(cards: CardInput[], league: string): Promise<P
 
   // Run outlier detection on the complete set — never re-run after filtering
   flagOutliers(prices, cards)
+
+  const noData    = prices.filter((p) => p.buy_usd === null).length
+  const partial   = prices.filter((p) => p.insufficient_supply).length
+  const outliers  = prices.filter((p) => p.is_outlier).length
+  console.log(
+    `[deck-builder] fetchPrices done — ${cards.length} cards: ` +
+    `${prices.length - noData} priced, ${noData} no data, ` +
+    `${partial} insufficient supply, ${outliers} outliers`,
+  )
+  if (noData > 0) {
+    const missing = prices.filter((p) => p.buy_usd === null).map((p) => p.card_id)
+    console.error(`[deck-builder] Cards with no market data (${noData}):`, missing)
+  }
 
   return {
     prices,
