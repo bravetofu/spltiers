@@ -259,7 +259,6 @@ export default function DeckBuilderPage() {
     supabase
       .from('tier_entries')
       .select('card_id, card_name, edition, cdn_slug, rarity, tier, is_soulbound')
-      .eq('is_soulbound', false)
       .not('tier', 'is', null)
       .then(({ data, error }) => {
         if (error) {
@@ -287,7 +286,7 @@ export default function DeckBuilderPage() {
     if (!selectedEditions.has(e.edition)) return false
     if (!selectedTiers.has(e.tier)) return false
     const isPromo = e.cdn_slug === 'promo'
-    const isReward = e.cdn_slug === 'reward'
+    const isReward = e.cdn_slug === 'reward' || e.cdn_slug === 'soulboundrb'
     const isCore = !isPromo && !isReward
     if (excludeCore && isCore) return false
     if (excludePromo && isPromo) return false
