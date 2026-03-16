@@ -1,6 +1,7 @@
 'use server'
 
 import { LEAGUE_LEVEL_CAPS } from '@/lib/editions'
+import { fetchRuniFloorPrice } from '@/lib/opensea'
 
 // BCX thresholds per rarity and level for Alpha/Beta editions
 // (editions 0, 1, and reward/promo cards with card_detail_id <= 223)
@@ -62,7 +63,10 @@ export type CardInput = {
 export type BuyMethod = 'pre-combined' | 'buy & combine'
 
 // Which foil type provided the cheapest buy price for a card
-export type FoilType = 'regular' | 'gold' | 'arcane' | 'black'
+export type FoilType = 'regular' | 'gold' | 'arcane' | 'black' | 'runi'
+
+/** card_detail_id for Runi — an Ethereum NFT priced via OpenSea, not Splinterlands market */
+const RUNI_CARD_ID = 505
 
 export type CardPrice = {
   card_id: number
@@ -224,6 +228,28 @@ function computeCheapestBlack(listings: SLSaleListing[]): number | null {
 }
 
 async function priceOneCard(card: CardInput, targetLevel: number): Promise<CardPrice> {
+  // ── Runi: Ethereum NFT — priced via OpenSea floor, no BCX logic ─────────────
+  if (card.card_id === RUNI_CARD_ID) {
+    const runi = await fetchRuniFloorPrice()
+    if (runi) {
+      console.log(
+        `[deck-builder] Runi floor: ${runi.floor_eth} ETH × $${runi.eth_usd.toFixed(0)}/ETH = $${runi.floor_usd.toFixed(2)}`,
+      )
+    } else {
+      console.error('[deck-builder] Runi: failed to fetch OpenSea floor price — returning null')
+    }
+    return {
+      card_id: RUNI_CARD_ID,
+      buy_usd: runi ? runi.floor_usd : null,
+      buy_bcx: null,
+      buy_target_bcx: null,
+      buy_method: null,
+      insufficient_supply: false,
+      is_outlier: false,
+      foil_type: runi ? 'runi' : null,
+    }
+  }
+
   const [regularRaw, goldRaw] = await Promise.all([
     fetchSaleListings(card.card_id, false),
     fetchSaleListings(card.card_id, true),
