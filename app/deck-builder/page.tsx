@@ -397,15 +397,8 @@ export default function DeckBuilderPage() {
     }
   }
 
-  const byEdition = new Map<string, FullResult[]>()
-  for (const r of displayResults) {
-    const arr = byEdition.get(r.edition) ?? []
-    arr.push(r)
-    byEdition.set(r.edition, arr)
-  }
-  if (sortKey !== null) {
-    for (const [edition, cards] of Array.from(byEdition)) {
-      byEdition.set(edition, [...cards].sort((a, b) => {
+  const sortedDisplayResults = sortKey !== null
+    ? [...displayResults].sort((a, b) => {
         if (sortKey === 'card') {
           const cmp = a.card_name.localeCompare(b.card_name)
           return sortDir === 'asc' ? cmp : -cmp
@@ -415,8 +408,14 @@ export default function DeckBuilderPage() {
           const bVal = b.buy_usd ?? nullFallback
           return sortDir === 'asc' ? aVal - bVal : bVal - aVal
         }
-      }))
-    }
+      })
+    : displayResults
+
+  const byEdition = new Map<string, FullResult[]>()
+  for (const r of sortedDisplayResults) {
+    const arr = byEdition.get(r.edition) ?? []
+    arr.push(r)
+    byEdition.set(r.edition, arr)
   }
 
   // Summary stats — derived from displayed (possibly filtered) cards
