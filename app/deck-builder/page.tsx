@@ -248,6 +248,11 @@ export default function DeckBuilderPage() {
   const [fetchedAt, setFetchedAt] = useState<string | null>(null)
   const [excludeUnavailable, setExcludeUnavailable] = useState(false)
   const [excludeOutliers, setExcludeOutliers] = useState(false)
+  const [excludeCore, setExcludeCore] = useState(false)
+  const [excludePromo, setExcludePromo] = useState(false)
+  const [excludeReward, setExcludeReward] = useState(false)
+  const [sortKey, setSortKey] = useState<'card' | 'buy' | null>(null)
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
 
   useEffect(() => {
     const supabase = createClient()
@@ -268,19 +273,27 @@ export default function DeckBuilderPage() {
         }
         setEntries(rows)
         setLoadingEntries(false)
-        // Select all editions on first load
+        // Select Modern editions by default on first load
         if (!editionsInitialized.current) {
           editionsInitialized.current = true
-          setSelectedEditions(new Set(rows.map((e) => e.edition)))
+          setSelectedEditions(new Set(rows.filter((e) => getEditionFormat(e.edition) === 'modern').map((e) => e.edition)))
         }
       })
   }, [])
 
   const availableEditions = Array.from(new Set(entries.map((e) => e.edition))).sort()
 
-  const filteredEntries = entries.filter(
-    (e) => selectedEditions.has(e.edition) && selectedTiers.has(e.tier),
-  )
+  const filteredEntries = entries.filter((e) => {
+    if (!selectedEditions.has(e.edition)) return false
+    if (!selectedTiers.has(e.tier)) return false
+    const isPromo = e.cdn_slug === '/promo/'
+    const isReward = e.cdn_slug === '/reward/'
+    const isCore = !isPromo && !isReward
+    if (excludeCore && isCore) return false
+    if (excludePromo && isPromo) return false
+    if (excludeReward && isReward) return false
+    return true
+  })
 
   const uniqueCards: CardInput[] = (() => {
     const seen = new Set<number>()
@@ -374,11 +387,36 @@ export default function DeckBuilderPage() {
     return true
   })
 
+  const handleSort = (key: 'card' | 'buy') => {
+    if (sortKey === key) {
+      if (sortDir === 'asc') setSortDir('desc')
+      else { setSortKey(null); setSortDir('asc') }
+    } else {
+      setSortKey(key)
+      setSortDir('asc')
+    }
+  }
+
   const byEdition = new Map<string, FullResult[]>()
   for (const r of displayResults) {
     const arr = byEdition.get(r.edition) ?? []
     arr.push(r)
     byEdition.set(r.edition, arr)
+  }
+  if (sortKey !== null) {
+    for (const [edition, cards] of Array.from(byEdition)) {
+      byEdition.set(edition, [...cards].sort((a, b) => {
+        if (sortKey === 'card') {
+          const cmp = a.card_name.localeCompare(b.card_name)
+          return sortDir === 'asc' ? cmp : -cmp
+        } else {
+          const nullFallback = sortDir === 'asc' ? Infinity : -Infinity
+          const aVal = a.buy_usd ?? nullFallback
+          const bVal = b.buy_usd ?? nullFallback
+          return sortDir === 'asc' ? aVal - bVal : bVal - aVal
+        }
+      }))
+    }
   }
 
   // Summary stats — derived from displayed (possibly filtered) cards
@@ -474,40 +512,73 @@ export default function DeckBuilderPage() {
               </div>
             </div>
 
-            {/* League + CTA */}
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, flexWrap: 'wrap' }}>
-              <div>
-                <div style={LABEL_STYLE}>League</div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  {LEAGUES.map((league) => {
-                    const active = selectedLeague === league
-                    const col = LEAGUE_STYLE[league]
-                    return (
-                      <button
-                        key={league}
-                        className="chip-btn"
-                        title={leagueTooltip(league)}
-                        onClick={() => setSelectedLeague(league)}
-                        style={{
-                          padding: '4px 12px',
-                          height: 32,
-                          borderRadius: 6,
-                          border: active ? 'none' : '1px solid var(--border-default)',
-                          background: active ? col.bg : 'var(--bg-tertiary)',
-                          color: active ? col.color : 'var(--text-muted)',
-                          fontSize: '0.8rem',
-                          fontWeight: active ? 700 : 400,
-                          cursor: 'pointer',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {col.label}
-                      </button>
-                    )
-                  })}
-                </div>
+            {/* League */}
+            <div style={{ marginBottom: '1rem' }}>
+              <div style={LABEL_STYLE}>League</div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {LEAGUES.map((league) => {
+                  const active = selectedLeague === league
+                  const col = LEAGUE_STYLE[league]
+                  return (
+                    <button
+                      key={league}
+                      className="chip-btn"
+                      title={leagueTooltip(league)}
+                      onClick={() => setSelectedLeague(league)}
+                      style={{
+                        padding: '4px 12px',
+                        height: 32,
+                        borderRadius: 6,
+                        border: active ? 'none' : '1px solid var(--border-default)',
+                        background: active ? col.bg : 'var(--bg-tertiary)',
+                        color: active ? col.color : 'var(--text-muted)',
+                        fontSize: '0.8rem',
+                        fontWeight: active ? 700 : 400,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {col.label}
+                    </button>
+                  )
+                })}
               </div>
+            </div>
 
+            {/* Exclusions */}
+            <div style={{ marginBottom: '1rem' }}>
+              <div style={LABEL_STYLE}>Exclusions</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {([
+                  { key: 'core',   label: 'Exclude Core',   value: excludeCore,   toggle: () => setExcludeCore((v)   => !v) },
+                  { key: 'promo',  label: 'Exclude Promo',  value: excludePromo,  toggle: () => setExcludePromo((v)  => !v) },
+                  { key: 'reward', label: 'Exclude Reward', value: excludeReward, toggle: () => setExcludeReward((v) => !v) },
+                ]).map(({ key, label, value, toggle }) => (
+                  <button
+                    key={key}
+                    className="chip-btn"
+                    onClick={toggle}
+                    style={{
+                      padding: '4px 12px',
+                      height: 32,
+                      borderRadius: 6,
+                      border: value ? '1px solid #f85149' : '1px solid var(--border-default)',
+                      background: value ? '#2d0f0f' : 'var(--bg-tertiary)',
+                      color: value ? '#f85149' : 'var(--text-muted)',
+                      fontSize: '0.8rem',
+                      fontWeight: value ? 600 : 400,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* CTA */}
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <button
                   onClick={handleCalculate}
@@ -718,21 +789,37 @@ export default function DeckBuilderPage() {
               <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-default)', borderRadius: 10, overflow: 'hidden', minWidth: 560 }}>
                 {/* Header */}
                 <div style={{ display: 'grid', gridTemplateColumns: COL, padding: '8px 16px', borderBottom: '1px solid var(--border-default)', background: 'var(--bg-primary)' }}>
-                  {['', 'Card', 'Edition', 'Tier', 'Rarity', 'Buy'].map((h) => (
-                    <div
-                      key={h}
-                      style={{
-                        fontSize: '0.65rem',
-                        color: 'var(--text-muted)',
-                        fontWeight: 600,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.06em',
-                        paddingLeft: h === 'Card' ? 8 : 0,
-                      }}
-                    >
-                      {h}
-                    </div>
-                  ))}
+                  {(['', 'Card', 'Edition', 'Tier', 'Rarity', 'Buy'] as const).map((h) => {
+                    const isSortable = h === 'Card' || h === 'Buy'
+                    const colKey = h === 'Card' ? 'card' : h === 'Buy' ? 'buy' : null
+                    const isActive = colKey !== null && sortKey === colKey
+                    return (
+                      <div
+                        key={h}
+                        onClick={isSortable && colKey ? () => handleSort(colKey) : undefined}
+                        style={{
+                          fontSize: '0.65rem',
+                          color: isActive ? '#79b8f2' : 'var(--text-muted)',
+                          fontWeight: 600,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.06em',
+                          paddingLeft: h === 'Card' ? 8 : 0,
+                          cursor: isSortable ? 'pointer' : 'default',
+                          userSelect: 'none',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                        }}
+                      >
+                        {h}
+                        {isSortable && (
+                          <span style={{ fontSize: 9, opacity: isActive ? 1 : 0.4 }}>
+                            {isActive ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}
+                          </span>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
 
                 {/* Edition groups */}
