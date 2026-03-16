@@ -227,23 +227,7 @@ function computeCheapestBlack(listings: SLSaleListing[]): number | null {
   return Math.min(...prices)
 }
 
-// Soulbound cards cannot be listed on the market — skip both API calls
-const UNTRADEABLE_SLUGS = new Set(['soulbound', 'soulboundrb'])
-
 async function priceOneCard(card: CardInput, targetLevel: number): Promise<CardPrice> {
-  if (UNTRADEABLE_SLUGS.has(card.cdn_slug)) {
-    return {
-      card_id: card.card_id,
-      buy_usd: null,
-      buy_bcx: null,
-      buy_target_bcx: getTargetBcx(card, targetLevel),
-      buy_method: null,
-      insufficient_supply: false,
-      is_outlier: false,
-      foil_type: null,
-    }
-  }
-
   // ── Runi: Ethereum NFT — priced via OpenSea floor, no BCX logic ─────────────
   if (card.card_id === RUNI_CARD_ID) {
     const runi = await fetchRuniFloorPrice()
@@ -457,12 +441,12 @@ function flagOutliers(prices: CardPrice[], cards: CardInput[]): void {
 /**
  * Fetch live buy prices for a list of cards at the given league.
  * Each card's target level is derived from LEAGUE_LEVEL_CAPS[league][card.rarity].
- * Runs up to 30 tradeable cards concurrently (soulbound cards are skipped before
- * any network call). Market calls are never cached.
+ * Runs up to 20 cards concurrently to avoid overwhelming the SL API.
+ * Market calls are never cached.
  * Outlier detection runs on the full result set after all prices are fetched.
  */
 export async function fetchPrices(cards: CardInput[], league: string): Promise<PricingResult> {
-  const CHUNK = 30
+  const CHUNK = 20
   const prices: CardPrice[] = []
   for (let i = 0; i < cards.length; i += CHUNK) {
     const chunk = cards.slice(i, i + CHUNK)
