@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import CardThumb from '@/components/CardThumb'
-import CardHoverPopover from '@/components/CardHoverPopover'
+import CardPopover from '@/components/CardPopover'
 import { rarityMaxLevel, type EditionFormat } from '@/lib/editions'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -226,20 +226,41 @@ const ALL_RARITIES = new Set([1, 2, 3, 4])
 export default function TierListClient({ currentSet, tierGroups, allSets }: Props) {
   const [beginnerMode, setBeginnerMode] = useState(false)
   const [activeRarities, setActiveRarities] = useState<Set<number>>(new Set(ALL_RARITIES))
+  const [selectedCard, setSelectedCard] = useState<TierEntry | null>(null)
+  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
+  const [isMobile, setIsMobile] = useState(false)
 
-  // Read localStorage on mount
+  // Read localStorage on mount; detect touch/pointer device
   useEffect(() => {
     try {
       setBeginnerMode(localStorage.getItem('splintiers_beginner_mode') === 'true')
     } catch {
       // localStorage unavailable (SSR guard — shouldn't happen in useEffect but be safe)
     }
+    const mq = window.matchMedia('(hover: none)')
+    setIsMobile(mq.matches)
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
   }, [])
 
-  // Reset rarity filters when navigating to a different edition
+  // Reset rarity filters and close popup when navigating to a different edition
   useEffect(() => {
     setActiveRarities(new Set(ALL_RARITIES))
+    setSelectedCard(null)
+    setAnchorRect(null)
   }, [currentSet.slug])
+
+  // Close popup on outside click (desktop only)
+  useEffect(() => {
+    if (!selectedCard || isMobile) return
+    function handleOutside() {
+      setSelectedCard(null)
+      setAnchorRect(null)
+    }
+    document.addEventListener('click', handleOutside)
+    return () => document.removeEventListener('click', handleOutside)
+  }, [selectedCard, isMobile])
 
   function toggleBeginnerMode() {
     const next = !beginnerMode
@@ -257,6 +278,27 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
       next.has(value) ? next.delete(value) : next.add(value)
       return next
     })
+  }
+
+  function handleCardClick(e: React.MouseEvent<HTMLDivElement>, card: TierEntry) {
+    e.stopPropagation()
+    if (isMobile) {
+      setSelectedCard(card)
+    } else {
+      const rect = e.currentTarget.getBoundingClientRect()
+      if (selectedCard?.card_id === card.card_id) {
+        setSelectedCard(null)
+        setAnchorRect(null)
+      } else {
+        setSelectedCard(card)
+        setAnchorRect(rect)
+      }
+    }
+  }
+
+  function closePopover() {
+    setSelectedCard(null)
+    setAnchorRect(null)
   }
 
   const totalRanked = TIERS.reduce((acc, t) => acc + (tierGroups[t]?.length ?? 0), 0)
@@ -461,16 +503,16 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
                   }}
                 >
                   {cards.map((card) => (
-                    <CardHoverPopover
+                    <div
                       key={card.card_id}
-                      cardName={card.card_name}
-                      cdnSlug={card.cdn_slug}
-                      rarity={card.rarity}
-                      tier={card.tier}
-                      role={card.role}
-                      notes={card.notes}
-                      isSoulbound={card.is_soulbound}
-                      beginnerMode={beginnerMode}
+                      onClick={(e) => handleCardClick(e, card)}
+                      style={{
+                        cursor: 'pointer',
+                        borderRadius: 10,
+                        boxShadow: selectedCard?.card_id === card.card_id
+                          ? '0 0 0 2px #ffd700'
+                          : undefined,
+                      }}
                     >
                       <CardThumb
                         cardName={card.card_name}
@@ -481,7 +523,7 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
                         isSoulbound={card.is_soulbound}
                         className="tier-card-thumb"
                       />
-                    </CardHoverPopover>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -500,6 +542,16 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
           </p>
         )}
       </div>
+
+      {selectedCard && (
+        <CardPopover
+          card={selectedCard}
+          anchorRect={anchorRect}
+          editionName={currentSet.name}
+          isMobile={isMobile}
+          onClose={closePopover}
+        />
+      )}
     </div>
   )
 }
