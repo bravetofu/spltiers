@@ -111,6 +111,7 @@ const SOULBOUND_EDITIONS = new Set([10, 13])
 async function fetchAllCards(): Promise<CardData[]> {
   const res = await fetch('https://api.splinterlands.io/cards/get_details', {
     next: { revalidate: 3600 },
+    headers: { 'Accept-Encoding': 'gzip, deflate, br, zstd' },
   })
   if (!res.ok) throw new Error(`SL API error: ${res.status}`)
   const raw: RawCard[] = await res.json()
