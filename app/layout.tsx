@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import Footer from '@/components/Footer'
 
 // metadataBase resolves relative og:image URLs. Set NEXT_PUBLIC_SITE_URL in prod.
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
@@ -28,8 +29,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
       </head>
-      <body style={{ margin: 0, background: '#0d1117', color: '#f0f6fc' }}>
-        {children}
+      <body style={{ margin: 0, background: '#0d1117', color: '#f0f6fc', display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+        <div style={{ flex: 1 }}>{children}</div>
+        <Footer />
       </body>
     </html>
   )
