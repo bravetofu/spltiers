@@ -23,44 +23,98 @@ export async function fetchRuniFloorPrice(): Promise<RuniFloorPrice | null> {
     return null
   }
 
+  // ── OpenSea ────────────────────────────────────────────────────────────────
+  let openseaRes: Response
   try {
-    const [openseaRes, cgRes] = await Promise.all([
-      fetch('https://api.opensea.io/api/v2/collections/runi/stats', {
-        headers: {
-          'x-api-key': apiKey,
-          'Accept-Encoding': 'gzip, deflate, br, zstd',
-        },
-        next: { revalidate: 300 },
-      }),
-      fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd', {
-        headers: { 'Accept-Encoding': 'gzip, deflate, br, zstd' },
-        next: { revalidate: 300 },
-      }),
-    ])
-
-    if (!openseaRes.ok) {
-      console.error(`[runi] OpenSea API error: HTTP ${openseaRes.status} ${openseaRes.statusText}`)
-      return null
-    }
-    if (!cgRes.ok) {
-      console.error(`[runi] CoinGecko API error: HTTP ${cgRes.status} ${cgRes.statusText}`)
-      return null
-    }
-
-    const openseaData = await openseaRes.json()
-    const cgData = await cgRes.json()
-
-    const floor_eth: unknown = openseaData?.total?.floor_price
-    const eth_usd: unknown = cgData?.ethereum?.usd
-
-    if (typeof floor_eth !== 'number' || typeof eth_usd !== 'number') {
-      console.error('[runi] Unexpected API response shape:', { openseaData, cgData })
-      return null
-    }
-
-    return { floor_eth, eth_usd, floor_usd: floor_eth * eth_usd }
+    openseaRes = await fetch('https://api.opensea.io/api/v2/collections/runi/stats', {
+      headers: {
+        'x-api-key': apiKey,
+        'Accept-Encoding': 'gzip, deflate, br, zstd',
+      },
+      next: { revalidate: 300 },
+    })
   } catch (err) {
-    console.error('[runi] Failed to fetch Runi floor price:', err)
+    console.error('[runi] OpenSea network error:', err)
     return null
   }
+
+  if (!openseaRes.ok) {
+    let body = ''
+    try { body = await openseaRes.text() } catch { /* ignore */ }
+    console.error(
+      `[runi] OpenSea API error: HTTP ${openseaRes.status} ${openseaRes.statusText}` +
+      (body ? `\n  Response body: ${body.slice(0, 500)}` : ''),
+    )
+    return null
+  }
+
+  let openseaData: unknown
+  try {
+    openseaData = await openseaRes.json()
+  } catch (err) {
+    console.error('[runi] OpenSea returned non-JSON:', err)
+    return null
+  }
+
+  console.log('[runi] OpenSea raw response:', JSON.stringify(openseaData)?.slice(0, 1000))
+
+  const total = (openseaData as Record<string, unknown>)?.total as Record<string, unknown> | undefined
+  const floor_eth: unknown = total?.floor_price
+  const floor_symbol: unknown = total?.floor_price_symbol
+
+  if (floor_eth === null || floor_eth === undefined) {
+    console.error('[runi] OpenSea floor_price is missing or null — no active listings?', { total })
+    return null
+  }
+  if (typeof floor_eth !== 'number') {
+    console.error(`[runi] OpenSea floor_price has unexpected type "${typeof floor_eth}":`, floor_eth, '— full total:', total)
+    return null
+  }
+  if (floor_symbol !== 'ETH') {
+    console.error(`[runi] OpenSea floor_price_symbol is "${floor_symbol}" — expected "ETH", conversion may be wrong`)
+    // fall through: still attempt conversion but log the discrepancy
+  }
+
+  // ── CoinGecko ──────────────────────────────────────────────────────────────
+  let cgRes: Response
+  try {
+    cgRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd', {
+      headers: { 'Accept-Encoding': 'gzip, deflate, br, zstd' },
+      next: { revalidate: 300 },
+    })
+  } catch (err) {
+    console.error('[runi] CoinGecko network error:', err)
+    return null
+  }
+
+  if (!cgRes.ok) {
+    let body = ''
+    try { body = await cgRes.text() } catch { /* ignore */ }
+    console.error(
+      `[runi] CoinGecko API error: HTTP ${cgRes.status} ${cgRes.statusText}` +
+      (body ? `\n  Response body: ${body.slice(0, 500)}` : ''),
+    )
+    return null
+  }
+
+  let cgData: unknown
+  try {
+    cgData = await cgRes.json()
+  } catch (err) {
+    console.error('[runi] CoinGecko returned non-JSON:', err)
+    return null
+  }
+
+  const eth_usd: unknown = (cgData as Record<string, unknown>)?.ethereum
+    ? ((cgData as Record<string, Record<string, unknown>>).ethereum?.usd)
+    : undefined
+
+  if (typeof eth_usd !== 'number') {
+    console.error('[runi] CoinGecko unexpected response shape — expected { ethereum: { usd: number } }:', cgData)
+    return null
+  }
+
+  const result = { floor_eth, eth_usd, floor_usd: floor_eth * eth_usd }
+  console.log(`[runi] floor price: ${floor_eth} ETH × $${eth_usd.toFixed(0)}/ETH = $${result.floor_usd.toFixed(2)}`)
+  return result
 }

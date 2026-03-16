@@ -109,28 +109,55 @@ function getTargetBcxGold(card: CardInput, targetLevel: number): number {
 // Market API calls are never cached — prices must always be live
 async function fetchSaleListings(cardId: number, gold: boolean): Promise<SLSaleListing[]> {
   const url = `https://api2.splinterlands.com/market/for_sale_by_card?card_detail_id=${cardId}&gold=${gold}`
+  let res: Response
   try {
-    const res = await fetch(url, {
+    res = await fetch(url, {
       cache: 'no-store',
       headers: { 'Accept-Encoding': 'gzip, deflate, br, zstd' },
     })
-    if (!res.ok) {
-      console.error(`[deck-builder] Market API non-ok for card ${cardId} (gold=${gold}): HTTP ${res.status} ${res.statusText} — ${url}`)
-      return []
-    }
-    const data = await res.json()
-    if (!Array.isArray(data)) {
-      console.error(`[deck-builder] Market API unexpected response shape for card ${cardId} (gold=${gold}):`, data)
-      return []
-    }
-    if (data.length === 0) {
-      console.log(`[deck-builder] card ${cardId} (gold=${gold}): 0 listings`)
-    }
-    return data
   } catch (err) {
-    console.error(`[deck-builder] Market API fetch failed for card ${cardId} (gold=${gold}):`, err)
+    console.error(`[deck-builder] Market API network error for card ${cardId} (gold=${gold}) — ${url}:`, err)
     return []
   }
+
+  if (!res.ok) {
+    let body = ''
+    try { body = await res.text() } catch { /* ignore */ }
+    console.error(
+      `[deck-builder] Market API non-ok for card ${cardId} (gold=${gold}): ` +
+      `HTTP ${res.status} ${res.statusText} — ${url}` +
+      (body ? `\n  Response body: ${body.slice(0, 500)}` : ''),
+    )
+    return []
+  }
+
+  let data: unknown
+  try {
+    data = await res.json()
+  } catch (err) {
+    let raw = ''
+    try { raw = await res.text() } catch { /* ignore */ }
+    console.error(
+      `[deck-builder] Market API returned non-JSON for card ${cardId} (gold=${gold}) — ${url}:`,
+      err,
+      raw ? `\n  Raw response: ${raw.slice(0, 500)}` : '',
+    )
+    return []
+  }
+
+  if (!Array.isArray(data)) {
+    console.error(
+      `[deck-builder] Market API unexpected response shape for card ${cardId} (gold=${gold}) — ${url}:`,
+      JSON.stringify(data)?.slice(0, 500),
+    )
+    return []
+  }
+
+  if (data.length === 0) {
+    console.log(`[deck-builder] card ${cardId} (gold=${gold}): 0 listings`)
+  }
+
+  return data
 }
 
 /**
