@@ -128,7 +128,7 @@ const LABEL_STYLE = {
 }
 
 const FORMAT_ROW_LABEL: React.CSSProperties = {
-  fontSize: 11,
+  fontSize: 10,
   fontWeight: 500,
   color: '#8b949e',
   textTransform: 'uppercase',
@@ -156,7 +156,7 @@ function EditionChip({
         border: active ? '1px solid #1f6feb' : '1px solid var(--border-default)',
         background: active ? '#1c3a5e' : 'var(--bg-tertiary)',
         color: active ? '#79b8f2' : 'var(--text-secondary)',
-        fontSize: '0.8rem',
+        fontSize: '0.75rem',
         cursor: 'pointer',
         fontWeight: active ? 600 : 400,
       }}
@@ -179,7 +179,7 @@ function AllNoneToggle({
     background: 'none',
     border: 'none',
     padding: 0,
-    fontSize: 11,
+    fontSize: 10,
     color: '#8b949e',
     cursor: 'pointer',
     fontWeight: 500,
@@ -187,7 +187,7 @@ function AllNoneToggle({
   return (
     <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, marginLeft: 4 }}>
       <button style={btnStyle} onClick={() => setSelectedEditions((prev) => { const next = new Set(prev); editions.forEach((e) => next.add(e)); return next })}>All</button>
-      <span style={{ color: '#484f58', fontSize: 11 }}>·</span>
+      <span style={{ color: '#484f58', fontSize: 10 }}>·</span>
       <button style={btnStyle} onClick={() => setSelectedEditions((prev) => { const next = new Set(prev); editions.forEach((e) => next.delete(e)); return next })}>None</button>
     </span>
   )
@@ -217,12 +217,16 @@ function EditionGroups({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {groups.map(({ label, editions }) => (
-        <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={FORMAT_ROW_LABEL}>{label}</span>
-          {editions.map((edition) => (
-            <EditionChip key={edition} edition={edition} active={selectedEditions.has(edition)} onToggle={() => toggleEdition(edition)} />
-          ))}
-          <AllNoneToggle editions={editions} selectedEditions={selectedEditions} setSelectedEditions={setSelectedEditions} />
+        <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={FORMAT_ROW_LABEL}>{label}</span>
+            <AllNoneToggle editions={editions} selectedEditions={selectedEditions} setSelectedEditions={setSelectedEditions} />
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {editions.map((edition) => (
+              <EditionChip key={edition} edition={edition} active={selectedEditions.has(edition)} onToggle={() => toggleEdition(edition)} />
+            ))}
+          </div>
         </div>
       ))}
     </div>
@@ -433,7 +437,7 @@ export default function DeckBuilderPage() {
                         border: active ? 'none' : '1px solid var(--border-default)',
                         background: active ? col.bg : 'var(--bg-tertiary)',
                         color: active ? col.color : 'var(--text-muted)',
-                        fontSize: '0.85rem',
+                        fontSize: '0.8rem',
                         fontWeight: 700,
                         cursor: 'pointer',
                       }}
@@ -466,7 +470,7 @@ export default function DeckBuilderPage() {
                           border: active ? 'none' : '1px solid var(--border-default)',
                           background: active ? col.bg : 'var(--bg-tertiary)',
                           color: active ? col.color : 'var(--text-muted)',
-                          fontSize: '0.85rem',
+                          fontSize: '0.8rem',
                           fontWeight: active ? 700 : 400,
                           cursor: 'pointer',
                           whiteSpace: 'nowrap',
