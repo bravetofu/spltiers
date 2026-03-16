@@ -211,8 +211,8 @@ export default function CardPopover({ card, anchorRect, editionName, isMobile, o
     </div>
   )
 
-  // Mobile: centered modal with backdrop
-  if (isMobile) {
+  // Mobile web: centered modal with backdrop (hover-none devices or small screens)
+  if (isMobile || window.innerWidth < 768) {
     return createPortal(
       <div
         style={{
