@@ -326,7 +326,7 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
       }
 
       // Pass 1 — group by card_detail_id, track best bcx per foil type
-      type RawEntry = { hasBF: boolean; maxGoldBcx: number | null; maxRegularBcx: number | null }
+      type RawEntry = { hasBF: boolean; hasArcaneGF: boolean; maxGoldBcx: number | null; maxRegularBcx: number | null }
       const grouped = new Map<number, RawEntry>()
       for (const card of data) {
         const id = Number(card.card_detail_id)
@@ -335,11 +335,13 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
         if (!id) continue
         let entry = grouped.get(id)
         if (!entry) {
-          entry = { hasBF: false, maxGoldBcx: null, maxRegularBcx: null }
+          entry = { hasBF: false, hasArcaneGF: false, maxGoldBcx: null, maxRegularBcx: null }
           grouped.set(id, entry)
         }
         if (foil === 3 || foil === 4) {
           entry.hasBF = true
+        } else if (foil === 2) {
+          entry.hasArcaneGF = true  // arcane gold foil — always max level
         } else if (foil === 1) {
           entry.maxGoldBcx = Math.max(entry.maxGoldBcx ?? 0, bcx)
         } else if (foil === 0) {
@@ -364,6 +366,9 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
           state = { pct: 0, foilType: 'none', dotColor: '', textColor: '#484f58', grayscale: true, opacity: 0.25 }
         } else if (entry.hasBF) {
           state = { pct: 100, foilType: 'black', dotColor: '#2ecc71', textColor: '#2ecc71', grayscale: false, opacity: 1 }
+        } else if (entry.hasArcaneGF) {
+          // Arcane gold foil — always max level, shown as gold at 100%
+          state = { pct: 100, foilType: 'gold', dotColor: '#ffd700', textColor: '#ffd700', grayscale: false, opacity: 1 }
         } else {
           const gfPct = entry.maxGoldBcx !== null
             ? Math.min(100, Math.round((entry.maxGoldBcx / maxBcxGold) * 100))
@@ -793,8 +798,8 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
                                   position: 'absolute',
                                   top: 4,
                                   right: 4,
-                                  width: 7,
-                                  height: 7,
+                                  width: 10,
+                                  height: 10,
                                   borderRadius: '50%',
                                   border: '1px solid rgba(0,0,0,0.4)',
                                   background: colState.dotColor,
