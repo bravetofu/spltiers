@@ -367,7 +367,7 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
           // Not owned at all
           state = { pct: 0, foilType: 'none', foilNumber: null, dotColor: '', textColor: '#484f58', grayscale: true, opacity: 0.25 }
         } else if (entry.hasBF) {
-          state = { pct: 100, foilType: 'black', foilNumber: entry.hasBFArcane ? 4 : 3, dotColor: '#e2e8f0', textColor: '#e2e8f0', grayscale: false, opacity: 1 }
+          state = { pct: 100, foilType: 'black', foilNumber: entry.hasBFArcane ? 4 : 3, dotColor: '#000000', textColor: '#e2e8f0', grayscale: false, opacity: 1 }
         } else if (entry.hasArcaneGF) {
           // Arcane gold foil — always max level, shown as gold at 100%
           state = { pct: 100, foilType: 'gold', foilNumber: 2, dotColor: '#ffd700', textColor: '#ffd700', grayscale: false, opacity: 1 }
@@ -398,7 +398,7 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
               pct: rfPct,
               foilType: 'regular',
               foilNumber: 0,
-              dotColor: '#8b949e',
+              dotColor: '#adb5bd',
               textColor: rfPct === 100 ? '#f0f6fc' : '#8b949e',
               grayscale: rfPct < 100,
               opacity: rfPct === 100 ? 1 : 0.55,
@@ -805,7 +805,7 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
                                   width: 10,
                                   height: 10,
                                   borderRadius: '50%',
-                                  border: colState.foilType === 'black' ? '1px solid #333' : '1px solid rgba(0,0,0,0.4)',
+                                  border: colState.foilType === 'black' ? '1px solid #e2e8f0' : '1px solid rgba(0,0,0,0.4)',
                                   background: colState.dotColor,
                                   pointerEvents: 'none',
                                   zIndex: 2,
