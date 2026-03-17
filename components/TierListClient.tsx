@@ -225,9 +225,10 @@ const ALL_RARITIES = new Set([1, 2, 3, 4])
 
 // ─── Collection checker types ─────────────────────────────────────────────────
 
-type CardCollectionState = {
+export type CardCollectionState = {
   pct: number           // 0–100
   foilType: 'black' | 'gold' | 'regular' | 'none'
+  foilNumber: number | null  // exact winning foil value (0–4) or null if not owned
   dotColor: string      // empty string = no dot
   textColor: string
   grayscale: boolean
@@ -326,7 +327,7 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
       }
 
       // Pass 1 — group by card_detail_id, track best bcx per foil type
-      type RawEntry = { hasBF: boolean; hasArcaneGF: boolean; maxGoldBcx: number | null; maxRegularBcx: number | null }
+      type RawEntry = { hasBF: boolean; hasBFArcane: boolean; hasArcaneGF: boolean; maxGoldBcx: number | null; maxRegularBcx: number | null }
       const grouped = new Map<number, RawEntry>()
       for (const card of data) {
         const id = Number(card.card_detail_id)
@@ -335,11 +336,12 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
         if (!id) continue
         let entry = grouped.get(id)
         if (!entry) {
-          entry = { hasBF: false, hasArcaneGF: false, maxGoldBcx: null, maxRegularBcx: null }
+          entry = { hasBF: false, hasBFArcane: false, hasArcaneGF: false, maxGoldBcx: null, maxRegularBcx: null }
           grouped.set(id, entry)
         }
         if (foil === 3 || foil === 4) {
           entry.hasBF = true
+          if (foil === 4) entry.hasBFArcane = true
         } else if (foil === 2) {
           entry.hasArcaneGF = true  // arcane gold foil — always max level
         } else if (foil === 1) {
@@ -363,12 +365,12 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
 
         if (!entry) {
           // Not owned at all
-          state = { pct: 0, foilType: 'none', dotColor: '', textColor: '#484f58', grayscale: true, opacity: 0.25 }
+          state = { pct: 0, foilType: 'none', foilNumber: null, dotColor: '', textColor: '#484f58', grayscale: true, opacity: 0.25 }
         } else if (entry.hasBF) {
-          state = { pct: 100, foilType: 'black', dotColor: '#2ecc71', textColor: '#2ecc71', grayscale: false, opacity: 1 }
+          state = { pct: 100, foilType: 'black', foilNumber: entry.hasBFArcane ? 4 : 3, dotColor: '#e2e8f0', textColor: '#e2e8f0', grayscale: false, opacity: 1 }
         } else if (entry.hasArcaneGF) {
           // Arcane gold foil — always max level, shown as gold at 100%
-          state = { pct: 100, foilType: 'gold', dotColor: '#ffd700', textColor: '#ffd700', grayscale: false, opacity: 1 }
+          state = { pct: 100, foilType: 'gold', foilNumber: 2, dotColor: '#ffd700', textColor: '#ffd700', grayscale: false, opacity: 1 }
         } else {
           const gfPct = entry.maxGoldBcx !== null
             ? Math.min(100, Math.round((entry.maxGoldBcx / maxBcxGold) * 100))
@@ -378,12 +380,13 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
             : 0
 
           if (gfPct === 0 && rfPct === 0) {
-            state = { pct: 0, foilType: 'none', dotColor: '', textColor: '#484f58', grayscale: true, opacity: 0.25 }
+            state = { pct: 0, foilType: 'none', foilNumber: null, dotColor: '', textColor: '#484f58', grayscale: true, opacity: 0.25 }
           } else if (gfPct >= rfPct) {
             // Gold foil winner
             state = {
               pct: gfPct,
               foilType: 'gold',
+              foilNumber: 1,
               dotColor: '#ffd700',
               textColor: gfPct === 100 ? '#ffd700' : '#8b949e',
               grayscale: gfPct < 100,
@@ -394,6 +397,7 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
             state = {
               pct: rfPct,
               foilType: 'regular',
+              foilNumber: 0,
               dotColor: '#8b949e',
               textColor: rfPct === 100 ? '#f0f6fc' : '#8b949e',
               grayscale: rfPct < 100,
@@ -801,7 +805,7 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
                                   width: 10,
                                   height: 10,
                                   borderRadius: '50%',
-                                  border: '1px solid rgba(0,0,0,0.4)',
+                                  border: colState.foilType === 'black' ? '1px solid #333' : '1px solid rgba(0,0,0,0.4)',
                                   background: colState.dotColor,
                                   pointerEvents: 'none',
                                   zIndex: 2,
@@ -838,6 +842,7 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
           editionName={currentSet.name}
           isMobile={isMobile}
           onClose={closePopover}
+          collectionState={collectionMap?.get(selectedCard.card_id)}
         />
       )}
     </div>
