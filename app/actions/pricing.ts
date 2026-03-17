@@ -2,47 +2,12 @@
 
 import { LEAGUE_LEVEL_CAPS } from '@/lib/editions'
 import { fetchRuniFloorPrice } from '@/lib/opensea'
-
-// BCX thresholds per rarity and level for Alpha/Beta editions
-// (editions 0, 1, and reward/promo cards with card_detail_id <= 223)
-// Update if Splinterlands changes these values
-// Rarity: 1=Common, 2=Rare, 3=Epic, 4=Legendary
-const ALPHA_BETA_BCX: Record<number, number[]> = {
-  1: [1, 3, 5, 12, 25, 52, 105, 172, 305, 505],   // Common (levels 1-10)
-  2: [1, 3, 5, 11, 21, 35, 61, 115],               // Rare (levels 1-8)
-  3: [1, 3, 6, 11, 23, 46],                        // Epic (levels 1-6)
-  4: [1, 3, 5, 11],                                // Legendary (levels 1-4)
-}
-
-// BCX thresholds per rarity and level for Untamed and all subsequent editions
-// (Untamed, Dice, Chaos Legion, Riftwatchers, Rebellion, Conclave Arcana, Escalation)
-// Named STANDARD_BCX to distinguish from Alpha/Beta thresholds and from Modern league format
-// Update if Splinterlands changes these values
-const STANDARD_BCX: Record<number, number[]> = {
-  1: [1, 5, 14, 30, 60, 100, 150, 220, 300, 400],  // Common (levels 1-10)
-  2: [1, 5, 14, 25, 40, 60, 85, 115],              // Rare (levels 1-8)
-  3: [1, 4, 10, 20, 32, 46],                       // Epic (levels 1-6)
-  4: [1, 3, 6, 11],                                // Legendary (levels 1-4)
-}
-
-// BCX thresholds for Alpha/Beta GOLD FOIL cards (foil === 1, editions 0 or 1)
-// Note: gold foil cards start at a higher base level — levels showing 0 BCX
-// mean that level is achievable with a single 1-BCX gold foil card
-const ALPHA_BETA_GOLD_BCX: Record<number, number[]> = {
-  1: [0, 0, 0, 1, 2, 4, 8, 13, 23, 38],  // Common (levels 1-10)
-  2: [0, 0, 1, 2, 4, 7, 12, 22],          // Rare (levels 1-8)
-  3: [0, 0, 1, 3, 5, 10],                 // Epic (levels 1-6)
-  4: [0, 1, 2, 4],                        // Legendary (levels 1-4)
-}
-
-// BCX thresholds for Standard (Untamed+) GOLD FOIL cards (foil === 1, editions 4+)
-// Note: same as above — levels showing 0 BCX are achievable with 1 BCX
-const STANDARD_GOLD_BCX: Record<number, number[]> = {
-  1: [0, 0, 1, 2, 5, 9, 14, 20, 27, 38],  // Common (levels 1-10)
-  2: [0, 1, 2, 4, 7, 11, 16, 22],          // Rare (levels 1-8)
-  3: [0, 1, 2, 4, 7, 10],                  // Epic (levels 1-6)
-  4: [0, 1, 2, 4],                         // Legendary (levels 1-4)
-}
+import {
+  ALPHA_BETA_BCX,
+  STANDARD_BCX,
+  ALPHA_BETA_GOLD_BCX,
+  STANDARD_GOLD_BCX,
+} from '@/lib/splinterlands/bcx'
 
 // A card is flagged as an outlier if its price_per_bcx exceeds the 75th percentile
 // price_per_bcx for its rarity group by more than this multiplier.
