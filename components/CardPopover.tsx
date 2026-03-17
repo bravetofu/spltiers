@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { rarityMaxLevel } from '@/lib/editions'
-import type { TierEntry } from './TierListClient'
+import type { TierEntry, CardCollectionState } from './TierListClient'
 
 // ── Sub-type lazy fetch (module-level cache) ───────────────────────────────────
 let _subTypePromise: Promise<Map<number, string>> | null = null
@@ -66,6 +66,33 @@ function Badge({ label, bg, text }: { label: string; bg: string; text: string })
   )
 }
 
+// ── Foil label helpers ─────────────────────────────────────────────────────────
+function foilLabelText(cs: CardCollectionState): string {
+  if (cs.pct === 0 || cs.foilNumber === null) return 'Not owned'
+  switch (cs.foilNumber) {
+    case 0: return 'Regular Foil'
+    case 1: return 'Gold Foil'
+    case 2: return 'Gold Foil Arcane'
+    case 3: return 'Black Foil'
+    case 4: return 'Black Foil Arcane'
+    default: return 'Not owned'
+  }
+}
+
+function pctTextColor(cs: CardCollectionState): string {
+  if (cs.pct === 0) return '#484f58'
+  if (cs.foilType === 'black') return '#e2e8f0'
+  if (cs.foilType === 'gold' && cs.pct === 100) return '#ffd700'
+  if (cs.foilType === 'regular' && cs.pct === 100) return '#f0f6fc'
+  return '#8b949e'  // partial (< 100) for gold or regular
+}
+
+function foilLabelColor(cs: CardCollectionState): string {
+  if (cs.pct === 0) return '#484f58'
+  if (cs.foilType === 'gold') return '#ffd700'
+  return '#8b949e'
+}
+
 // ── Types ──────────────────────────────────────────────────────────────────────
 type Props = {
   card: TierEntry
@@ -73,13 +100,14 @@ type Props = {
   editionName: string
   isMobile: boolean
   onClose: () => void
+  collectionState?: CardCollectionState | null
 }
 
 const POPUP_W = 240
 const POPUP_H_EST = 480
 
 // ── Component ──────────────────────────────────────────────────────────────────
-export default function CardPopover({ card, anchorRect, editionName, isMobile, onClose }: Props) {
+export default function CardPopover({ card, anchorRect, editionName, isMobile, onClose, collectionState }: Props) {
   const [mounted, setMounted] = useState(false)
   const [subType, setSubType] = useState('')
 
@@ -207,6 +235,36 @@ export default function CardPopover({ card, anchorRect, editionName, isMobile, o
             <p style={{ fontSize: 11, color: '#8b949e', fontStyle: 'italic', lineHeight: 1.6, margin: 0 }}>
               {card.notes}
             </p>
+          </>
+        )}
+        {collectionState && (
+          <>
+            <hr style={{ border: 'none', borderTop: '1px solid #21262d', margin: '8px 0 6px' }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: pctTextColor(collectionState) }}>
+                {collectionState.pct}%
+              </span>
+              <span style={{ color: '#484f58', fontSize: 11 }}>·</span>
+              {collectionState.foilType === 'black' && collectionState.pct > 0 ? (
+                <span style={{
+                  fontSize: 10,
+                  fontWeight: 600,
+                  background: '#111',
+                  color: '#e2e8f0',
+                  border: '1px solid #333',
+                  borderRadius: 4,
+                  padding: '0 5px',
+                  lineHeight: '18px',
+                  display: 'inline-block',
+                }}>
+                  {foilLabelText(collectionState)}
+                </span>
+              ) : (
+                <span style={{ fontSize: 11, fontWeight: 500, color: foilLabelColor(collectionState) }}>
+                  {foilLabelText(collectionState)}
+                </span>
+              )}
+            </div>
           </>
         )}
       </div>

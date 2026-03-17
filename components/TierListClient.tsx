@@ -5,6 +5,7 @@ import Link from 'next/link'
 import CardThumb from '@/components/CardThumb'
 import CardPopover from '@/components/CardPopover'
 import { rarityMaxLevel, type EditionFormat } from '@/lib/editions'
+import { getMaxLevelBcx, getMaxLevelBcxGold } from '@/lib/splinterlands/bcx'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -222,6 +223,18 @@ const RARITIES: { value: number; label: string; color: string }[] = [
 
 const ALL_RARITIES = new Set([1, 2, 3, 4])
 
+// ─── Collection checker types ─────────────────────────────────────────────────
+
+export type CardCollectionState = {
+  pct: number           // 0–100
+  foilType: 'black' | 'gold' | 'regular' | 'none'
+  foilNumber: number | null  // exact winning foil value (0–4) or null if not owned
+  dotColor: string      // empty string = no dot
+  textColor: string
+  grayscale: boolean
+  opacity: number       // 1 = full, 0.55 = partial, 0.25 = not owned
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function TierListClient({ currentSet, tierGroups, allSets }: Props) {
@@ -230,6 +243,12 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
   const [selectedCard, setSelectedCard] = useState<TierEntry | null>(null)
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
   const [isMobile, setIsMobile] = useState(false)
+
+  // Collection checker state
+  const [username, setUsername] = useState('')
+  const [collectionLoading, setCollectionLoading] = useState(false)
+  const [collectionError, setCollectionError] = useState<string | null>(null)
+  const [collectionMap, setCollectionMap] = useState<Map<number, CardCollectionState> | null>(null)
 
   // Read localStorage on mount; detect touch/pointer device
   useEffect(() => {
@@ -245,11 +264,14 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
     return () => mq.removeEventListener('change', handler)
   }, [])
 
-  // Reset rarity filters and close popup when navigating to a different edition
+  // Reset rarity filters, collection state, and close popup when navigating to a different edition
   useEffect(() => {
     setActiveRarities(new Set(ALL_RARITIES))
     setSelectedCard(null)
     setAnchorRect(null)
+    setCollectionMap(null)
+    setUsername('')
+    setCollectionError(null)
   }, [currentSet.slug])
 
   // Close popup on outside click (desktop only)
@@ -279,6 +301,126 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
       next.has(value) ? next.delete(value) : next.add(value)
       return next
     })
+  }
+
+  async function handleCheckCollection() {
+    const trimmed = username.trim()
+    if (!trimmed) return
+    setCollectionLoading(true)
+    setCollectionError(null)
+    setCollectionMap(null)
+
+    try {
+      const res = await fetch(`https://api.splinterlands.io/cards/collection/${trimmed}`)
+      if (!res.ok) {
+        setCollectionError('Username not found or collection is empty')
+        return
+      }
+      const raw = await res.json()
+      // API may return array directly or { cards: [...] }
+      const data: { card_detail_id: number; bcx: number; foil: number }[] =
+        Array.isArray(raw) ? raw : (raw?.cards ?? [])
+
+      if (!Array.isArray(data) || data.length === 0) {
+        setCollectionError('Username not found or collection is empty')
+        return
+      }
+
+      // Pass 1 — group by card_detail_id, track best bcx per foil type
+      type RawEntry = { hasBF: boolean; hasBFArcane: boolean; hasArcaneGF: boolean; maxGoldBcx: number | null; maxRegularBcx: number | null }
+      const grouped = new Map<number, RawEntry>()
+      for (const card of data) {
+        const id = Number(card.card_detail_id)
+        const foil = Number(card.foil ?? 0)
+        const bcx = Number(card.bcx ?? 0)
+        if (!id) continue
+        let entry = grouped.get(id)
+        if (!entry) {
+          entry = { hasBF: false, hasBFArcane: false, hasArcaneGF: false, maxGoldBcx: null, maxRegularBcx: null }
+          grouped.set(id, entry)
+        }
+        if (foil === 3 || foil === 4) {
+          entry.hasBF = true
+          if (foil === 4) entry.hasBFArcane = true
+        } else if (foil === 2) {
+          entry.hasArcaneGF = true  // arcane gold foil — always max level
+        } else if (foil === 1) {
+          entry.maxGoldBcx = Math.max(entry.maxGoldBcx ?? 0, bcx)
+        } else if (foil === 0) {
+          entry.maxRegularBcx = Math.max(entry.maxRegularBcx ?? 0, bcx)
+        }
+      }
+
+      // Pass 2 — compute collection state for every card in the current tier list
+      const isAlphaBeta = currentSet.name === 'Alpha/Beta'
+      const result = new Map<number, CardCollectionState>()
+      const allTierCards = TIERS.flatMap((t) => tierGroups[t] ?? [])
+
+      for (const card of allTierCards) {
+        const entry = grouped.get(card.card_id)
+        const maxBcxReg = getMaxLevelBcx(card.rarity, isAlphaBeta)
+        const maxBcxGold = getMaxLevelBcxGold(card.rarity, isAlphaBeta)
+
+        let state: CardCollectionState
+
+        if (!entry) {
+          // Not owned at all
+          state = { pct: 0, foilType: 'none', foilNumber: null, dotColor: '', textColor: '#484f58', grayscale: true, opacity: 0.25 }
+        } else if (entry.hasBF) {
+          state = { pct: 100, foilType: 'black', foilNumber: entry.hasBFArcane ? 4 : 3, dotColor: '#000000', textColor: '#e2e8f0', grayscale: false, opacity: 1 }
+        } else if (entry.hasArcaneGF) {
+          // Arcane gold foil — always max level, shown as gold at 100%
+          state = { pct: 100, foilType: 'gold', foilNumber: 2, dotColor: '#ffd700', textColor: '#ffd700', grayscale: false, opacity: 1 }
+        } else {
+          const gfPct = entry.maxGoldBcx !== null
+            ? Math.min(100, Math.round((entry.maxGoldBcx / maxBcxGold) * 100))
+            : 0
+          const rfPct = entry.maxRegularBcx !== null
+            ? Math.min(100, Math.round((entry.maxRegularBcx / maxBcxReg) * 100))
+            : 0
+
+          if (gfPct === 0 && rfPct === 0) {
+            state = { pct: 0, foilType: 'none', foilNumber: null, dotColor: '', textColor: '#484f58', grayscale: true, opacity: 0.25 }
+          } else if (gfPct >= rfPct) {
+            // Gold foil winner
+            state = {
+              pct: gfPct,
+              foilType: 'gold',
+              foilNumber: 1,
+              dotColor: '#ffd700',
+              textColor: gfPct === 100 ? '#ffd700' : '#8b949e',
+              grayscale: gfPct < 100,
+              opacity: gfPct === 100 ? 1 : 0.55,
+            }
+          } else {
+            // Regular foil winner
+            state = {
+              pct: rfPct,
+              foilType: 'regular',
+              foilNumber: 0,
+              dotColor: '#adb5bd',
+              textColor: rfPct === 100 ? '#f0f6fc' : '#8b949e',
+              grayscale: rfPct < 100,
+              opacity: rfPct === 100 ? 1 : 0.55,
+            }
+          }
+        }
+
+        result.set(card.card_id, state)
+      }
+
+      setCollectionMap(result)
+    } catch {
+      setCollectionError('Username not found or collection is empty')
+    } finally {
+      setCollectionLoading(false)
+    }
+  }
+
+  function handleClearCollection() {
+    setCollectionMap(null)
+    setUsername('')
+    setCollectionError(null)
   }
 
   function handleCardClick(e: React.MouseEvent<HTMLDivElement>, card: TierEntry) {
@@ -421,39 +563,103 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
           </p>
         </div>
 
-        {/* Rarity filter bar */}
-        <div className="filter-bar" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: '1rem' }}>
-          <span className="filter-label" style={{ fontSize: 11, fontWeight: 500, color: '#8b949e', textTransform: 'uppercase', letterSpacing: '0.5px', flexShrink: 0 }}>
-            Filter:
-          </span>
-          {RARITIES.map(({ value, label, color }) => {
-            const active = activeRarities.has(value)
-            return (
+        {/* Rarity filter bar + collection checker row */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: collectionError ? '0.5rem' : '1rem' }}>
+          <div className="filter-bar" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span className="filter-label" style={{ fontSize: 11, fontWeight: 500, color: '#8b949e', textTransform: 'uppercase', letterSpacing: '0.5px', flexShrink: 0 }}>
+              Filter:
+            </span>
+            {RARITIES.map(({ value, label, color }) => {
+              const active = activeRarities.has(value)
+              return (
+                <button
+                  key={value}
+                  className="filter-btn"
+                  onClick={() => toggleRarity(value)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '4px 12px',
+                    borderRadius: 6,
+                    border: active ? `1px solid ${color}` : '1px solid #30363d',
+                    background: active ? '#21262d' : '#161b22',
+                    color: active ? '#c9d1d9' : '#484f58',
+                    fontSize: '0.8rem',
+                    cursor: 'pointer',
+                    fontWeight: active ? 500 : 400,
+                    transition: 'border-color 0.15s, color 0.15s, background 0.15s',
+                  }}
+                >
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: active ? color : '#484f58', flexShrink: 0, transition: 'background 0.15s' }} />
+                  <span className="filter-btn-label">{label}</span>
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Collection checker */}
+          <div className="collection-checker" style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+            <input
+              type="text"
+              placeholder="Hive username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleCheckCollection() }}
+              style={{
+                width: 140,
+                background: '#161b22',
+                border: '1px solid #30363d',
+                borderRadius: 6,
+                padding: '5px 10px',
+                fontSize: 12,
+                color: '#f0f6fc',
+                outline: 'none',
+              }}
+            />
+            <button
+              onClick={handleCheckCollection}
+              disabled={collectionLoading || !username.trim()}
+              style={{
+                padding: '4px 10px',
+                borderRadius: 6,
+                border: '1px solid #30363d',
+                background: '#161b22',
+                color: collectionLoading ? '#8b949e' : '#c9d1d9',
+                fontSize: '0.8rem',
+                cursor: collectionLoading || !username.trim() ? 'default' : 'pointer',
+                whiteSpace: 'nowrap',
+                opacity: !username.trim() ? 0.5 : 1,
+              }}
+            >
+              {collectionLoading ? 'Checking...' : 'Check collection'}
+            </button>
+            {collectionMap && (
               <button
-                key={value}
-                className="filter-btn"
-                onClick={() => toggleRarity(value)}
+                onClick={handleClearCollection}
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '4px 12px',
+                  padding: '4px 10px',
                   borderRadius: 6,
-                  border: active ? `1px solid ${color}` : '1px solid #30363d',
-                  background: active ? '#21262d' : '#161b22',
-                  color: active ? '#c9d1d9' : '#484f58',
+                  border: '1px solid #30363d',
+                  background: '#161b22',
+                  color: '#c9d1d9',
                   fontSize: '0.8rem',
                   cursor: 'pointer',
-                  fontWeight: active ? 500 : 400,
-                  transition: 'border-color 0.15s, color 0.15s, background 0.15s',
+                  whiteSpace: 'nowrap',
                 }}
               >
-                <span style={{ width: 7, height: 7, borderRadius: '50%', background: active ? color : '#484f58', flexShrink: 0, transition: 'background 0.15s' }} />
-                <span className="filter-btn-label">{label}</span>
+                Clear
               </button>
-            )
-          })}
+            )}
+          </div>
         </div>
+
+        {/* Collection error message */}
+        {collectionError && (
+          <p style={{ color: '#e74c3c', fontSize: 11, margin: '0 0 0.75rem', lineHeight: 1.4 }}>
+            {collectionError}
+          </p>
+        )}
 
         {/* Tier rows */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -531,29 +737,86 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
                     alignContent: 'flex-start',
                   }}
                 >
-                  {cards.map((card) => (
-                    <div
-                      key={card.card_id}
-                      onClick={(e) => handleCardClick(e, card)}
-                      style={{
-                        cursor: 'pointer',
-                        borderRadius: 10,
-                        boxShadow: selectedCard?.card_id === card.card_id
-                          ? '0 0 0 2px #ffd700'
-                          : undefined,
-                      }}
-                    >
-                      <CardThumb
-                        cardName={card.card_name}
-                        cdnSlug={card.cdn_slug}
-                        rarity={card.rarity}
-                        maxLevel={rarityMaxLevel(card.rarity)}
-                        size={72}
-                        isSoulbound={card.is_soulbound}
-                        className="tier-card-thumb"
-                      />
-                    </div>
-                  ))}
+                  {cards.map((card) => {
+                    const colState = collectionMap?.get(card.card_id)
+                    return (
+                      <div
+                        key={card.card_id}
+                        onClick={(e) => handleCardClick(e, card)}
+                        style={{
+                          cursor: 'pointer',
+                          borderRadius: 10,
+                          boxShadow: selectedCard?.card_id === card.card_id
+                            ? '0 0 0 2px #ffd700'
+                            : undefined,
+                          position: 'relative',
+                          flexShrink: 0,
+                        }}
+                      >
+                        {/* Card thumbnail — wrapped to isolate filter/opacity from overlays */}
+                        <div
+                          style={{
+                            filter: colState?.grayscale ? 'grayscale(1)' : undefined,
+                            opacity: colState && colState.opacity < 1 ? colState.opacity : undefined,
+                          }}
+                        >
+                          <CardThumb
+                            cardName={card.card_name}
+                            cdnSlug={card.cdn_slug}
+                            rarity={card.rarity}
+                            maxLevel={rarityMaxLevel(card.rarity)}
+                            size={72}
+                            isSoulbound={card.is_soulbound}
+                            className="tier-card-thumb"
+                          />
+                        </div>
+
+                        {/* Collection overlays — shown only when collection is loaded */}
+                        {colState && (
+                          <>
+                            {/* Percentage pill */}
+                            <div
+                              style={{
+                                position: 'absolute',
+                                bottom: 4,
+                                left: '50%',
+                                transform: 'translateX(-50%)',
+                                background: 'rgba(0,0,0,0.72)',
+                                borderRadius: 4,
+                                padding: '1px 5px',
+                                fontSize: 10,
+                                fontWeight: 600,
+                                whiteSpace: 'nowrap',
+                                color: colState.textColor,
+                                pointerEvents: 'none',
+                                zIndex: 2,
+                              }}
+                            >
+                              {colState.pct}%
+                            </div>
+
+                            {/* Foil dot — shown only when pct > 0 */}
+                            {colState.dotColor && (
+                              <div
+                                style={{
+                                  position: 'absolute',
+                                  top: 4,
+                                  right: 4,
+                                  width: 10,
+                                  height: 10,
+                                  borderRadius: '50%',
+                                  border: colState.foilType === 'black' ? '1px solid #e2e8f0' : '1px solid rgba(0,0,0,0.4)',
+                                  background: colState.dotColor,
+                                  pointerEvents: 'none',
+                                  zIndex: 2,
+                                }}
+                              />
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )
@@ -579,6 +842,7 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
           editionName={currentSet.name}
           isMobile={isMobile}
           onClose={closePopover}
+          collectionState={collectionMap?.get(selectedCard.card_id)}
         />
       )}
     </div>
