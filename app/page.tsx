@@ -81,6 +81,23 @@ export default async function HomePage() {
           >
             Splinterlands tier lists
           </h1>
+          <Link
+            href="/tier-list/all"
+            style={{
+              display: 'inline-block',
+              marginTop: '0.25rem',
+              background: '#21262d',
+              color: '#f0f6fc',
+              border: '1px solid #30363d',
+              borderRadius: 8,
+              padding: '0.45rem 0.8rem',
+              fontSize: '0.82rem',
+              fontWeight: 600,
+              textDecoration: 'none',
+            }}
+          >
+            all cards
+          </Link>
         </div>
 
         {/* Modern format */}
