@@ -1,0 +1,28 @@
+name: Secret Scan
+
+# Fails the build if a secret (API key, password, token, etc.) is committed.
+# Runs on every push and pull request so leaks are caught before merge —
+# a safety net for the GitHub/PR-based workflow.
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  gitleaks:
+    name: gitleaks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # scan the whole history, not just the latest commit
+
+      - name: Run gitleaks
+        run: |
+          set -euo pipefail
+          GITLEAKS_VERSION=8.18.4
+          curl -sSfL \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz gitleaks
+          ./gitleaks detect --source . --redact --verbose
