@@ -1,0 +1,8 @@
+# Optional local guard for anyone who commits from their machine.
+# Install once with:  pip install pre-commit && pre-commit install
+# After that, gitleaks scans staged changes before each commit.
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.4
+    hooks:
+      - id: gitleaks
