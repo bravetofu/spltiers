@@ -768,6 +768,7 @@ export default function TierListClient({ currentSet, tierGroups, allSets }: Prop
                             size={72}
                             isSoulbound={card.is_soulbound}
                             className="tier-card-thumb"
+                            showNameTooltip
                           />
                         </div>
 
