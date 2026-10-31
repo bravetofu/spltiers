@@ -18,7 +18,7 @@ export const EDITIONS: Record<number, { name: string; art: string }> = {
   3: { name: 'Reward', art: 'reward' },
   4: { name: 'Untamed', art: 'untamed' },
   5: { name: 'Dice', art: 'dice' },
-  6: { name: 'Gladius', art: 'gladiator' },
+  6: { name: 'Gladius', art: 'gladius' },
   7: { name: 'Chaos Legion', art: 'chaos' },
   8: { name: 'Riftwatchers', art: 'rift' },
   10: { name: 'Chaos Soulbound', art: 'soulbound' },
@@ -117,7 +117,7 @@ export type CatalogueCard = {
   modern: boolean
   maxLevel: number
   stats: CardStats
-  distribution: Distribution[]
+  foils: Record<number, number[]>
   preview: boolean
 }
 
@@ -181,7 +181,19 @@ export function normalizeCatalogue(
             : (card.stats.land_abilities?.length ?? rarityMaxLevel(card.rarity))
         ),
         stats: card.stats,
-        distribution: card.distribution ?? [],
+        foils: Object.fromEntries(
+          editions.map((edition) => [
+            edition,
+            Array.from(
+              new Set([
+                0,
+                ...(card.distribution ?? [])
+                  .filter((entry) => entry.edition === edition)
+                  .map((entry) => Number(entry.foil ?? (entry.gold ? 1 : 0))),
+              ])
+            ).sort(),
+          ])
+        ),
         preview:
           !card.total_printed ||
           (!!card.print_start_date &&

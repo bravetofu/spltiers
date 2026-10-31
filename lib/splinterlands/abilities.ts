@@ -1,4 +1,4 @@
-import { CDN, type LandAbility } from './catalogue'
+import type { LandAbility } from './catalogue'
 
 export const ABILITY_GUIDE =
   'https://support.splinterlands.com/hc/en-us/articles/12821703483156-List-of-Splinterlands-Abilities-and-Debilitations'
@@ -286,7 +286,7 @@ export function abilityInfo(value: string | LandAbility) {
       name,
       label: `${name}${modifier}${bloodline ? ` · ${bloodline}` : ''}`,
       description,
-      icon: `${CDN}/website/abilities/ability_${icon}.png`,
+      icon: `/images/abilities/ability_${icon}.webp`,
       source: LAND_GUIDE,
     }
   }
@@ -295,7 +295,7 @@ export function abilityInfo(value: string | LandAbility) {
     name,
     label: linked ? `${name} · ${linked}` : name,
     description: `${descriptions[name] ?? 'See the official ability guide for rules and interactions.'}${linked ? ` Linked ability: ${linked}. ${descriptions[linked] ?? ''}` : ''}`,
-    icon: `${CDN}/website/abilities/ability_${name.toLowerCase().replace(/ /g, '-')}.png`,
+    icon: `/images/abilities/ability_${name.toLowerCase().replace(/ /g, '-')}.webp`,
     source:
       name === 'Stray Shot'
         ? 'https://support.splinterlands.com/hc/en-us/articles/43935917059220-Stray-Shot'
@@ -305,3 +305,4 @@ export function abilityInfo(value: string | LandAbility) {
 export function hasAbilityDescription(name: string) {
   return !!descriptions[name.split(':')[0]]
 }
+export const abilityNames = Object.keys(descriptions)

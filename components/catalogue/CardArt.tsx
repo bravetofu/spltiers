@@ -1,11 +1,11 @@
 'use client'
 
-import { useState } from 'react'
 import {
-  cardImageCandidates,
+  artEdition,
   FOILS,
   type CatalogueCard,
 } from '@/lib/splinterlands/catalogue'
+import { localCardArt } from '@/lib/splinterlands/card-assets'
 
 export default function CardArt({
   card,
@@ -18,24 +18,27 @@ export default function CardArt({
   foil?: number
   compact?: boolean
 }) {
-  const [attempt, setAttempt] = useState(0)
   const foilInfo = FOILS.find((entry) => entry.id === foil) ?? FOILS[0]
-  const images = cardImageCandidates(card, edition, foil)
+  const image = localCardArt(
+    artEdition(card, edition),
+    card.name,
+    foil,
+    compact
+  )
   return (
     <div
       className={`catalogue-art ${compact ? 'art-compact' : ''} foil-${foil}`}
-      style={{ borderColor: foilInfo.color }}
     >
-      {attempt < images.length ? (
-        // Official pre-rendered artwork is served directly from the Splinterlands CDN.
+      {image ? (
+        // Optimized local files avoid remote requests and runtime fallback waterfalls.
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={images[attempt]}
+          src={image.src}
           alt={`${card.name} · ${foilInfo.name} foil`}
-          width={compact ? 48 : 320}
-          height={compact ? 64 : 440}
+          width={image.width}
+          height={image.height}
           loading={compact ? 'lazy' : 'eager'}
-          onError={() => setAttempt((value) => value + 1)}
+          decoding="async"
         />
       ) : (
         <div className="art-unavailable">

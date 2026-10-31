@@ -12,6 +12,11 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const headers = {
+    'Cache-Control': request.nextUrl.searchParams.has('refresh')
+      ? 'no-store'
+      : 'public, s-maxage=30, stale-while-revalidate=30',
+  }
   if (!/^\d+$/.test(params.id))
     return NextResponse.json({ error: 'Invalid card' }, { status: 400 })
   try {
@@ -32,12 +37,15 @@ export async function GET(
           { error: 'OpenSea pricing is temporarily unavailable' },
           { status: 502 }
         )
-      return NextResponse.json({
-        source: 'OpenSea',
-        floorUsd: price.floor_usd,
-        prices: [],
-        fetchedAt: new Date().toISOString(),
-      })
+      return NextResponse.json(
+        {
+          source: 'OpenSea',
+          floorUsd: price.floor_usd,
+          prices: [],
+          fetchedAt: new Date().toISOString(),
+        },
+        { headers }
+      )
     }
     const pages = await Promise.all(
       [false, true].map(async (gold) => {
@@ -54,11 +62,14 @@ export async function GET(
         return data as SaleListing[]
       })
     )
-    return NextResponse.json({
-      source: 'Splinterlands market',
-      prices: summarizePrices(pages.flat(), edition),
-      fetchedAt: new Date().toISOString(),
-    })
+    return NextResponse.json(
+      {
+        source: 'Splinterlands market',
+        prices: summarizePrices(pages.flat(), edition),
+        fetchedAt: new Date().toISOString(),
+      },
+      { headers }
+    )
   } catch (error) {
     console.error('[card-prices]', error)
     return NextResponse.json(

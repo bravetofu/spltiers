@@ -1,5 +1,7 @@
 'use client'
 
+import { localCardImage } from '@/lib/splinterlands/card-assets'
+
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
@@ -133,7 +135,7 @@ export default function CardThumb({
     setAnchorRect(null)
   }
 
-  const src = `https://d36mxiodymuqjm.cloudfront.net/cards_by_level/${cdnSlug}/${encodeURIComponent(cardName)}_lv${maxLevel}.png`
+  const src = localCardImage(cdnSlug, cardName, true)
 
   const borderColor = hovered
     ? (RARITY_HOVER_COLOUR[rarity] ?? '#b0bec5')

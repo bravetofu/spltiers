@@ -349,6 +349,11 @@
   font-size: 12px;
   color: #c9d1d9;
   line-height: 1.6;
+  transition: none;
+  animation: none;
+}
+.ability-tooltip-region {
+  display: contents;
 }
 .ability-tooltip strong {
   display: block;
@@ -468,9 +473,8 @@
 .catalogue-art {
   position: relative;
   overflow: hidden;
-  border: 1px solid #30363d;
-  border-radius: 12px;
-  background: #161b22;
+  border: 0;
+  background: transparent;
   max-width: 320px;
   margin: 0 auto;
 }
@@ -478,6 +482,7 @@
   width: 100%;
   height: auto;
   display: block;
+  aspect-ratio: auto;
 }
 .art-unavailable {
   min-height: 380px;
@@ -548,7 +553,85 @@
   color: var(--text-secondary);
 }
 .detail-edition {
-  max-width: 260px;
+  margin: 0 0 24px;
+}
+.detail-edition-label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.detail-edition p {
+  margin: 0;
+  font-size: 13px;
+}
+.edition-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.edition-options button {
+  border: 1px solid #30363d;
+  color: var(--text-secondary);
+  background: #161b22;
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+.edition-options button[aria-pressed='true'] {
+  border-color: #e87983;
+  color: #ff929b;
+  background: #251a20;
+}
+.catalogue-skeleton .catalogue-tabs > span {
+  padding: 14px 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.catalogue-skeleton .catalogue-tabs > span:first-child {
+  color: var(--text-primary);
+  border-bottom: 2px solid var(--accent-red);
+}
+.skeleton-block {
+  background: #21262d;
+  border-radius: 4px;
+  animation: skeleton-pulse 1.5s ease-in-out infinite alternate;
+}
+.skeleton-control {
+  height: 39px;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+}
+.skeleton-reset {
+  width: 70px;
+  height: 14px;
+  align-self: end;
+  justify-self: end;
+  margin-bottom: 12px;
+}
+.skeleton-count {
+  width: 155px;
+  height: 15px;
+}
+.skeleton-art {
+  width: 42px;
+  height: 54px;
+  flex-shrink: 0;
+}
+.skeleton-name {
+  width: 110px;
+  height: 14px;
+}
+.skeleton-cell {
+  min-width: 24px;
+  width: 65%;
+  height: 12px;
+}
+@keyframes skeleton-pulse {
+  to {
+    opacity: 0.45;
+  }
 }
 .foil-options {
   display: flex;
@@ -742,6 +825,16 @@
   .catalogue-tabs > button {
     font-size: 13px;
   }
+  .catalogue-skeleton .catalogue-tabs > span {
+    font-size: 13px;
+  }
+  .skeleton-art {
+    width: 32px;
+    height: 45px;
+  }
+  .skeleton-name {
+    width: 85px;
+  }
   .catalogue-tabs > button > span {
     font-size: 9px;
   }
@@ -822,6 +915,9 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .skeleton-block {
+    animation: none;
+  }
   .foil-2::after,
   .foil-4::after {
     animation: none;

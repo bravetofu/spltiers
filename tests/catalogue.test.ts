@@ -184,10 +184,29 @@ test('official image paths preserve selected edition and separate black from gol
 })
 test('linked Kindred abilities retain the linked effect and official icon', () => {
   const info = abilityInfo('Kindred Spirit:Blast')
-  assert.ok(info.icon.endsWith('ability_kindred-spirit.png'))
+  assert.equal(info.icon, '/images/abilities/ability_kindred-spirit.webp')
   assert.ok(info.description.includes('Linked ability: Blast'))
   assert.equal(hasAbilityDescription('Kindred Spirit:Blast'), true)
   assert.ok(abilityInfo('Stray Shot').description.includes('random ally'))
+})
+
+test('compact foil metadata preserves edition and all foil identities without serializing print counts', () => {
+  const card = normalizeCatalogue(
+    [
+      raw({
+        distribution: [
+          { edition: 0, foil: 1, gold: true, num_cards: '100' },
+          { edition: 1, foil: 2, gold: true, num_cards: '10' },
+          { edition: 1, foil: 3, gold: false, num_cards: '5' },
+          { edition: 1, foil: 4, gold: false, num_cards: '1' },
+        ],
+      }),
+    ],
+    settings
+  )[0]
+  assert.deepEqual(card.foils[0], [0, 1])
+  assert.deepEqual(card.foils[1], [0, 2, 3, 4])
+  assert.equal('distribution' in card, false)
 })
 test('prices distinguish lowest per-BCX and an actual 1-BCX listing, separately for edition and all five foils', () => {
   const result = summarizePrices(

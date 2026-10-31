@@ -1,8 +1,9 @@
 'use client'
 
+import { localCardImage } from '@/lib/splinterlands/card-assets'
+
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { rarityMaxLevel } from '@/lib/editions'
 import type { TierEntry, CardCollectionState } from './TierListClient'
 
 // ── Sub-type lazy fetch (module-level cache) ───────────────────────────────────
@@ -10,19 +11,13 @@ let _subTypePromise: Promise<Map<number, string>> | null = null
 
 function getSubTypeMap(): Promise<Map<number, string>> {
   if (!_subTypePromise) {
-    _subTypePromise = fetch('https://api.splinterlands.io/cards/get_details', {
-      headers: { 'Accept-Encoding': 'gzip, deflate, br, zstd' },
-    })
-      .then((r) => r.json())
-      .then((cards: Array<{ id: number; sub_type?: string | null; type?: string }>) => {
-        const map = new Map<number, string>()
-        for (const c of cards) {
-          const label = c.sub_type || c.type || ''
-          if (label) map.set(c.id, label)
-        }
-        return map
+    _subTypePromise = fetch('/api/cards/metadata')
+      .then((response) => {
+        if (!response.ok) throw new Error('Card metadata unavailable')
+        return response.json() as Promise<Record<string, string>>
       })
-      .catch(() => new Map<number, string>())
+      .then((bloodlines) => new Map(Object.entries(bloodlines).map(([id, name]) => [Number(id), name])))
+      .catch(() => { _subTypePromise = null; return new Map<number, string>() })
   }
   return _subTypePromise
 }
@@ -126,8 +121,7 @@ export default function CardPopover({ card, anchorRect, editionName, isMobile, o
 
   if (!mounted) return null
 
-  const maxLevel = rarityMaxLevel(card.rarity)
-  const imgSrc = `https://d36mxiodymuqjm.cloudfront.net/cards_by_level/${card.cdn_slug}/${encodeURIComponent(card.card_name)}_lv${maxLevel}.png`
+  const imgSrc = localCardImage(card.cdn_slug, card.card_name)
   const tierStripe = TIER_STRIPE[card.tier] ?? '#555e6a'
   const tierBadge = TIER_BADGE[card.tier] ?? TIER_BADGE.D
   const rarityBadge = RARITY_BADGE[card.rarity] ?? RARITY_BADGE[1]

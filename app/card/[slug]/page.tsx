@@ -10,7 +10,7 @@ export const revalidate = 3600
 export async function generateStaticParams() {
   return [{ slug: 'malric-inferno' }]
 }
-type Props = { params: { slug: string }; searchParams: { edition?: string } }
+type Props = { params: { slug: string } }
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const card = (await getCatalogue()).find((card) => card.slug === params.slug)
   if (!card) return { title: 'Card not found' }
@@ -20,14 +20,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     alternates: { canonical: `/card/${card.slug}` },
   }
 }
-export default async function CardPage({ params, searchParams }: Props) {
+export default async function CardPage({ params }: Props) {
   const card = (await getCatalogue()).find((card) => card.slug === params.slug)
   if (!card) notFound()
   return (
     <>
       <Nav />
       <main className="catalogue-page card-detail-page">
-        <CardDetail card={card} initialEdition={Number(searchParams.edition)} />
+        <CardDetail key={card.id} card={card} />
       </main>
     </>
   )

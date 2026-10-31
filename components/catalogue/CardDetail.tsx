@@ -1,7 +1,14 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useState,
+} from 'react'
+import { useSearchParams } from 'next/navigation'
 import {
   abilitiesAt,
   editionName,
@@ -17,6 +24,7 @@ import type { FoilPrice } from '@/lib/splinterlands/card-prices'
 import { AbilityList } from './AbilityIcon'
 import { StatEffects, SummonerTactics } from './CardEffects'
 import CardArt from './CardArt'
+import AbilityTooltipProvider from './AbilityTooltipProvider'
 
 type Prices = {
   source: string
@@ -34,38 +42,26 @@ const STATS: StatKey[] = [
   'health',
 ]
 const money = (value: number | null) =>
-  value === null
-    ? '—'
-    : new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD',
-        maximumFractionDigits: 6,
-      }).format(value)
+  value === null ? '—' : usd.format(value)
+const usd = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  maximumFractionDigits: 6,
+})
 
-export default function CardDetail({
-  card,
-  initialEdition,
-}: {
-  card: CatalogueCard
-  initialEdition?: number
-}) {
-  const [edition, setEdition] = useState(
-    initialEdition && card.editions.includes(initialEdition)
-      ? initialEdition
-      : card.editions[0]
-  )
+export default function CardDetail({ card }: { card: CatalogueCard }) {
+  const [edition, setEdition] = useState(card.editions[0])
+  const [editionReady, setEditionReady] = useState(false)
+  const syncEdition = useCallback((value: number) => {
+    setEdition(value)
+    setEditionReady(true)
+  }, [])
   const [foil, setFoil] = useState(0)
   const [prices, setPrices] = useState<Prices | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [refresh, setRefresh] = useState(0)
-  const mintedFoils = Array.from(
-    new Set(
-      card.distribution
-        .filter((entry) => entry.edition === edition)
-        .map((entry) => Number(entry.foil ?? (entry.gold ? 1 : 0)))
-    )
-  )
+  const mintedFoils = card.foils[edition] ?? [0]
   const availableFoils = FOILS.filter(
     (entry) => mintedFoils.includes(entry.id) || entry.id === 0
   )
@@ -73,13 +69,17 @@ export default function CardDetail({
     ? foil
     : 0
   useEffect(() => {
+    if (!editionReady) return
     const controller = new AbortController()
     setLoading(true)
     setError('')
     setPrices(null)
-    fetch(`/api/cards/${card.id}/prices?edition=${edition}`, {
-      signal: controller.signal,
-    })
+    fetch(
+      `/api/cards/${card.id}/prices?edition=${edition}${refresh ? `&refresh=${refresh}` : ''}`,
+      {
+        signal: controller.signal,
+      }
+    )
       .then(async (response) => {
         const data = await response.json()
         if (!response.ok) throw new Error(data.error ?? 'Could not load prices')
@@ -92,11 +92,14 @@ export default function CardDetail({
         if (!controller.signal.aborted) setLoading(false)
       })
     return () => controller.abort()
-  }, [card.id, edition, refresh])
+  }, [card.id, edition, editionReady, refresh])
   const allAbilities = abilitiesAt(card, card.maxLevel)
   const landAbilities = landAbilitiesAt(card, card.maxLevel)
   return (
-    <>
+    <AbilityTooltipProvider>
+      <Suspense fallback={null}>
+        <EditionFromUrl editions={card.editions} onChange={syncEdition} />
+      </Suspense>
       <Link href={`/cards?kind=${card.kind}`} className="catalogue-back">
         ← All{' '}
         {card.kind === 'unit'
@@ -148,27 +151,35 @@ export default function CardDetail({
                   : 'Wild-exclusive'}
             </span>
           </div>
-          <label className="catalogue-filter detail-edition">
-            <span>Edition</span>
-            <select
-              aria-label="Edition"
-              value={edition}
-              onChange={(event) => {
-                setEdition(Number(event.target.value))
-                window.history.replaceState(
-                  null,
-                  '',
-                  `/card/${card.slug}?edition=${event.target.value}`
-                )
-              }}
-            >
-              {card.editions.map((id) => (
-                <option key={id} value={id}>
-                  {editionName(id)}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="detail-edition">
+            <span className="detail-edition-label">Edition</span>
+            {card.editions.length === 1 ? (
+              <p>{editionName(edition)}</p>
+            ) : (
+              <div
+                className="edition-options"
+                role="group"
+                aria-label="Edition"
+              >
+                {card.editions.map((id) => (
+                  <button
+                    key={id}
+                    aria-pressed={edition === id}
+                    onClick={() => {
+                      setEdition(id)
+                      window.history.replaceState(
+                        null,
+                        '',
+                        `/card/${card.slug}?edition=${id}`
+                      )
+                    }}
+                  >
+                    {editionName(id)}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           {card.kind === 'summoner' && (
             <section className="card-detail-section">
               <h2>Stat effects</h2>
@@ -373,6 +384,25 @@ export default function CardDetail({
         Card artwork and game data © Splinterlands. Ability summaries link to
         the official support guides.
       </p>
-    </>
+    </AbilityTooltipProvider>
   )
+}
+
+// Keep query-string personalization in this small boundary so the full card
+// page can be pre-rendered and cached, including its artwork and level table.
+function EditionFromUrl({
+  editions,
+  onChange,
+}: {
+  editions: number[]
+  onChange: (edition: number) => void
+}) {
+  const params = useSearchParams()
+  const value = params.get('edition')
+  const edition =
+    value !== null && editions.includes(Number(value))
+      ? Number(value)
+      : editions[0]
+  useLayoutEffect(() => onChange(edition), [edition, onChange])
+  return null
 }

@@ -1,7 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useState } from 'react'
+import { memo, useDeferredValue, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import {
   abilitiesAt,
   cardInTab,
@@ -49,19 +50,41 @@ const DEFAULTS: CatalogueFilters = {
   bloodline: '',
 }
 
-export default function CatalogueTable({
-  cards,
-  initial,
-}: {
-  cards: CatalogueCard[]
-  initial: Record<string, string | string[] | undefined>
-}) {
+export default function CatalogueTable({ cards }: { cards: CatalogueCard[] }) {
+  const searchParams = useSearchParams()
+  const query = searchParams.toString()
   const [filters, setFilters] = useState<CatalogueFilters>(() =>
-    parseCatalogueFilters(initial)
+    parseCatalogueFilters(Object.fromEntries(searchParams))
   )
+  const deferredFilters = useDeferredValue(filters)
   const [page, setPage] = useState(1)
   const [sort, setSort] = useState('name')
   const [direction, setDirection] = useState(1)
+  useEffect(() => {
+    const next = parseCatalogueFilters(
+      Object.fromEntries(new URLSearchParams(query))
+    )
+    setFilters((current) =>
+      Object.keys(next).every(
+        (key) =>
+          current[key as keyof CatalogueFilters] ===
+          next[key as keyof CatalogueFilters]
+      )
+        ? current
+        : next
+    )
+    setPage(1)
+  }, [query])
+  const tabCounts = useMemo(
+    () =>
+      Object.fromEntries(
+        TABS.map(({ kind }) => [
+          kind,
+          cards.filter((card) => cardInTab(card, kind)).length,
+        ])
+      ),
+    [cards]
+  )
   const bloodlines = useMemo(
     () => Array.from(new Set(cards.map((card) => card.bloodline))).sort(),
     [cards]
@@ -75,7 +98,7 @@ export default function CatalogueTable({
   )
   const rows = useMemo(
     () =>
-      filterCards(cards, filters).sort((a, b) => {
+      filterCards(cards, deferredFilters).sort((a, b) => {
         const av =
           sort === 'name'
             ? a.name
@@ -84,7 +107,7 @@ export default function CatalogueTable({
               : (statAt(
                   a,
                   sort as StatKey,
-                  levelForLeague(a, filters.league)
+                  levelForLeague(a, deferredFilters.league)
                 ) ?? 0)
         const bv =
           sort === 'name'
@@ -94,7 +117,7 @@ export default function CatalogueTable({
               : (statAt(
                   b,
                   sort as StatKey,
-                  levelForLeague(b, filters.league)
+                  levelForLeague(b, deferredFilters.league)
                 ) ?? 0)
         return (
           direction *
@@ -103,7 +126,7 @@ export default function CatalogueTable({
               : Number(av) - Number(bv)) || a.name.localeCompare(b.name)
         )
       }),
-    [cards, filters, sort, direction]
+    [cards, deferredFilters, sort, direction]
   )
   const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE))
   const currentPage = Math.min(page, pages)
@@ -208,9 +231,7 @@ export default function CatalogueTable({
             }}
           >
             {tab.label}
-            <span>
-              {cards.filter((card) => cardInTab(card, tab.kind)).length}
-            </span>
+            <span>{tabCounts[tab.kind]}</span>
           </button>
         ))}
       </div>
@@ -283,9 +304,9 @@ export default function CatalogueTable({
       <div className="catalogue-results">
         <p aria-live="polite">
           <strong>{rows.length}</strong>{' '}
-          {filters.kind === 'unit'
+          {deferredFilters.kind === 'unit'
             ? 'units'
-            : filters.kind === 'land'
+            : deferredFilters.kind === 'land'
               ? 'land cards'
               : 'summoners'}
           {rows.length > PAGE_SIZE
@@ -293,7 +314,7 @@ export default function CatalogueTable({
             : ''}
         </p>
         <span className="muted">
-          {filters.kind === 'land'
+          {deferredFilters.kind === 'land'
             ? 'Land abilities at the selected level'
             : 'Stats and unlocked abilities at each rarity’s league cap'}
         </span>
@@ -301,15 +322,16 @@ export default function CatalogueTable({
       <div
         role="tabpanel"
         id="catalogue-panel"
-        aria-labelledby={`tab-${filters.kind}`}
+        aria-labelledby={`tab-${deferredFilters.kind}`}
         className="catalogue-table-wrap"
+        aria-busy={filters !== deferredFilters}
         tabIndex={0}
       >
-        <table className={`catalogue-table table-${filters.kind}`}>
+        <table className={`catalogue-table table-${deferredFilters.kind}`}>
           <caption className="sr-only">
-            {filters.kind === 'unit'
+            {deferredFilters.kind === 'unit'
               ? 'Unit combat statistics'
-              : filters.kind === 'summoner'
+              : deferredFilters.kind === 'summoner'
                 ? 'Summoner effects and tactics'
                 : 'Land card abilities'}
           </caption>
@@ -321,117 +343,36 @@ export default function CatalogueTable({
               <th scope="col">Edition</th>
               <th scope="col">Bloodline</th>
               <th scope="col">Level</th>
-              {filters.kind === 'unit' &&
+              {deferredFilters.kind === 'unit' &&
                 STATS.map((key) => heading(key, STAT_LABELS[key]))}
-              {filters.kind === 'summoner' && (
+              {deferredFilters.kind === 'summoner' && (
                 <>
                   {heading('mana', 'Mana')}
                   <th scope="col">Stat effects</th>
                 </>
               )}
               <th scope="col">
-                {filters.kind === 'land' ? 'Land abilities' : 'Abilities'}
+                {deferredFilters.kind === 'land'
+                  ? 'Land abilities'
+                  : 'Abilities'}
               </th>
-              {filters.kind === 'summoner' && <th scope="col">Tactics</th>}
+              {deferredFilters.kind === 'summoner' && (
+                <th scope="col">Tactics</th>
+              )}
             </tr>
           </thead>
           <tbody>
             {rows
               .slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
-              .map((card) => {
-                const level = levelForLeague(card, filters.league)
-                const edition = filters.edition
-                  ? Number(filters.edition)
-                  : card.editions[0]
-                return (
-                  <tr key={card.id}>
-                    <th scope="row">
-                      <Link
-                        href={`/card/${card.slug}${filters.edition ? `?edition=${filters.edition}` : ''}`}
-                        className="catalogue-card-name"
-                      >
-                        <CardArt
-                          key={`${card.id}-${edition}`}
-                          card={card}
-                          edition={edition}
-                          compact
-                        />
-                        <span>
-                          {card.name}
-                          {card.preview && (
-                            <small className="preview-badge">Preview</small>
-                          )}
-                        </span>
-                      </Link>
-                    </th>
-                    <td>
-                      <div className="splinter-badges">
-                        {card.splinters.map((name) => (
-                          <span
-                            key={name}
-                            className={`splinter-${name.toLowerCase()}`}
-                          >
-                            {name}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-                    <td>
-                      <span className={`rarity rarity-${card.rarity}`}>
-                        {RARITIES[card.rarity - 1]}
-                      </span>
-                    </td>
-                    <td className="edition-cell">
-                      {card.editions.map(editionName).join(' / ')}
-                    </td>
-                    <td>{card.bloodline}</td>
-                    <td className="number-cell">{level}</td>
-                    {filters.kind === 'unit' &&
-                      STATS.map((key) => (
-                        <td key={key} className={`number-cell stat-${key}`}>
-                          {statAt(card, key, level) ?? '—'}
-                        </td>
-                      ))}
-                    {filters.kind === 'summoner' && (
-                      <>
-                        <td className="number-cell">
-                          {statAt(card, 'mana', level)}
-                        </td>
-                        <td>
-                          <StatEffects card={card} level={level} />
-                        </td>
-                      </>
-                    )}
-                    <td>
-                      <AbilityList
-                        abilities={
-                          filters.kind === 'land'
-                            ? landAbilitiesAt(card, level)
-                            : abilitiesAt(card, level)
-                        }
-                        labels={filters.kind === 'land'}
-                      />
-                      {!!card.stats.racialSynergy?.length && (
-                        <div className="bloodline-synergy">
-                          {card.stats.racialSynergy.map((synergy) => (
-                            <div key={synergy.race}>
-                              {synergy.race}
-                              <AbilityList
-                                abilities={synergy.abilities ?? []}
-                              />
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </td>
-                    {filters.kind === 'summoner' && (
-                      <td>
-                        <SummonerTactics card={card} />
-                      </td>
-                    )}
-                  </tr>
-                )
-              })}
+              .map((card) => (
+                <CatalogueRow
+                  key={card.id}
+                  card={card}
+                  kind={deferredFilters.kind}
+                  league={deferredFilters.league}
+                  editionFilter={deferredFilters.edition}
+                />
+              ))}
           </tbody>
         </table>
         {!rows.length && (
@@ -440,7 +381,9 @@ export default function CatalogueTable({
             <p>Try another combination or reset the filters.</p>
             <button
               className="catalogue-button"
-              onClick={() => update({ ...DEFAULTS, kind: filters.kind })}
+              onClick={() =>
+                update({ ...DEFAULTS, kind: deferredFilters.kind })
+              }
             >
               Reset filters
             </button>
@@ -469,3 +412,98 @@ export default function CatalogueTable({
     </>
   )
 }
+
+const CatalogueRow = memo(function CatalogueRow({
+  card,
+  kind,
+  league,
+  editionFilter,
+}: {
+  card: CatalogueCard
+  kind: CardKind
+  league: string
+  editionFilter: string
+}) {
+  const level = levelForLeague(card, league)
+  const edition = editionFilter ? Number(editionFilter) : card.editions[0]
+  return (
+    <tr>
+      <th scope="row">
+        <Link
+          prefetch={false}
+          href={`/card/${card.slug}${editionFilter ? `?edition=${editionFilter}` : ''}`}
+          className="catalogue-card-name"
+        >
+          <CardArt
+            key={`${card.id}-${edition}`}
+            card={card}
+            edition={edition}
+            compact
+          />
+          <span>
+            {card.name}
+            {card.preview && <small className="preview-badge">Preview</small>}
+          </span>
+        </Link>
+      </th>
+      <td>
+        <div className="splinter-badges">
+          {card.splinters.map((name) => (
+            <span key={name} className={`splinter-${name.toLowerCase()}`}>
+              {name}
+            </span>
+          ))}
+        </div>
+      </td>
+      <td>
+        <span className={`rarity rarity-${card.rarity}`}>
+          {RARITIES[card.rarity - 1]}
+        </span>
+      </td>
+      <td className="edition-cell">
+        {card.editions.map(editionName).join(' / ')}
+      </td>
+      <td>{card.bloodline}</td>
+      <td className="number-cell">{level}</td>
+      {kind === 'unit' &&
+        STATS.map((key) => (
+          <td key={key} className={`number-cell stat-${key}`}>
+            {statAt(card, key, level) ?? '—'}
+          </td>
+        ))}
+      {kind === 'summoner' && (
+        <>
+          <td className="number-cell">{statAt(card, 'mana', level)}</td>
+          <td>
+            <StatEffects card={card} level={level} />
+          </td>
+        </>
+      )}
+      <td>
+        <AbilityList
+          abilities={
+            kind === 'land'
+              ? landAbilitiesAt(card, level)
+              : abilitiesAt(card, level)
+          }
+          labels={kind === 'land'}
+        />
+        {!!card.stats.racialSynergy?.length && (
+          <div className="bloodline-synergy">
+            {card.stats.racialSynergy.map((synergy) => (
+              <div key={synergy.race}>
+                {synergy.race}
+                <AbilityList abilities={synergy.abilities ?? []} />
+              </div>
+            ))}
+          </div>
+        )}
+      </td>
+      {kind === 'summoner' && (
+        <td>
+          <SummonerTactics card={card} />
+        </td>
+      )}
+    </tr>
+  )
+})

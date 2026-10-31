@@ -1,8 +1,9 @@
 'use client'
 
+import { localCardImage } from '@/lib/splinterlands/card-assets'
+
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { rarityMaxLevel } from '@/lib/editions'
 
 type Props = {
   children: React.ReactNode
@@ -48,8 +49,7 @@ export default function CardHoverPopover({
     return () => document.removeEventListener('keydown', onKey)
   }, [modalOpen])
 
-  const maxLevel = rarityMaxLevel(rarity)
-  const imgSrc = `https://d36mxiodymuqjm.cloudfront.net/cards_by_level/${cdnSlug}/${encodeURIComponent(cardName)}_lv${maxLevel}.png`
+  const imgSrc = localCardImage(cdnSlug, cardName)
 
   function handleMouseEnter() {
     if (isTouchDevice) return
