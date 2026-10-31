@@ -60,3 +60,21 @@ body {
 * {
   box-sizing: border-box;
 }
+
+/* Shared navigation styles live in CSS to keep server/client markup identical. */
+.nav-link {
+          color: var(--text-secondary);
+          text-decoration: none;
+          font-size: 0.9rem;
+          font-weight: 500;
+          transition: color 0.15s;
+        }
+        .nav-link:hover {
+          color: var(--text-primary);
+        }
+        .nav-link[aria-current="page"] { color: var(--text-primary); }
+        @media (max-width: 540px) {
+          .site-nav { padding: 0 0.75rem !important; }
+          .nav-links { gap: 0.75rem !important; }
+          .nav-link { font-size: 0.75rem; white-space: nowrap; }
+        }

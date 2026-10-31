@@ -8,9 +8,11 @@ UI mockups (open in browser to interact): docs/mockups/mockup-tier-list.html, do
 
 ## What this project is
 
-A Splinterlands card tier list and market pricing tool. Two public features:
+A Splinterlands card tier list and market pricing tool. Public features:
 1. **Tier lists** — per-edition card rankings (S/A/B/C/D) displayed as visual card grids
 2. **Deck Builder** — select editions + tiers → live buy prices from the Splinterlands market
+
+3. **Card library** — all units, summoners and land cards with filters, per-level statistics, ability guides, foil artwork, and market prices. See `docs/card-catalogue.md`.
 
 Plus an **admin backoffice** for updating tier data without redeployment.
 
@@ -96,6 +98,8 @@ Italic "spltiers" in #e63946, followed immediately by a 5px gold (#ffd700) circl
 | `/` | Homepage — edition selector | Public |
 | `/tier-list/[edition-slug]` | Tier list for an edition | Public |
 | `/deck-builder` | Deck Builder | Public |
+| `/cards` | Filterable card library | Public |
+| `/card/[slug]` | Card stats, abilities, art, and live prices | Public |
 | `/admin` | Backoffice — edition list | brave.sps only |
 | `/admin/[edition-slug]` | Drag-and-drop tier editor | brave.sps only |
 | `/admin/unauthorized` | Access denied page | Public |

@@ -2,26 +2,14 @@
 
 import Link from 'next/link'
 import Logo from '@/components/Logo'
+import { usePathname } from 'next/navigation'
 
 export default function Nav() {
+  const pathname = usePathname()
   return (
     <>
-      <style>{`
-        .nav-link {
-          color: var(--text-secondary);
-          text-decoration: none;
-          font-size: 0.9rem;
-          font-weight: 500;
-          transition: color 0.15s;
-        }
-        .nav-link:hover {
-          color: var(--text-primary);
-        }
-        @media (max-width: 400px) {
-          .nav-links { display: none; }
-        }
-      `}</style>
       <nav
+        className="site-nav"
         style={{
           height: '52px',
           background: '#0d1117',
@@ -53,8 +41,23 @@ export default function Nav() {
               marginLeft: 'auto',
             }}
           >
-            <Link href="/" className="nav-link">
+            <Link
+              href="/"
+              className="nav-link"
+              aria-current={
+                pathname === '/' || pathname.startsWith('/tier-list')
+                  ? 'page'
+                  : undefined
+              }
+            >
               Tier Lists
+            </Link>
+            <Link
+              href="/cards"
+              className="nav-link"
+              aria-current={pathname.startsWith('/card') ? 'page' : undefined}
+            >
+              Cards
             </Link>
             <Link href="/deck-builder" className="nav-link">
               Deck Builder
