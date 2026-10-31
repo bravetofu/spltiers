@@ -3,7 +3,7 @@ import { jwtVerify } from 'jose'
 import Nav from '@/components/Nav'
 import AdminLoginForm from '@/components/AdminLoginForm'
 import AdminEditionList from '@/components/AdminEditionList'
-import { createAdminClient } from '@/lib/supabase/server'
+import { getCardSets, getTierActivity } from '@/lib/db'
 import { getAllCardsByEdition } from '@/app/actions/cards'
 
 async function getSession(): Promise<{ account: string } | null> {
@@ -42,15 +42,7 @@ export default async function AdminPage() {
     )
   }
 
-  const supabase = createAdminClient()
-  const { data: cardSets } = await supabase
-    .from('card_sets')
-    .select('*')
-    .order('sort_order', { ascending: true })
-
-  const { data: tierCounts } = await supabase
-    .from('tier_entries')
-    .select('set_id, updated_at')
+  const [cardSets, tierCounts] = await Promise.all([getCardSets(false), getTierActivity()])
 
   let cardsByEdition: Map<string, unknown[]> | null = null
   try {

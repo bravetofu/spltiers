@@ -22,7 +22,7 @@ Plus an **admin backoffice** for updating tier data without redeployment.
 |---|---|
 | Framework | Next.js 14 (App Router) |
 | Hosting | Vercel |
-| Database | Supabase (Postgres) |
+| Database | Neon (Postgres), server-side HTTP driver |
 | Auth | Hive Keychain (posting key signature verification) |
 | Styling | Tailwind CSS |
 | Drag & Drop | dnd-kit |
@@ -33,12 +33,11 @@ Plus an **admin backoffice** for updating tier data without redeployment.
 
 ## Environment variables
 
-Already set in `.env.local` and in Vercel:
+Set locally through injected variables or `.env.local`, and in Vercel:
 
 ```
-NEXT_PUBLIC_SUPABASE_URL
-NEXT_PUBLIC_SUPABASE_ANON_KEY
-SUPABASE_SERVICE_ROLE_KEY
+DATABASE_URL
+JWT_SECRET
 NEXT_PUBLIC_HIVE_ADMIN_ACCOUNT=brave.sps
 OPENSEA_API_KEY                            ← server-side only, never exposed to client
 ```
@@ -180,50 +179,17 @@ Derived from `editions` + `tier` fields in `GET https://api.splinterlands.io/car
 
 ---
 
-## Supabase schema
+## Database schema
 
-Run this SQL in the Supabase SQL Editor to create the tables:
+Neon schema changes live in `db/migrations/`. Run `npm run db:migrate` with
+`DATABASE_URL` (or `DATABASE_URL_UNPOOLED`) supplied. The HTTP migration runner
+applies each SQL file transactionally and tracks it in `app_migrations`.
 
-```sql
--- Card sets / editions
-create table card_sets (
-  id uuid primary key default gen_random_uuid(),
-  slug text not null unique,
-  name text not null,
-  icon_url text,
-  is_active boolean not null default true,
-  sort_order int not null default 0,
-  created_at timestamptz not null default now()
-);
+Use the server-only helpers in `lib/db.ts` for queries. Admin API routes verify
+Hive/JWT sessions before writing. Browser components use `/api/tier-entries`;
+never expose a database connection string or run SQL in the browser.
 
--- Tier entries per card per set
-create table tier_entries (
-  id uuid primary key default gen_random_uuid(),
-  set_id uuid not null references card_sets(id) on delete cascade,
-  card_id int not null,
-  card_name text not null,
-  edition text not null,
-  cdn_slug text not null,
-  rarity int not null,
-  tier text check (tier in ('S','A','B','C','D')),
-  role text,
-  notes text,
-  is_soulbound boolean not null default false,
-  updated_at timestamptz not null default now(),
-  unique(set_id, card_id)
-);
-
--- RLS policies
-alter table card_sets enable row level security;
-alter table tier_entries enable row level security;
-
--- Public read
-create policy "public read card_sets" on card_sets for select using (true);
-create policy "public read tier_entries" on tier_entries for select using (true);
-
--- Authenticated write (backoffice uses service role key — bypasses RLS)
--- Service role key is used server-side in admin routes only
-```
+See `docs/neon-migration.md` for setup, one-time import and cutover instructions.
 
 ---
 
@@ -376,7 +342,7 @@ The proxy route exists so the client can reach OpenSea data without exposing the
 - Five tier lanes: each has coloured label + drop zone
 - Drag from unranked → tier lane, between tier lanes, or back to unranked
 - Click a tiered card (not drag): opens annotation panel with role input + notes textarea
-- "Save" button: commits all changes to Supabase in one operation
+- "Save" button: commits all changes to Neon in one transaction
 - "Unsaved changes" banner appears after any drag
 - Card data loaded fresh from SL API on each editor open
 
@@ -386,7 +352,7 @@ The proxy route exists so the client can reach OpenSea data without exposing the
 
 - Use `encodeURIComponent(cardName)` when building CDN image URLs
 - The `editions` + `tier` combo is required to correctly resolve CDN slug — do not use `editions` alone
-- Supabase admin writes use `SUPABASE_SERVICE_ROLE_KEY` (server-side only, never exposed to client)
+- Neon queries use `DATABASE_URL` in server-only modules; admin writes require a verified Hive/JWT session
 - Hive Keychain is a browser extension — detection and signing must happen client-side; verification happens server-side in a Next.js API route or Server Action
 - DEC prices from rental API are in DEC — always convert to USD using live CoinGecko rate before displaying
 - Server-side fetch caching: card details revalidate 3600s, market prices revalidate 60s

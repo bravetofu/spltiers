@@ -1,5 +1,8 @@
 import type { MetadataRoute } from 'next'
-import { createPublicClient } from '@/lib/supabase/server'
+import { getCardSets } from '@/lib/db'
+
+// Next.js 14's file cache does not invalidate metadata route bodies by tag.
+export const dynamic = 'force-dynamic'
 
 // Set NEXT_PUBLIC_SITE_URL in your environment to your production domain.
 // Falls back to the Vercel deployment URL, then a local dev URL.
@@ -14,14 +17,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   let slugs: string[] = []
   try {
-    const supabase = createPublicClient()
-    const { data } = await supabase
-      .from('card_sets')
-      .select('slug')
-      .eq('is_active', true)
-    slugs = (data ?? []).map((r) => r.slug)
+    slugs = (await getCardSets()).map((r) => r.slug)
   } catch {
-    // Supabase unavailable at build time — sitemap will only include static routes
+    // Database unavailable at build time — sitemap will only include static routes
   }
 
   return [

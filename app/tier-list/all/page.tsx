@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Nav from '@/components/Nav'
 import TierListClient, { type TierEntry, type SetSummary } from '@/components/TierListClient'
-import { createPublicClient } from '@/lib/supabase/server'
+import { getCardSets, getAllPublicTierEntries } from '@/lib/db'
 import { getEditionFormat } from '@/lib/editions'
 
 export const revalidate = 3600
@@ -16,27 +16,9 @@ export default async function AllTierListPage() {
   let tierEntries: TierEntry[] = []
 
   try {
-    const supabase = createPublicClient()
-
-    const { data: sets } = await supabase
-      .from('card_sets')
-      .select('id, name, slug')
-      .eq('is_active', true)
-      .order('sort_order', { ascending: true })
-
-    allSets = sets ?? []
-
-    if (allSets.length > 0) {
-      const setIds = allSets.map((s) => s.id)
-      const { data: entries } = await supabase
-        .from('tier_entries')
-        .select('card_id, card_name, cdn_slug, rarity, tier, role, notes, is_soulbound')
-        .in('set_id', setIds)
-
-      tierEntries = (entries ?? []) as TierEntry[]
-    }
+    ;[allSets, tierEntries] = await Promise.all([getCardSets(), getAllPublicTierEntries()])
   } catch {
-    // Supabase unavailable — render empty groups
+    // Database unavailable — render empty groups
   }
 
   const tierGroups: Record<string, TierEntry[]> = { S: [], A: [], B: [], C: [], D: [] }

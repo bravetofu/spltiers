@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState, useTransition } from 'react'
 import Nav from '@/components/Nav'
 import CardThumb from '@/components/CardThumb'
-import { createClient } from '@/lib/supabase/client'
 import { rarityMaxLevel, LEAGUE_LEVEL_CAPS } from '@/lib/editions'
 import {
   fetchPrices,
@@ -236,6 +235,7 @@ function EditionGroups({
 export default function DeckBuilderPage() {
   const [entries, setEntries] = useState<TierEntry[]>([])
   const [loadingEntries, setLoadingEntries] = useState(true)
+  const [entriesError, setEntriesError] = useState(false)
   const [selectedEditions, setSelectedEditions] = useState<Set<string>>(new Set())
   const editionsInitialized = useRef(false)
   const [selectedTiers, setSelectedTiers] = useState<Set<string>>(new Set(['S', 'A']))
@@ -255,29 +255,28 @@ export default function DeckBuilderPage() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
 
   useEffect(() => {
-    const supabase = createClient()
-    supabase
-      .from('tier_entries')
-      .select('card_id, card_name, edition, cdn_slug, rarity, tier, is_soulbound')
-      .not('tier', 'is', null)
-      .then(({ data, error }) => {
-        if (error) {
-          console.error('[deck-builder] Supabase tier_entries fetch error:', error)
-        }
-        const rows = (data as TierEntry[]) ?? []
-        if (rows.length === 0) {
-          console.error('[deck-builder] Supabase returned no tier entries — table may be empty or query failed')
-        } else {
-          console.log(`[deck-builder] Loaded ${rows.length} tier entries from Supabase`)
-        }
+    const controller = new AbortController()
+    async function loadEntries() {
+      try {
+        const response = await fetch('/api/tier-entries', { signal: controller.signal })
+        if (!response.ok) throw new Error('Could not load tier entries')
+        const rows: TierEntry[] = await response.json()
         setEntries(rows)
-        setLoadingEntries(false)
-        // Select Modern editions by default on first load
         if (!editionsInitialized.current) {
           editionsInitialized.current = true
           setSelectedEditions(new Set(rows.filter((e) => getEditionFormat(e.edition) === 'modern').map((e) => e.edition)))
         }
-      })
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          console.error('[deck-builder] Tier entries fetch failed:', error)
+          setEntriesError(true)
+        }
+      } finally {
+        if (!controller.signal.aborted) setLoadingEntries(false)
+      }
+    }
+    void loadEntries()
+    return () => controller.abort()
   }, [])
 
   const availableEditions = Array.from(new Set(entries.map((e) => e.edition))).sort()
@@ -459,7 +458,9 @@ export default function DeckBuilderPage() {
             {/* Editions */}
             <div style={{ marginBottom: '1rem' }}>
               <div style={LABEL_STYLE}>Editions</div>
-              {loadingEntries ? (
+              {entriesError ? (
+                <p role="alert" style={{ color: 'var(--accent-red)' }}>Could not load card rankings. Please reload to try again.</p>
+              ) : loadingEntries ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {[0, 1].map((row) => (
                     <div key={row} style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>

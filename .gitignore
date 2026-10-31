@@ -1,4 +1,6 @@
-.env.local
+.env*
+!.env.example
+.migration-backups/
 node_modules/
 .next/
 tsconfig.tsbuildinfo

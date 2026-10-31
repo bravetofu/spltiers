@@ -3,7 +3,7 @@ import { cookies } from 'next/headers'
 import { jwtVerify } from 'jose'
 import Nav from '@/components/Nav'
 import TierEditor from './TierEditor'
-import { createAdminClient } from '@/lib/supabase/server'
+import { getCardSet, getTierEntries } from '@/lib/db'
 import { getCardsForEdition } from '@/app/actions/cards'
 
 async function requireSession() {
@@ -22,22 +22,9 @@ export default async function EditorPage({ params }: { params: { slug: string } 
   const session = await requireSession()
   if (!session) notFound()
 
-  const supabase = createAdminClient()
-
-  // Load the card_set record
-  const { data: cardSet } = await supabase
-    .from('card_sets')
-    .select('*')
-    .eq('slug', params.slug)
-    .single()
-
+  const cardSet = await getCardSet(params.slug, false)
   if (!cardSet) notFound()
-
-  // Load existing tier entries for this set
-  const { data: existingEntries } = await supabase
-    .from('tier_entries')
-    .select('*')
-    .eq('set_id', cardSet.id)
+  const existingEntries = await getTierEntries(cardSet.id, true)
 
   // Load all cards for this edition from SL API
   const cards = await getCardsForEdition(cardSet.name)

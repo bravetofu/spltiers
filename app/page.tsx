@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import Nav from '@/components/Nav'
 import EditionCard, { type EditionCardData } from '@/components/EditionCard'
-import { createPublicClient } from '@/lib/supabase/server'
+import { getCardSets, getTierActivity } from '@/lib/db'
 import { getAllCardsByEdition } from '@/app/actions/cards'
 import { getEditionFormat, type EditionFormat } from '@/lib/editions'
 
@@ -16,25 +16,15 @@ type CardSet = {
 }
 
 export default async function HomePage() {
-  // Supabase calls are wrapped in try/catch so the page renders gracefully
+  // Database calls are wrapped in try/catch so the page renders gracefully
   // when env vars are absent (e.g. during `next build` without .env.local).
   let cardSets: CardSet[] = []
   let tierCounts: { set_id: string }[] = []
 
   try {
-    const supabase = createPublicClient()
-    const [setsRes, countsRes] = await Promise.all([
-      supabase
-        .from('card_sets')
-        .select('id, slug, name, is_active, sort_order')
-        .eq('is_active', true)
-        .order('sort_order', { ascending: true }),
-      supabase.from('tier_entries').select('set_id'),
-    ])
-    cardSets = setsRes.data ?? []
-    tierCounts = countsRes.data ?? []
+    ;[cardSets, tierCounts] = await Promise.all([getCardSets(), getTierActivity(false)])
   } catch {
-    // Supabase unavailable at build time — render empty edition list
+    // Database unavailable at build time — render empty edition list
   }
 
   // Card counts from SL API — best-effort, graceful degradation
