@@ -25,6 +25,8 @@ import { AbilityList } from './AbilityIcon'
 import { StatEffects, SummonerTactics } from './CardEffects'
 import CardArt from './CardArt'
 import AbilityTooltipProvider from './AbilityTooltipProvider'
+import CardRatings from '@/components/ratings/CardRatings'
+import type { CardRating } from '@/lib/ratings/types'
 
 type Prices = {
   source: string
@@ -49,7 +51,13 @@ const usd = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 6,
 })
 
-export default function CardDetail({ card }: { card: CatalogueCard }) {
+export default function CardDetail({
+  card,
+  ratingData,
+}: {
+  card: CatalogueCard
+  ratingData: { ratings: CardRating[]; version?: string; scoredAt?: string }
+}) {
   const [edition, setEdition] = useState(card.editions[0])
   const [editionReady, setEditionReady] = useState(false)
   const syncEdition = useCallback((value: number) => {
@@ -63,7 +71,7 @@ export default function CardDetail({ card }: { card: CatalogueCard }) {
   const [refresh, setRefresh] = useState(0)
   const mintedFoils = card.foils[edition] ?? [0]
   const availableFoils = FOILS.filter(
-    (entry) => mintedFoils.includes(entry.id) || entry.id === 0
+    (entry) => mintedFoils.includes(entry.id) || entry.id === 0,
   )
   const displayedFoil = availableFoils.some((entry) => entry.id === foil)
     ? foil
@@ -78,7 +86,7 @@ export default function CardDetail({ card }: { card: CatalogueCard }) {
       `/api/cards/${card.id}/prices?edition=${edition}${refresh ? `&refresh=${refresh}` : ''}`,
       {
         signal: controller.signal,
-      }
+      },
     )
       .then(async (response) => {
         const data = await response.json()
@@ -170,7 +178,7 @@ export default function CardDetail({ card }: { card: CatalogueCard }) {
                       window.history.replaceState(
                         null,
                         '',
-                        `/card/${card.slug}?edition=${id}`
+                        `/card/${card.slug}?edition=${id}`,
                       )
                     }}
                   >
@@ -265,7 +273,7 @@ export default function CardDetail({ card }: { card: CatalogueCard }) {
               <tbody>
                 {FOILS.map((entry) => {
                   const price = prices?.prices.find(
-                    (row) => row.foil === entry.id
+                    (row) => row.foil === entry.id,
                   )
                   return (
                     <tr key={entry.id}>
@@ -305,6 +313,7 @@ export default function CardDetail({ card }: { card: CatalogueCard }) {
           </p>
         )}
       </section>
+      <CardRatings card={card} {...ratingData} />
       <section className="card-section">
         <div className="card-section-heading">
           <div>
@@ -339,7 +348,7 @@ export default function CardDetail({ card }: { card: CatalogueCard }) {
             <tbody>
               {Array.from(
                 { length: card.maxLevel },
-                (_, index) => index + 1
+                (_, index) => index + 1,
               ).map((level) => (
                 <tr key={level}>
                   <th scope="row">{level}</th>

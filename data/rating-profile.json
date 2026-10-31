@@ -1,0 +1,1201 @@
+{
+  "schemaVersion": 1,
+  "standardWeight": 0.2,
+  "statWeights": {
+    "mana": -0.35,
+    "attack": 0.75,
+    "ranged": 0.7,
+    "magic": 1.05,
+    "speed": 0.25,
+    "armor": 0.15,
+    "health": 0.18
+  },
+  "leagueMultipliers": {
+    "bronze": {
+      "stats": 1.3,
+      "mana": 1.1,
+      "abilities": 1.25
+    },
+    "silver": {
+      "stats": 1.2,
+      "mana": 1.07,
+      "abilities": 1.15
+    },
+    "gold": {
+      "stats": 1.1,
+      "mana": 1.03,
+      "abilities": 1.07
+    },
+    "diamond": {
+      "stats": 1,
+      "mana": 1,
+      "abilities": 1
+    }
+  },
+  "abilities": {
+    "Affliction": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Ambush": {
+      "standard": 8,
+      "nonStandard": 8,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Amplify": {
+      "standard": 6,
+      "nonStandard": 6,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Apex Strike": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Armored Strike": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Backfire": {
+      "standard": 5,
+      "nonStandard": 5,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Blasphemy of Uul": {
+      "standard": 4,
+      "nonStandard": 4,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Blast": {
+      "standard": 8,
+      "nonStandard": 8,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Blind": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Bloodline Dominion": {
+      "standard": 8,
+      "nonStandard": 8,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Bloodline Pact": {
+      "standard": 8,
+      "nonStandard": 8,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Bloodline Tribute": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Bloodlust": {
+      "standard": 8,
+      "nonStandard": 8,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Bulwark": {
+      "standard": 5,
+      "nonStandard": 5,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Camouflage": {
+      "standard": 6,
+      "nonStandard": 6,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Charge": {
+      "standard": 5,
+      "nonStandard": 5,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Cleanse": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Cleanse Rearguard": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Close Range": {
+      "standard": 3,
+      "nonStandard": 3,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Conscript": {
+      "standard": 5,
+      "nonStandard": 5,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Corrosive Ward": {
+      "standard": 5,
+      "nonStandard": 5,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Corrupted Healing": {
+      "standard": 9,
+      "nonStandard": 9,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Cripple": {
+      "standard": 4,
+      "nonStandard": 4,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Deathblow": {
+      "standard": 2,
+      "nonStandard": 2,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Powerful when the opponent has one unit remaining; usually has no effect earlier in a battle."
+    },
+    "Decoy": {
+      "standard": 6,
+      "nonStandard": 6,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Deflect": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Deflection Shroud": {
+      "standard": 8,
+      "nonStandard": 8,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Demoralize": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Determined": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Dispel": {
+      "standard": 5,
+      "nonStandard": 5,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Divine Shield": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Dodge": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Double Strike": {
+      "standard": 9,
+      "nonStandard": 9,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Echo": {
+      "standard": 8,
+      "nonStandard": 8,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Electrified": {
+      "standard": 1,
+      "nonStandard": 1,
+      "multiplier": 1,
+      "drawback": true,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Empower": {
+      "standard": 6,
+      "nonStandard": 6,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Enfeeble": {
+      "standard": 6,
+      "nonStandard": 6,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Enrage": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Execute": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Expose": {
+      "standard": 9,
+      "nonStandard": 9,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Final Rest": {
+      "standard": 6,
+      "nonStandard": 6,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Flame Fed": {
+      "standard": 8,
+      "nonStandard": 8,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Flank": {
+      "standard": 5,
+      "nonStandard": 5,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Flying": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Focus": {
+      "standard": 6,
+      "nonStandard": 6,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Forcefield": {
+      "standard": 5,
+      "nonStandard": 6,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Strong against large attacks, with little benefit against low damage or true damage."
+    },
+    "Force Reduction": {
+      "standard": 1,
+      "nonStandard": 1,
+      "multiplier": 1,
+      "drawback": true,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Fury": {
+      "standard": 3,
+      "nonStandard": 3,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Giant Killer": {
+      "standard": 6,
+      "nonStandard": 6,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Halving": {
+      "standard": 8,
+      "nonStandard": 8,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Headwinds": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Heal": {
+      "standard": 9,
+      "nonStandard": 9,
+      "multiplier": 1.1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Immunity": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Impede": {
+      "standard": 6,
+      "nonStandard": 6,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Incendiary": {
+      "standard": 1,
+      "nonStandard": 1,
+      "multiplier": 1,
+      "drawback": true,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Inspire": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Invigorate": {
+      "standard": 8,
+      "nonStandard": 8,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Kindred Spirit": {
+      "standard": 5,
+      "nonStandard": 5,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Kindred Will": {
+      "standard": 8,
+      "nonStandard": 8,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Knock Out": {
+      "standard": 2,
+      "nonStandard": 2,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Last Stand": {
+      "standard": 8,
+      "nonStandard": 8,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Last Word": {
+      "standard": 6,
+      "nonStandard": 6,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Life Leech": {
+      "standard": 6,
+      "nonStandard": 6,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Lookout": {
+      "standard": 5,
+      "nonStandard": 5,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Magic Reflect": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Martyr": {
+      "standard": 8,
+      "nonStandard": 8,
+      "multiplier": 1.15,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Mimic": {
+      "standard": 9,
+      "nonStandard": 9,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Opportunity": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Oppress": {
+      "standard": 4,
+      "nonStandard": 4,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Painforge": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Phase": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Phase Ward": {
+      "standard": 8,
+      "nonStandard": 8,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Piercing": {
+      "standard": 6,
+      "nonStandard": 6,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Pinpoint": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Poison": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Poison Burst": {
+      "standard": 6,
+      "nonStandard": 6,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Protect": {
+      "standard": 8,
+      "nonStandard": 8,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Reach": {
+      "standard": 5,
+      "nonStandard": 5,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Rebirth": {
+      "standard": 8,
+      "nonStandard": 8,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Recharge": {
+      "standard": 2,
+      "nonStandard": 2,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Burst damage trades away alternate attack turns and can be wasted into shields or armor."
+    },
+    "Reckless": {
+      "standard": 1,
+      "nonStandard": 1,
+      "multiplier": 1,
+      "drawback": true,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Redemption": {
+      "standard": 3,
+      "nonStandard": 3,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Reflexes": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Relentless Strike": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Repair": {
+      "standard": 8,
+      "nonStandard": 8,
+      "multiplier": 1.1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Reprisal": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Resurgence": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Resurrect": {
+      "standard": 9,
+      "nonStandard": 9,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Retaliate": {
+      "standard": 5,
+      "nonStandard": 5,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Return Fire": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Reveal": {
+      "standard": 4,
+      "nonStandard": 4,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Rust": {
+      "standard": 6,
+      "nonStandard": 6,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Scattershot": {
+      "standard": 4,
+      "nonStandard": 4,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Scavenger": {
+      "standard": 6,
+      "nonStandard": 6,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Shadow Focus": {
+      "standard": 6,
+      "nonStandard": 6,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Shapeshift": {
+      "standard": 8,
+      "nonStandard": 8,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Shatter": {
+      "standard": 4,
+      "nonStandard": 4,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Shield": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Shield Ward": {
+      "standard": 8,
+      "nonStandard": 8,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Silence": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Slow": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Snare": {
+      "standard": 3,
+      "nonStandard": 3,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Sneak": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Snipe": {
+      "standard": 5,
+      "nonStandard": 5,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Soul Siphon": {
+      "standard": 8,
+      "nonStandard": 8,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Spite": {
+      "standard": 4,
+      "nonStandard": 4,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Stray Shot": {
+      "standard": 1,
+      "nonStandard": 1,
+      "multiplier": 1,
+      "drawback": true,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Strengthen": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Stun": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Swiftness": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Tank Heal": {
+      "standard": 9,
+      "nonStandard": 9,
+      "multiplier": 1.1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Taunt": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Thorns": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Trample": {
+      "standard": 5,
+      "nonStandard": 5,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Triage": {
+      "standard": 9,
+      "nonStandard": 9,
+      "multiplier": 1.1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "True Strike": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Untrainable": {
+      "standard": 1,
+      "nonStandard": 1,
+      "multiplier": 1,
+      "drawback": true,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Void": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Void Armor": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Volley of Arrows": {
+      "standard": 7,
+      "nonStandard": 7,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Weaken": {
+      "standard": 5,
+      "nonStandard": 5,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Weapons Training": {
+      "standard": 9,
+      "nonStandard": 9,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Weary": {
+      "standard": 1,
+      "nonStandard": 1,
+      "multiplier": 1,
+      "drawback": true,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    },
+    "Wingbreak": {
+      "standard": 5,
+      "nonStandard": 5,
+      "multiplier": 1,
+      "drawback": false,
+      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+    }
+  },
+  "synergies": [
+    {
+      "abilities": ["Amplify", "Thorns"],
+      "strength": 3,
+      "notes": "Amplify increases melee retaliation damage."
+    },
+    {
+      "abilities": ["Amplify", "Magic Reflect"],
+      "strength": 3,
+      "notes": "Amplify increases reflected magic damage."
+    },
+    {
+      "abilities": ["Amplify", "Return Fire"],
+      "strength": 3,
+      "notes": "Amplify increases ranged retaliation damage."
+    },
+    {
+      "abilities": ["Taunt", "Enrage"],
+      "strength": 2,
+      "notes": "Concentrated incoming damage can activate Enrage."
+    },
+    {
+      "abilities": ["Retaliate", "Trample"],
+      "strength": 1,
+      "notes": "Extra melee attacks may create additional kill and trample opportunities."
+    },
+    {
+      "abilities": ["Scattershot", "Fury"],
+      "strength": -1,
+      "notes": "Random targets reduce the reliability of exploiting Taunt for doubled damage."
+    },
+    {
+      "abilities": ["Heal", "Shield"],
+      "strength": 3,
+      "notes": "Physical mitigation makes restored health last longer."
+    },
+    {
+      "abilities": ["Heal", "Void"],
+      "strength": 3,
+      "notes": "Magic mitigation increases the effective value of self-healing."
+    },
+    {
+      "abilities": ["Heal", "Immunity"],
+      "strength": 3,
+      "notes": "Immunity prevents Affliction from disabling healing."
+    },
+    {
+      "abilities": ["Heal", "Last Stand"],
+      "strength": 3,
+      "notes": "Last Stand increases maximum health and the resulting heal amount."
+    },
+    {
+      "abilities": ["Heal", "Taunt"],
+      "strength": 2,
+      "notes": "Self-healing supports a unit absorbing focused attacks."
+    },
+    {
+      "abilities": ["Repair", "Void Armor"],
+      "strength": 3,
+      "notes": "Restored armor can absorb magic damage."
+    },
+    {
+      "abilities": ["Protect", "Repair"],
+      "strength": 2,
+      "notes": "Additional armor improves repair availability."
+    },
+    {
+      "abilities": ["Resurrect", "Divine Shield"],
+      "strength": 3,
+      "notes": "Resurrection restores Divine Shield for another blocked hit."
+    },
+    {
+      "abilities": ["Rebirth", "Divine Shield"],
+      "strength": 3,
+      "notes": "Rebirth restores a protective shield."
+    },
+    {
+      "abilities": ["Flying", "Dodge"],
+      "strength": 2,
+      "notes": "Independent evasion bonuses improve physical attack avoidance."
+    },
+    {
+      "abilities": ["Dodge", "Phase"],
+      "strength": 3,
+      "notes": "Phase extends evasion to magic attacks."
+    },
+    {
+      "abilities": ["Flying", "Phase"],
+      "strength": 2,
+      "notes": "Flying evasion can also protect against magic."
+    },
+    {
+      "abilities": ["Blind", "Phase"],
+      "strength": 2,
+      "notes": "Blind can reduce magic accuracy against a unit with Phase."
+    },
+    {
+      "abilities": ["Backfire", "Dodge"],
+      "strength": 2,
+      "notes": "Additional misses create more Backfire opportunities."
+    },
+    {
+      "abilities": ["Backfire", "Flying"],
+      "strength": 2,
+      "notes": "Flying increases opportunities for missed attacks."
+    },
+    {
+      "abilities": ["Stun", "Knock Out"],
+      "strength": 3,
+      "notes": "Stun activates the doubled-damage condition of Knock Out."
+    },
+    {
+      "abilities": ["Double Strike", "Life Leech"],
+      "strength": 3,
+      "notes": "Additional hits create more chances to gain maximum health."
+    },
+    {
+      "abilities": ["Double Strike", "Bloodlust"],
+      "strength": 3,
+      "notes": "Additional attacks increase chances to secure kills and grow."
+    },
+    {
+      "abilities": ["Double Strike", "Poison"],
+      "strength": 2,
+      "notes": "More attacks improve the chance to apply Poison."
+    },
+    {
+      "abilities": ["Double Strike", "Piercing"],
+      "strength": 2,
+      "notes": "Extra attacks and overflow damage reduce armor waste."
+    },
+    {
+      "abilities": ["Blast", "Piercing"],
+      "strength": 2,
+      "notes": "Overflow and adjacent damage increase effective damage output."
+    },
+    {
+      "abilities": ["Blast", "Scattershot"],
+      "strength": 3,
+      "notes": "Random back-line targets can deal Blast damage to two neighbors."
+    },
+    {
+      "abilities": ["Opportunity", "Bloodlust"],
+      "strength": 3,
+      "notes": "Targeting low-health units improves kill conversion."
+    },
+    {
+      "abilities": ["Sneak", "Bloodlust"],
+      "strength": 2,
+      "notes": "Back-line targeting can create accessible kills."
+    },
+    {
+      "abilities": ["Trample", "Bloodlust"],
+      "strength": 3,
+      "notes": "Kill-triggered growth strengthens subsequent attacks."
+    },
+    {
+      "abilities": ["Poison", "Affliction"],
+      "strength": 2,
+      "notes": "Healing prevention makes persistent damage harder to recover from."
+    },
+    {
+      "abilities": ["Shield", "Void"],
+      "strength": 3,
+      "notes": "Combined physical and magic mitigation covers both damage families."
+    },
+    {
+      "abilities": ["Deflect", "Taunt"],
+      "strength": 2,
+      "notes": "Focused targeting alongside retaliation protection improves survival."
+    },
+    {
+      "abilities": ["Last Stand", "Scavenger"],
+      "strength": 2,
+      "notes": "Accumulated health supports a surviving last unit."
+    },
+    {
+      "abilities": ["Martyr", "Rebirth"],
+      "strength": 3,
+      "notes": "Rebirth can allow the death-triggered buff to occur again."
+    },
+    {
+      "abilities": ["Enrage", "True Strike"],
+      "strength": 2,
+      "notes": "True Strike makes increased attack power reliable."
+    },
+    {
+      "abilities": ["Resurrect", "Martyr"],
+      "strength": 3,
+      "notes": "An additional life can create another Martyr trigger."
+    }
+  ],
+  "statSynergies": [
+    {
+      "ability": "Demoralize",
+      "stat": "attack",
+      "minimum": 1,
+      "bonus": 0.4,
+      "notes": "Weakening opposing melee can improve direct melee exchanges."
+    },
+    {
+      "ability": "Silence",
+      "stat": "magic",
+      "minimum": 1,
+      "bonus": 0.4,
+      "notes": "A magic attacker also reduces opposing magic pressure."
+    },
+    {
+      "ability": "Headwinds",
+      "stat": "ranged",
+      "minimum": 1,
+      "bonus": 0.4,
+      "notes": "A ranged attacker also reduces opposing ranged pressure."
+    },
+    {
+      "ability": "Heal",
+      "stat": "health",
+      "minimum": 8,
+      "bonus": 0.5,
+      "notes": "Higher maximum health increases the amount self-healed."
+    },
+    {
+      "ability": "Repair",
+      "stat": "armor",
+      "minimum": 3,
+      "bonus": 0.35,
+      "notes": "An armored unit can benefit directly from repair."
+    },
+    {
+      "ability": "Double Strike",
+      "stat": "attack",
+      "minimum": 3,
+      "bonus": 0.6,
+      "notes": "A second attack scales with attack power."
+    },
+    {
+      "ability": "Double Strike",
+      "stat": "ranged",
+      "minimum": 3,
+      "bonus": 0.6,
+      "notes": "A second ranged attack scales with ranged power."
+    },
+    {
+      "ability": "Double Strike",
+      "stat": "magic",
+      "minimum": 3,
+      "bonus": 0.7,
+      "notes": "A second magic attack scales with magic power."
+    },
+    {
+      "ability": "Blast",
+      "stat": "magic",
+      "minimum": 3,
+      "bonus": 0.5,
+      "notes": "Large attacks improve adjacent damage after rounding."
+    },
+    {
+      "ability": "Backfire",
+      "stat": "speed",
+      "minimum": 5,
+      "bonus": 0.4,
+      "notes": "High speed improves physical evasion."
+    },
+    {
+      "ability": "Phase",
+      "stat": "speed",
+      "minimum": 5,
+      "bonus": 0.4,
+      "notes": "High speed improves the magic evasion enabled by Phase."
+    },
+    {
+      "ability": "Armored Strike",
+      "stat": "armor",
+      "minimum": 5,
+      "bonus": 0.6,
+      "notes": "Remaining armor supplies attack power to Armored Strike."
+    },
+    {
+      "ability": "Weapons Training",
+      "stat": "magic",
+      "minimum": 3,
+      "bonus": 0.6,
+      "notes": "Strong magic power can be shared with eligible adjacent units."
+    }
+  ],
+  "adjustments": [],
+  "summonerWeights": {
+    "attack": 1,
+    "ranged": 1,
+    "magic": 1.35,
+    "speed": 1.1,
+    "armor": 0.8,
+    "health": 0.7
+  },
+  "summonerAbilityFactor": 4,
+  "summonerCalibration": 2.5
+}

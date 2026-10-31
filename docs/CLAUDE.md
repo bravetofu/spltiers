@@ -14,6 +14,8 @@ A Splinterlands card tier list and market pricing tool. Public features:
 
 3. **Card library** — all units, summoners and land cards with filters, per-level statistics, ability guides, foil artwork, and market prices. See `docs/card-catalogue.md`.
 
+4. **Combat ratings** — contextual 0–10 card and ability ratings, published curation and a ranked battle collector. See `docs/card-ratings.md`; edit and publish at `/admin/ratings`.
+
 Plus an **admin backoffice** for updating tier data without redeployment.
 
 ---
@@ -28,7 +30,7 @@ Plus an **admin backoffice** for updating tier data without redeployment.
 | Auth | Hive Keychain (posting key signature verification) |
 | Styling | Tailwind CSS |
 | Drag & Drop | dnd-kit |
-| Card images | Splinterlands CloudFront CDN |
+| Card images | Local optimized assets; Splinterlands source |
 | Market data | Splinterlands public API |
 
 ---

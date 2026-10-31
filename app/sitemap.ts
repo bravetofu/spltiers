@@ -1,6 +1,8 @@
 import type { MetadataRoute } from 'next'
 import { getCardSets } from '@/lib/db'
 import { getCatalogue } from '@/lib/splinterlands/catalogue-server'
+import { abilityNames } from '@/lib/splinterlands/abilities'
+import { cardSlug } from '@/lib/splinterlands/catalogue'
 
 // Next.js 14's file cache does not invalidate metadata route bodies by tag.
 export const dynamic = 'force-dynamic'
@@ -31,7 +33,22 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }
   return [
     { url: `${base}/cards`, changeFrequency: 'daily', priority: 0.9 },
-    ...cardSlugs.map((slug) => ({ url: `${base}/card/${slug}`, changeFrequency: 'weekly' as const, priority: 0.7 })),
+    { url: `${base}/abilities`, changeFrequency: 'daily', priority: 0.8 },
+    {
+      url: `${base}/ratings/methodology`,
+      changeFrequency: 'monthly',
+      priority: 0.6,
+    },
+    ...abilityNames.map((name) => ({
+      url: `${base}/ability/${cardSlug(name)}`,
+      changeFrequency: 'weekly' as const,
+      priority: 0.6,
+    })),
+    ...cardSlugs.map((slug) => ({
+      url: `${base}/card/${slug}`,
+      changeFrequency: 'weekly' as const,
+      priority: 0.7,
+    })),
     {
       url: base,
       lastModified: new Date(),

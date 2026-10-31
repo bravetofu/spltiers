@@ -23,6 +23,10 @@ import {
 import { AbilityList } from './AbilityIcon'
 import CardArt from './CardArt'
 import { StatEffects, SummonerTactics } from './CardEffects'
+import RatingBadge from '@/components/ratings/RatingBadge'
+import { useRatingIndex } from '@/components/ratings/useRatingIndex'
+import type { ScoreIndex } from '@/lib/ratings/server'
+import type { BattleFormat, League } from '@/lib/ratings/types'
 
 const TABS: { kind: CardKind; label: string }[] = [
   { kind: 'unit', label: 'Units' },
@@ -50,28 +54,39 @@ const DEFAULTS: CatalogueFilters = {
   bloodline: '',
 }
 
-export default function CatalogueTable({ cards }: { cards: CatalogueCard[] }) {
+export default function CatalogueTable({
+  cards,
+  initialRatings,
+}: {
+  cards: CatalogueCard[]
+  initialRatings: ScoreIndex
+}) {
   const searchParams = useSearchParams()
   const query = searchParams.toString()
   const [filters, setFilters] = useState<CatalogueFilters>(() =>
-    parseCatalogueFilters(Object.fromEntries(searchParams))
+    parseCatalogueFilters(Object.fromEntries(searchParams)),
   )
   const deferredFilters = useDeferredValue(filters)
+  const ratings = useRatingIndex(
+    initialRatings,
+    deferredFilters.league as League,
+    (deferredFilters.format || 'auto') as BattleFormat | 'auto',
+  )
   const [page, setPage] = useState(1)
   const [sort, setSort] = useState('name')
   const [direction, setDirection] = useState(1)
   useEffect(() => {
     const next = parseCatalogueFilters(
-      Object.fromEntries(new URLSearchParams(query))
+      Object.fromEntries(new URLSearchParams(query)),
     )
     setFilters((current) =>
       Object.keys(next).every(
         (key) =>
           current[key as keyof CatalogueFilters] ===
-          next[key as keyof CatalogueFilters]
+          next[key as keyof CatalogueFilters],
       )
         ? current
-        : next
+        : next,
     )
     setPage(1)
   }, [query])
@@ -81,44 +96,48 @@ export default function CatalogueTable({ cards }: { cards: CatalogueCard[] }) {
         TABS.map(({ kind }) => [
           kind,
           cards.filter((card) => cardInTab(card, kind)).length,
-        ])
+        ]),
       ),
-    [cards]
+    [cards],
   )
   const bloodlines = useMemo(
     () => Array.from(new Set(cards.map((card) => card.bloodline))).sort(),
-    [cards]
+    [cards],
   )
   const editions = useMemo(
     () =>
       Array.from(new Set(cards.flatMap((card) => card.editions))).sort(
-        (a, b) => a - b
+        (a, b) => a - b,
       ),
-    [cards]
+    [cards],
   )
   const rows = useMemo(
     () =>
       filterCards(cards, deferredFilters).sort((a, b) => {
         const av =
-          sort === 'name'
-            ? a.name
-            : sort === 'rarity'
-              ? a.rarity
-              : (statAt(
-                  a,
-                  sort as StatKey,
-                  levelForLeague(a, deferredFilters.league)
-                ) ?? 0)
+          sort === 'rating'
+            ? (ratings.scores[a.id]?.[0] ?? -1)
+            : sort === 'name'
+              ? a.name
+              : sort === 'rarity'
+                ? a.rarity
+                : (statAt(
+                    a,
+                    sort as StatKey,
+                    levelForLeague(a, deferredFilters.league),
+                  ) ?? 0)
         const bv =
-          sort === 'name'
-            ? b.name
-            : sort === 'rarity'
-              ? b.rarity
-              : (statAt(
-                  b,
-                  sort as StatKey,
-                  levelForLeague(b, deferredFilters.league)
-                ) ?? 0)
+          sort === 'rating'
+            ? (ratings.scores[b.id]?.[0] ?? -1)
+            : sort === 'name'
+              ? b.name
+              : sort === 'rarity'
+                ? b.rarity
+                : (statAt(
+                    b,
+                    sort as StatKey,
+                    levelForLeague(b, deferredFilters.league),
+                  ) ?? 0)
         return (
           direction *
             (typeof av === 'string' && typeof bv === 'string'
@@ -126,7 +145,7 @@ export default function CatalogueTable({ cards }: { cards: CatalogueCard[] }) {
               : Number(av) - Number(bv)) || a.name.localeCompare(b.name)
         )
       }),
-    [cards, deferredFilters, sort, direction]
+    [cards, deferredFilters, sort, direction, ratings.scores],
   )
   const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE))
   const currentPage = Math.min(page, pages)
@@ -141,19 +160,19 @@ export default function CatalogueTable({ cards }: { cards: CatalogueCard[] }) {
     window.history.replaceState(
       null,
       '',
-      `/cards${params.size ? `?${params}` : ''}`
+      `/cards${params.size ? `?${params}` : ''}`,
     )
   }
   function sortBy(key: string) {
     setSort(key)
-    setDirection(sort === key ? -direction : 1)
+    setDirection(sort === key ? -direction : key === 'rating' ? -1 : 1)
     setPage(1)
   }
   const select = (
     label: string,
     key: keyof CatalogueFilters,
     options: { value: string; label: string }[],
-    disabled = false
+    disabled = false,
   ) => (
     <label className="catalogue-filter" key={key}>
       <span>{label}</span>
@@ -271,7 +290,7 @@ export default function CatalogueTable({ cards }: { cards: CatalogueCard[] }) {
             { value: 'modern', label: 'Modern' },
             { value: 'wild', label: 'Wild-exclusive' },
           ],
-          filters.kind === 'land'
+          filters.kind === 'land',
         )}
         {select('Edition', 'edition', [
           { value: '', label: 'All editions' },
@@ -324,7 +343,7 @@ export default function CatalogueTable({ cards }: { cards: CatalogueCard[] }) {
         id="catalogue-panel"
         aria-labelledby={`tab-${deferredFilters.kind}`}
         className="catalogue-table-wrap"
-        aria-busy={filters !== deferredFilters}
+        aria-busy={filters !== deferredFilters || ratings.loading}
         tabIndex={0}
       >
         <table className={`catalogue-table table-${deferredFilters.kind}`}>
@@ -338,6 +357,7 @@ export default function CatalogueTable({ cards }: { cards: CatalogueCard[] }) {
           <thead>
             <tr>
               {heading('name', 'Card')}
+              {deferredFilters.kind !== 'land' && heading('rating', 'Rating')}
               <th scope="col">Splinter</th>
               {heading('rarity', 'Rarity')}
               <th scope="col">Edition</th>
@@ -371,6 +391,7 @@ export default function CatalogueTable({ cards }: { cards: CatalogueCard[] }) {
                   kind={deferredFilters.kind}
                   league={deferredFilters.league}
                   editionFilter={deferredFilters.edition}
+                  rating={ratings.scores[card.id]}
                 />
               ))}
           </tbody>
@@ -390,6 +411,22 @@ export default function CatalogueTable({ cards }: { cards: CatalogueCard[] }) {
           </div>
         )}
       </div>
+      {deferredFilters.kind !== 'land' && (
+        <p className="rating-note">
+          {ratings.error ??
+            (ratings.loading
+              ? 'Loading ratings…'
+              : 'Beta ratings at the selected level. ')}
+          {!ratings.error &&
+            !ratings.loading &&
+            (deferredFilters.format
+              ? `${deferredFilters.format === 'modern' ? 'Modern' : 'Wild'} battle context. `
+              : 'Modern context for Modern cards; Wild context for Wild-exclusive cards. ')}
+          <Link href="/ratings/methodology">
+            Scores and confidence explained ↗
+          </Link>
+        </p>
+      )}
       {pages > 1 && (
         <nav className="catalogue-pagination" aria-label="Card table pages">
           <button
@@ -418,11 +455,13 @@ const CatalogueRow = memo(function CatalogueRow({
   kind,
   league,
   editionFilter,
+  rating,
 }: {
   card: CatalogueCard
   kind: CardKind
   league: string
   editionFilter: string
+  rating?: ScoreIndex[string]
 }) {
   const level = levelForLeague(card, league)
   const edition = editionFilter ? Number(editionFilter) : card.editions[0]
@@ -446,6 +485,19 @@ const CatalogueRow = memo(function CatalogueRow({
           </span>
         </Link>
       </th>
+      {kind !== 'land' && (
+        <td>
+          {rating ? (
+            <RatingBadge
+              score={rating[0]}
+              confidence={rating[1]}
+              battles={rating[2]}
+            />
+          ) : (
+            <span className="muted">—</span>
+          )}
+        </td>
+      )}
       <td>
         <div className="splinter-badges">
           {card.splinters.map((name) => (

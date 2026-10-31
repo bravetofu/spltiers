@@ -55,7 +55,13 @@ export default function Nav() {
             <Link
               href="/cards"
               className="nav-link"
-              aria-current={pathname.startsWith('/card') ? 'page' : undefined}
+              aria-current={
+                pathname.startsWith('/card') ||
+                pathname.startsWith('/abilit') ||
+                pathname.startsWith('/ratings')
+                  ? 'page'
+                  : undefined
+              }
             >
               Cards
             </Link>

@@ -5,6 +5,7 @@ import AdminLoginForm from '@/components/AdminLoginForm'
 import AdminEditionList from '@/components/AdminEditionList'
 import { getCardSets, getTierActivity } from '@/lib/db'
 import { getAllCardsByEdition } from '@/app/actions/cards'
+import Link from 'next/link'
 
 async function getSession(): Promise<{ account: string } | null> {
   const token = cookies().get('admin_token')?.value
@@ -42,11 +43,14 @@ export default async function AdminPage() {
     )
   }
 
-  const [cardSets, tierCounts] = await Promise.all([getCardSets(false), getTierActivity()])
+  const [cardSets, tierCounts] = await Promise.all([
+    getCardSets(false),
+    getTierActivity(),
+  ])
 
   let cardsByEdition: Map<string, unknown[]> | null = null
   try {
-    cardsByEdition = await getAllCardsByEdition() as Map<string, unknown[]>
+    cardsByEdition = (await getAllCardsByEdition()) as Map<string, unknown[]>
   } catch {
     // SL API unavailable — degrade gracefully
   }
@@ -96,12 +100,33 @@ export default async function AdminPage() {
             >
               Backoffice
             </h1>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 4 }}>
+            <p
+              style={{
+                color: 'var(--text-muted)',
+                fontSize: '0.85rem',
+                marginTop: 4,
+              }}
+            >
               Signed in as{' '}
-              <span style={{ color: 'var(--accent-gold)' }}>@{session.account}</span>
+              <span style={{ color: 'var(--accent-gold)' }}>
+                @{session.account}
+              </span>
             </p>
           </div>
         </div>
+        <p style={{ marginBottom: 24 }}>
+          <Link
+            href="/admin/ratings"
+            style={{
+              color: '#ff929b',
+              fontSize: 14,
+              textDecoration: 'underline',
+              textUnderlineOffset: 4,
+            }}
+          >
+            Open card & ability ratings studio ↗
+          </Link>
+        </p>
         <AdminEditionList cardSets={cardSets ?? []} meta={meta} />
       </main>
     </div>

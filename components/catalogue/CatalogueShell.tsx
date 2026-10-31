@@ -1,5 +1,6 @@
 import Nav from '@/components/Nav'
 import AbilityTooltipProvider from './AbilityTooltipProvider'
+import Link from 'next/link'
 
 export default function CatalogueShell({
   children,
@@ -17,6 +18,10 @@ export default function CatalogueShell({
             Every unit, summoner, and land card. Compare stats, explore
             bloodlines, and see what changes as cards level up.
           </p>
+          <div className="catalogue-header-links">
+            <Link href="/abilities">Ability ratings ↗</Link>
+            <Link href="/ratings/methodology">How ratings work ↗</Link>
+          </div>
         </header>
         <AbilityTooltipProvider>{children}</AbilityTooltipProvider>
         <p className="catalogue-credit">

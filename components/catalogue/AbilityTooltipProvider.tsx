@@ -2,7 +2,11 @@
 
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { abilityInfo } from '@/lib/splinterlands/abilities'
+import {
+  abilityInfo,
+  hasAbilityDescription,
+} from '@/lib/splinterlands/abilities'
+import { cardSlug } from '@/lib/splinterlands/catalogue'
 
 type Active = {
   button: HTMLButtonElement
@@ -40,7 +44,7 @@ export default function AbilityTooltipProvider({
     setActive((current) =>
       current?.button === button
         ? current
-        : { button, info: abilityInfo(JSON.parse(button.dataset.ability!)) }
+        : { button, info: abilityInfo(JSON.parse(button.dataset.ability!)) },
     )
   }
   useLayoutEffect(() => {
@@ -52,15 +56,15 @@ export default function AbilityTooltipProvider({
         8,
         Math.min(
           rect.top > height + 12 ? rect.top - height - 6 : rect.bottom + 6,
-          window.innerHeight - height - 8
-        )
+          window.innerHeight - height - 8,
+        ),
       ),
       left: Math.max(
         8,
         Math.min(
           rect.left + rect.width / 2 - width / 2,
-          window.innerWidth - width - 8
-        )
+          window.innerWidth - width - 8,
+        ),
       ),
     })
     active.button.setAttribute('aria-describedby', id)
@@ -127,11 +131,19 @@ export default function AbilityTooltipProvider({
           >
             <strong>{active.info.label}</strong>
             <p>{active.info.description}</p>
+            {hasAbilityDescription(active.info.name) && (
+              <>
+                <a href={`/ability/${cardSlug(active.info.name)}`}>
+                  Ability strength ↗
+                </a>
+                {' · '}
+              </>
+            )}
             <a href={active.info.source} target="_blank" rel="noreferrer">
               Official ability guide ↗
             </a>
           </div>,
-          document.body
+          document.body,
         )}
     </div>
   )

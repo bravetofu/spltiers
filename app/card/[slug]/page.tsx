@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import Nav from '@/components/Nav'
 import CardDetail from '@/components/catalogue/CardDetail'
 import { getCatalogue } from '@/lib/splinterlands/catalogue-server'
+import { getCardRatings } from '@/lib/ratings/server'
 import '../../cards/catalogue.css'
 
 export const revalidate = 3600
@@ -23,11 +24,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function CardPage({ params }: Props) {
   const card = (await getCatalogue()).find((card) => card.slug === params.slug)
   if (!card) notFound()
+  const ratingData =
+    card.kind === 'land'
+      ? { ratings: [] }
+      : await getCardRatings(card.id).catch(() => ({ ratings: [] }))
   return (
     <>
       <Nav />
       <main className="catalogue-page card-detail-page">
-        <CardDetail key={card.id} card={card} />
+        <CardDetail key={card.id} card={card} ratingData={ratingData} />
       </main>
     </>
   )
