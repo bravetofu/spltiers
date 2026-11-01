@@ -355,7 +355,8 @@ export async function runCollector(
         } catch {
           failures++
         }
-    await processPending()
+    // Working bulk history takes priority over repeatedly unresolved queue IDs.
+    if (!authenticatedHistory || accessBlocked) await processPending()
     const accounts =
       await sql`SELECT player FROM rating_collection_accounts ORDER BY last_checked ASC NULLS FIRST, created_at, player LIMIT 40`
     for (const account of accounts) {
