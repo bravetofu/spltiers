@@ -26,7 +26,11 @@ import { StatEffects, SummonerTactics } from './CardEffects'
 import RatingBadge from '@/components/ratings/RatingBadge'
 import { useRatingIndex } from '@/components/ratings/useRatingIndex'
 import type { ScoreIndex } from '@/lib/ratings/server'
-import type { BattleFormat, League } from '@/lib/ratings/types'
+import {
+  LEAGUE_NAMES,
+  type BattleFormat,
+  type League,
+} from '@/lib/ratings/types'
 import { cardWinRate, formatWinRate } from '@/lib/ratings/battle-stats'
 
 const TABS: { kind: CardKind; label: string }[] = [
@@ -148,6 +152,9 @@ export default function CatalogueTable({
     })
   }, [cards, deferredFilters, sort, direction, ratings.scores])
   const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE))
+  const cardsWithUses = rows.filter(
+    (card) => (ratings.scores[card.id]?.[4]?.uses ?? 0) > 0,
+  ).length
   const currentPage = Math.min(page, pages)
   function update(changes: Partial<CatalogueFilters>) {
     const next = { ...filters, ...changes }
@@ -344,6 +351,30 @@ export default function CatalogueTable({
             : 'Stats and unlocked abilities at each rarity’s league cap'}
         </span>
       </div>
+      {deferredFilters.kind !== 'land' &&
+        !ratings.loading &&
+        !ratings.error && (
+          <div className="catalogue-battle-coverage" role="status">
+            <p>
+              {cardsWithUses
+                ? `${cardsWithUses.toLocaleString('en-US')} of ${rows.length.toLocaleString('en-US')} matching cards have recorded uses at ${LEAGUE_NAMES[deferredFilters.league as League]} caps.`
+                : `No collected battle uses match these filters at ${LEAGUE_NAMES[deferredFilters.league as League]} caps yet. Zero uses means no recorded sample.`}
+            </p>
+            {cardsWithUses > 0 && (
+              <button
+                type="button"
+                className="catalogue-button"
+                onClick={() => {
+                  setSort('uses')
+                  setDirection(-1)
+                  setPage(1)
+                }}
+              >
+                Show most-used cards
+              </button>
+            )}
+          </div>
+        )}
       <div
         role="tabpanel"
         id="catalogue-panel"

@@ -16,7 +16,6 @@ export function useRatingIndex(
     error?: string
   } | null>(null)
   useEffect(() => {
-    if (key === 'diamond:auto') return
     const cached = cache.get(key)
     if (cached && Date.now() - cached.at < 60000) {
       setRemote({ key, scores: cached.scores })
@@ -42,7 +41,9 @@ export function useRatingIndex(
       })
     return () => abort.abort()
   }, [key, league, format])
-  return key === 'diamond:auto'
+  // Recheck the default scope too: a prerendered page can predate collection.
+  // Keep the server-rendered ratings visible until the fresh request resolves.
+  return key === 'diamond:auto' && remote?.key !== key
     ? {
         scores: initial,
         loading: false,

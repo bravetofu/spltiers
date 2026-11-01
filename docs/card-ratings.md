@@ -67,8 +67,21 @@ unmapped caps are excluded using the existing battle eligibility checks.
 observations. It has no 90-day cutoff, player-volume cap or time weighting.
 Collector transactions deduplicate replays and replace derived rows atomically
 when reprocessing. Deploy initialization backfills archived replays with parser
-version 2. Cached public totals invalidate after collection, independently of
+version 3. Cached public totals invalidate after collection, independently of
 the daily rating snapshots. Rating evidence retains its stricter filters.
+
+Format-filtered history responses supply context for legacy rows whose `format`
+is null. Explicit replay formats and allowed-card settings take precedence.
+Standalone unlabelled replay responses remain unmapped. The original raw format
+is preserved and history context is restored from the stored format on reparse.
+Non-ranked history rows are skipped before they can exhaust the ingestion cap.
+Player selection rotates across discovery sources so a growing opponent queue
+cannot starve leaderboard accounts. Unsupported-format pending replays stop
+retrying, and fresh pending IDs precede repeated failures.
+
+The default maxed table rechecks the public API after hydration, just like the
+other level filters. A coverage message states how many matching cards have uses
+and provides a shortcut to sort by uses; an empty sample is identified explicitly.
 
 ### Collection schedule
 

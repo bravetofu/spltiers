@@ -1,0 +1,129 @@
+{
+  "battle_queue_id_1": "sl_7b925ad42f6d2caa12e91b368f42cd33",
+  "battle_queue_id_2": "sl_191ae3ddc8a81f37644ee8bf0701d7e9",
+  "player_1": "ngocphicr89",
+  "player_2": "albus-dumbledore",
+  "player_1_rating_initial": 1700,
+  "player_2_rating_initial": 1680,
+  "winner": "ngocphicr89",
+  "created_date": "2026-11-01T01:58:49.729Z",
+  "match_type": "Ranked",
+  "mana_cap": 22,
+  "ruleset": "Stampede",
+  "settings": "{\"rating_level\":4}",
+  "is_surrender": false,
+  "format": null,
+  "details": {
+    "team1": {
+      "summoner": {
+        "card_detail_id": 261,
+        "level": 8
+      },
+      "monsters": [
+        {
+          "card_detail_id": 700,
+          "level": 5,
+          "abilities": [
+            "Weary",
+            "Heal"
+          ]
+        },
+        {
+          "card_detail_id": 910,
+          "level": 10,
+          "abilities": [
+            "Weary",
+            "Charge",
+            "True Strike",
+            "Void Armor"
+          ]
+        },
+        {
+          "card_detail_id": 343,
+          "level": 10,
+          "abilities": [
+            "Flying",
+            "Magic Reflect",
+            "Divine Shield",
+            "Phase"
+          ]
+        },
+        {
+          "card_detail_id": 528,
+          "level": 3,
+          "abilities": [
+            "Weapons Training",
+            "Divine Shield"
+          ]
+        },
+        {
+          "card_detail_id": 680,
+          "level": 10,
+          "abilities": [
+            "Protect",
+            "Armored Strike",
+            "Heal"
+          ]
+        },
+        {
+          "card_detail_id": 351,
+          "level": 6,
+          "abilities": [
+            "Sneak",
+            "Poison"
+          ]
+        }
+      ]
+    },
+    "team2": {
+      "summoner": {
+        "card_detail_id": 437,
+        "level": 8
+      },
+      "monsters": [
+        {
+          "card_detail_id": 388,
+          "level": 8,
+          "abilities": [
+            "Trample",
+            "Enrage",
+            "Retaliate"
+          ]
+        },
+        {
+          "card_detail_id": 385,
+          "level": 10,
+          "abilities": [
+            "Opportunity",
+            "Poison",
+            "Demoralize"
+          ]
+        },
+        {
+          "card_detail_id": 337,
+          "level": 10,
+          "abilities": [
+            "Sneak",
+            "Flying"
+          ]
+        },
+        {
+          "card_detail_id": 426,
+          "level": 10,
+          "abilities": [
+            "Dodge",
+            "Phase",
+            "Backfire"
+          ]
+        },
+        {
+          "card_detail_id": 394,
+          "level": 4,
+          "abilities": [
+            "Headwinds"
+          ]
+        }
+      ]
+    }
+  }
+}

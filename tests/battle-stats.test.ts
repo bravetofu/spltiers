@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import fixture from './fixtures/modern-ranked-battle.json'
+import wildFixture from './fixtures/wild-ranked-battle.json'
 import catalogue from '../data/card-catalogue.json'
 import type { CatalogueCard } from '../lib/splinterlands/catalogue'
 import { parseBattle } from '../lib/ratings/battles'
@@ -12,6 +13,35 @@ import {
 
 const cards = catalogue as unknown as CatalogueCard[]
 const at = Date.parse(fixture.created_date) + 1000
+
+test('Wild history format context admits legacy null-format rows without guessing standalone replay formats', () => {
+  const now = Date.parse(wildFixture.created_date) + 1000
+  assert.equal(parseBattle(wildFixture, cards, now), null)
+  const battle = parseBattle(wildFixture, cards, now, 'wild')!
+  assert.equal(battle.format, 'wild')
+  assert.equal(battle.league, 'diamond')
+  assert.equal(battle.eligible, true, battle.exclusion ?? '')
+  assert.ok(battle.cardUsage.length > 0)
+  assert.equal(battle.raw.format, null, 'Preserve original replay metadata')
+  assert.equal(
+    parseBattle({ ...wildFixture, format: 'foundation' }, cards, now, 'wild'),
+    null,
+  )
+  assert.equal(
+    parseBattle(
+      { ...wildFixture, match_type: 'Tournament' },
+      cards,
+      now,
+      'wild',
+    )!.eligible,
+    false,
+  )
+  assert.equal(
+    parseBattle({ ...fixture, format: null }, cards, at, 'wild')!.format,
+    'modern',
+    'Explicit allowed-card settings override the history request context',
+  )
+})
 
 test('usage retains every lineup card, including summoners, underlevelled cards and mirrors', () => {
   const details = JSON.parse(fixture.details)

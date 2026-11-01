@@ -14,12 +14,17 @@ export async function backfillBattleUsage(
   for (;;) {
     if (processed >= limit) return processed
     const rows = await sql`
-      SELECT id, raw, source FROM rating_battles
+      SELECT id, raw, source, format FROM rating_battles
       WHERE parser_version < ${PARSER_VERSION} ORDER BY id LIMIT ${Math.min(100, limit - processed)}
     `
     if (!rows.length) return processed
     for (const row of rows) {
-      const battle = parseBattle(row.raw, cards)
+      const battle = parseBattle(
+        row.raw,
+        cards,
+        Date.now(),
+        row.source === 'history' ? row.format : undefined,
+      )
       if (!battle || battle.id !== row.id)
         throw new Error(`Cannot reprocess stored battle ${row.id}`)
       await saveCollectedBattle(battle, row.source)

@@ -81,11 +81,14 @@ try {
     {
       ...raw,
       winner: 'DRAW',
-      format: 'wild',
+      format: null,
+      settings: JSON.stringify({ rating_level: 4 }),
       battle_queue_id_1: `test_${randomUUID().replaceAll('-', '')}`,
       battle_queue_id_2: `test_${randomUUID().replaceAll('-', '')}`,
     },
     cards,
+    Date.now(),
+    'wild',
   )!
   ids.push(draw.id)
   // Simulate an existing replay saved before the usage table was introduced.
@@ -94,6 +97,13 @@ try {
     'history',
   )
   assert.equal(await backfillBattleUsage(cards), 1)
+  assert.equal(
+    (
+      await sql`SELECT raw->'format' AS original_format, format FROM rating_battles WHERE id=${draw.id}`
+    )[0].format,
+    'wild',
+    'Backfill must retain authenticated history context for null-format Wild replays',
+  )
   assert.equal(
     await backfillBattleUsage(cards),
     0,

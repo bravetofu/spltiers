@@ -136,6 +136,7 @@ export async function runCollector(
     accepted: { modern: 0, wild: 0 },
     scopes: {} as Record<string, number>,
     missingFormat: 0,
+    skippedNonRanked: 0,
   }
   let ratingsRefreshed = false
   const available = () =>
@@ -220,13 +221,25 @@ export async function runCollector(
         history.fetched[format] += data.battles.length
         for (const row of data.battles) {
           if (collected >= 200) break
+          // History includes tournaments and brawls. They must not exhaust the
+          // ranked ingestion cap before we reach other players and formats.
+          if (
+            !row ||
+            typeof row !== 'object' ||
+            !/^ranked$/i.test(
+              String((row as { match_type?: unknown }).match_type ?? ''),
+            )
+          ) {
+            history.skippedNonRanked++
+            continue
+          }
           if (
             row &&
             typeof row === 'object' &&
             !(row as { format?: unknown }).format
           )
             history.missingFormat++
-          const battle = parseBattle(row, catalogue)
+          const battle = parseBattle(row, catalogue, Date.now(), format)
           if (!battle) continue
           const result = await saveCollectedBattle(battle, 'history')
           if (result.inserted) collected++
@@ -249,7 +262,7 @@ export async function runCollector(
   let researchProcessed = 0
   async function processPending() {
     const queued =
-      await sql`SELECT queue_id, source FROM rating_pending_battles WHERE next_check <= now() AND attempts < 12 ORDER BY CASE WHEN source = 'public-queue' THEN 0 ELSE 1 END, discovered_at LIMIT 80`
+      await sql`SELECT queue_id, source FROM rating_pending_battles WHERE next_check <= now() AND attempts < 12 ORDER BY CASE WHEN source = 'public-queue' THEN 0 ELSE 1 END, attempts, discovered_at LIMIT 80`
     for (const item of queued) {
       if (!available()) break
       // Shared highlights must not consume the budget for ranked queue samples.
@@ -261,6 +274,17 @@ export async function runCollector(
         const row = await request(
           `${GAME}/battle/result?id=${encodeURIComponent(item.queue_id as string)}`,
         )
+        const explicitFormat =
+          row && typeof row === 'object'
+            ? (row as { format?: unknown }).format
+            : undefined
+        if (
+          typeof explicitFormat === 'string' &&
+          !['modern', 'wild'].includes(explicitFormat)
+        ) {
+          await sql`UPDATE rating_pending_battles SET attempts = 12 WHERE queue_id = ${item.queue_id}`
+          continue
+        }
         const battle = parseBattle(row, catalogue)
         if (!battle) {
           await sql`UPDATE rating_pending_battles SET attempts = attempts + 1, next_check = now() + interval '15 minutes' WHERE queue_id = ${item.queue_id}`
@@ -357,8 +381,15 @@ export async function runCollector(
         }
     // Working bulk history takes priority over repeatedly unresolved queue IDs.
     if (!authenticatedHistory || accessBlocked) await processPending()
-    const accounts =
-      await sql`SELECT player FROM rating_collection_accounts ORDER BY last_checked ASC NULLS FIRST, created_at, player LIMIT 40`
+    const accounts = await sql`
+        SELECT player FROM (
+          SELECT player, discovered_from, last_checked, created_at,
+            row_number() OVER (PARTITION BY discovered_from ORDER BY last_checked ASC NULLS FIRST, created_at, player) AS source_rank
+          FROM rating_collection_accounts
+        ) roster
+        ORDER BY source_rank, discovered_from, last_checked ASC NULLS FIRST, created_at, player
+        LIMIT 40
+      `
     for (const account of accounts) {
       if (!available()) break
       const player = account.player as string

@@ -74,6 +74,7 @@ export function parseBattle(
   value: unknown,
   catalogue: CatalogueCard[],
   now = Date.now(),
+  historyFormat?: BattleFormat,
 ): ParsedBattle | null {
   if (!record(value)) return null // HTTP 200 may contain a JSON error string.
   const queueIds = Array.from(
@@ -84,7 +85,14 @@ export function parseBattle(
   if (queueIds.length !== 2) return null
   const settings = jsonObject(value.settings)
   const allowed = jsonObject(settings?.allowed_cards)
-  const format = value.format ?? allowed?.epoch
+  // The format-filtered history endpoint omits the format on legacy Wild rows.
+  // Only that caller supplies context; an unlabelled standalone replay stays unknown.
+  const format =
+    value.format ??
+    (typeof settings?.allowed_cards === 'string'
+      ? settings.allowed_cards
+      : allowed?.epoch) ??
+    historyFormat
   if (format !== 'modern' && format !== 'wild') return null
   const playedAt =
     typeof value.created_date === 'string'

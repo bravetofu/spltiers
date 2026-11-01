@@ -1404,3 +1404,14 @@
 .battle-win-rate {
   white-space: nowrap;
 }
+.catalogue-battle-coverage {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 0 0 1rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.catalogue-battle-coverage p { margin: 0; }

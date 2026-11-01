@@ -133,7 +133,9 @@ export default async function Methodology() {
           lifetime collected ranked sample, scoped to the selected format and
           league cap. These are not global game totals. Each team using a card
           contributes one use, including underlevelled cards. A mirror match
-          contributes two uses: one win and one loss, or two draws.
+          contributes two uses: one win and one loss, or two draws. These buckets
+          describe card-level caps, not a player’s ladder rank: unrestricted
+          matches use the Diamond/Champion cap bucket.
         </p>
         <p>
           Win rate is wins divided by uses. Draws remain in the denominator and
