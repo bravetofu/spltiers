@@ -52,7 +52,7 @@ Raw replays and versioned snapshots allow future parser and model improvements.
 
 ## Collection and API findings
 
-GitHub Actions calls `/api/cron/collect-battles` at minutes 7, 22, 37 and 52 each hour; scheduled Actions can be delayed. The public repository uses a minimal runner without checkout. Vercel also retains the daily 02:00 UTC fallback. The GitHub job authenticates with a short-lived OIDC identity verified against the issuer, audience, repository and owner IDs, main branch, exact workflow path, and allowed event. No shared GitHub secret is needed. The Vercel fallback uses `Authorization: Bearer <CRON_SECRET>`; invalid identities fail closed. A database
+GitHub Actions calls `/api/cron/collect-battles` every three hours at minute 7 (00:07, 03:07, …, 21:07 UTC; eight scheduled runs per day); scheduled Actions can be delayed. The public repository uses a minimal runner without checkout. The GitHub job authenticates with a short-lived OIDC identity verified against the issuer, audience, repository and owner IDs, main branch, exact workflow path, and allowed event. No shared GitHub secret is needed. Manual server triggers can also use `Authorization: Bearer <CRON_SECRET>`; invalid identities fail closed. A database
 lease prevents overlapping runs. Each run has request, time and replay limits;
 pending IDs and a rotating player roster persist between runs. The admin can
 seed accounts, submit research replay IDs, run collection and refresh scores.

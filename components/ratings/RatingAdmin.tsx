@@ -1120,7 +1120,7 @@ export default function RatingAdmin({
               </div>
               <div>
                 <span>Schedule</span>
-                <strong>Every 15 minutes · ratings daily</strong>
+                <strong>Every 3 hours · ratings daily</strong>
               </div>
             </div>
             <p className="rating-note">

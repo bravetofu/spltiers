@@ -160,7 +160,7 @@ export default async function Methodology() {
             : 'The collection job has not completed a run yet.'}
         </p>
         <p>
-          A job scheduled every 15 minutes discovers players from public
+          A job scheduled every three hours discovers players from public
           leaderboards and opponents, samples their active ranked queues, and
           resolves full replays without an access token. Ratings refresh daily;
           collection runs retain new replays between refreshes. Scheduled runs
