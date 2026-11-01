@@ -123,6 +123,20 @@ export async function runCollector(
     accessBlocked = false,
     historyAttempted = false,
     failures = 0
+  const username = process.env.SPLINTERLANDS_API_USERNAME?.trim(),
+    token = process.env.SPLINTERLANDS_ACCESS_TOKEN?.trim(),
+    jwt = process.env.SPLINTERLANDS_JWT_TOKEN?.trim()
+  const authenticatedHistory = !!(jwt || (username && token))
+  const history = {
+    configured: authenticatedHistory,
+    attempted: false,
+    rejected: false,
+    responses: 0,
+    fetched: { modern: 0, wild: 0 },
+    accepted: { modern: 0, wild: 0 },
+    scopes: {} as Record<string, number>,
+    missingFormat: 0,
+  }
   let ratingsRefreshed = false
   const available = () =>
     Date.now() < deadline - 1500 && requests < maxRequests && collected < 200
@@ -182,6 +196,56 @@ export async function runCollector(
       ON CONFLICT (queue_id) DO UPDATE SET source = CASE WHEN EXCLUDED.source = 'public-queue' THEN EXCLUDED.source ELSE rating_pending_battles.source END
     `
   }
+  const historyPlayers = new Set<string>()
+  async function collectHistory(player: string) {
+    if (accessBlocked || historyPlayers.has(player)) return
+    historyPlayers.add(player)
+    for (const format of ['modern', 'wild'] as const) {
+      if (!available()) break
+      historyAttempted = history.attempted = true
+      const params = new URLSearchParams({
+        player,
+        format,
+        limit: '20',
+        ...(username ? { username } : {}),
+        ...(username && token ? { token } : {}),
+      })
+      try {
+        const data = (await request(`${GAME}/battle/history2?${params}`, {
+          ...(jwt ? { headers: { Authorization: `Bearer ${jwt}` } } : {}),
+        })) as { battles?: unknown[] }
+        if (!Array.isArray(data?.battles))
+          throw new Error('Unexpected history response')
+        history.responses++
+        history.fetched[format] += data.battles.length
+        for (const row of data.battles) {
+          if (collected >= 200) break
+          if (
+            row &&
+            typeof row === 'object' &&
+            !(row as { format?: unknown }).format
+          )
+            history.missingFormat++
+          const battle = parseBattle(row, catalogue)
+          if (!battle) continue
+          const result = await saveCollectedBattle(battle, 'history')
+          if (result.inserted) collected++
+          if (battle.eligible) {
+            history.accepted[format]++
+            const scope = `${battle.format}:${battle.league}`
+            history.scopes[scope] = (history.scopes[scope] ?? 0) + 1
+          }
+        }
+      } catch (error) {
+        if ((error as Error).message === 'AUTH_REQUIRED') {
+          accessBlocked = history.rejected = true
+          break
+        }
+        if ((error as Error).message === 'RATE_LIMITED') throw error
+        failures++
+      }
+    }
+  }
   let researchProcessed = 0
   async function processPending() {
     const queued =
@@ -221,6 +285,12 @@ export async function runCollector(
     if (options.replayIds?.length)
       await pending(options.replayIds, 'manual-replay')
     const admin = process.env.NEXT_PUBLIC_HIVE_ADMIN_ACCOUNT ?? 'brave.sps'
+    // Test configured authentication before discovery/retry work can consume the budget.
+    const login = username ?? admin
+    if (authenticatedHistory && validAccount(login) && available()) {
+      players++
+      await collectHistory(login)
+    }
     if (validAccount(admin))
       await sql`INSERT INTO rating_collection_accounts (player, discovered_from) VALUES (${admin}, 'site account') ON CONFLICT (player) DO NOTHING`
     let previousSeason: number | undefined
@@ -288,50 +358,12 @@ export async function runCollector(
     await processPending()
     const accounts =
       await sql`SELECT player FROM rating_collection_accounts ORDER BY last_checked ASC NULLS FIRST, created_at, player LIMIT 40`
-    const username = process.env.SPLINTERLANDS_API_USERNAME,
-      token = process.env.SPLINTERLANDS_ACCESS_TOKEN
     for (const account of accounts) {
       if (!available()) break
       const player = account.player as string
       players++
       try {
-        if (!accessBlocked) {
-          historyAttempted = true
-          for (const format of ['modern', 'wild']) {
-            if (!available()) break
-            const params = new URLSearchParams({
-              player,
-              format,
-              limit: '20',
-              ...(username && token ? { username, token } : {}),
-            })
-            const headers = process.env.SPLINTERLANDS_JWT_TOKEN
-              ? {
-                  Authorization: `Bearer ${process.env.SPLINTERLANDS_JWT_TOKEN}`,
-                }
-              : undefined
-            try {
-              const data = (await request(`${GAME}/battle/history2?${params}`, {
-                headers,
-              })) as { battles?: unknown[] }
-              if (!Array.isArray(data.battles))
-                throw new Error('Unexpected history response')
-              for (const row of data.battles) {
-                if (collected >= 200) break
-                const battle = parseBattle(row, catalogue)
-                if (!battle) continue
-                const result = await saveCollectedBattle(battle, 'history')
-                if (result.inserted) collected++
-              }
-            } catch (error) {
-              if ((error as Error).message === 'AUTH_REQUIRED') {
-                accessBlocked = true
-                break
-              }
-              throw error
-            }
-          }
-        }
+        await collectHistory(player)
         if (!available()) break
         const queue = await request(
           `${GAME}/battle/battle_queue?username=${encodeURIComponent(player)}`,
@@ -380,12 +412,12 @@ export async function runCollector(
         ? 'History and public sampling'
         : 'Public sampling; bulk history not probed in this run'
     const status =
-      accessBlocked && username && token
+      accessBlocked && authenticatedHistory
         ? 'access-limited'
         : failures
           ? 'partial'
           : 'completed'
-    const message = `${mode}. Archived ${collected} new replay${collected === 1 ? '' : 's'}. Shared/manual replays are research-only; only qualifying ranked queue/history samples affect ratings.${accessBlocked && username && token ? ' Configured history authentication was rejected.' : ''}${failures ? ` ${failures} upstream request(s) failed.` : ''}`
+    const message = `${mode}. Archived ${collected} new replay${collected === 1 ? '' : 's'}. Shared/manual replays are research-only; only qualifying ranked queue/history samples affect ratings.${accessBlocked && authenticatedHistory ? ' Configured history authentication was rejected.' : ''}${history.attempted ? ` History: ${history.responses} successful responses, ${history.fetched.modern} Modern and ${history.fetched.wild} Wild rows; ${history.accepted.modern + history.accepted.wild} passed eligibility checks.` : ''}${failures ? ` ${failures} upstream request(s) failed.` : ''}`
     await sql`UPDATE rating_job_runs SET status = ${status}, message = ${message}, collected = ${collected}, requests = ${requests}, players = ${players}, finished_at = now() WHERE id = ${runId}::uuid`
     return {
       status,
@@ -394,6 +426,7 @@ export async function runCollector(
       requests,
       players,
       ratingsRefreshed,
+      history,
     }
   } catch (error) {
     // Never log request URLs: authenticated history queries contain a secret.
@@ -402,7 +435,7 @@ export async function runCollector(
         ? 'Splinterlands rate limit reached; the next scheduled run will resume.'
         : 'Collection stopped early. Completed ingestions are retained and pending IDs will be retried.'
     await sql`UPDATE rating_job_runs SET status = 'partial', message = ${message}, collected = ${collected}, requests = ${requests}, players = ${players}, finished_at = now() WHERE id = ${runId}::uuid`
-    return { status: 'partial', message, collected, requests, players }
+    return { status: 'partial', message, collected, requests, players, history }
   } finally {
     await sql`UPDATE rating_job_lease SET owner = NULL, expires_at = NULL WHERE singleton AND owner = ${runId}::uuid`
   }
