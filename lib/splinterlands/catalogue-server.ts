@@ -40,7 +40,7 @@ const loadCatalogue = unstable_cache(
       return snapshot as unknown as CatalogueCard[]
     }
   },
-  ['splinterlands-normalized-catalogue-v2'],
+  ['splinterlands-normalized-catalogue-v3'],
   { revalidate: 3600 }
 )
 

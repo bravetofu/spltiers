@@ -194,10 +194,10 @@ export function normalizeCatalogue(
             ).sort(),
           ])
         ),
-        preview:
-          !card.total_printed ||
-          (!!card.print_start_date &&
-            Date.parse(card.print_start_date) > Date.now()),
+        // Print metadata can lag releases; existing copies establish circulation.
+        preview: !(card.distribution ?? []).some(
+          (entry) => Number(entry.num_cards) > 0
+        ),
       } satisfies CatalogueCard
     })
     .sort((a, b) => a.name.localeCompare(b.name))

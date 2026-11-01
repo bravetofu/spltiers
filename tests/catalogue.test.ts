@@ -32,6 +32,7 @@ const raw = (changes: Partial<RawCard> = {}): RawCard => ({
   tier: 0,
   game_type: 'splinterlands',
   total_printed: 100,
+  distribution: [{ edition: 0, gold: false, num_cards: '100' }],
   stats: {
     mana: [3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
     attack: [0, 0, 0, 1],
@@ -66,7 +67,7 @@ test('catalogue includes old, modern, gladiator, Foundation, land, and unprinted
         editions: '19',
         stats: { land_abilities: [[['GRAIN', 0.1]]] },
       }),
-      raw({ id: 5, total_printed: 0 }),
+      raw({ id: 5, total_printed: 0, distribution: [] }),
       raw({ id: 10000, game_type: 'soulkeep' }),
     ],
     settings
@@ -74,6 +75,33 @@ test('catalogue includes old, modern, gladiator, Foundation, land, and unprinted
   assert.equal(cards.length, 5)
   assert.equal(cards.find((card) => card.id === 4)?.kind, 'land')
   assert.equal(cards.find((card) => card.id === 5)?.preview, true)
+})
+test('circulation determines preview status even when print metadata disagrees', () => {
+  const cards = normalizeCatalogue(
+    [
+      raw({ id: 780, name: 'Grix', total_printed: 0 }),
+      raw({ id: 2, print_start_date: '2999-01-01' }),
+      raw({
+        id: 3,
+        distribution: [{ edition: 0, gold: false, num_cards: '0' }],
+      }),
+      raw({ id: 4, distribution: undefined }),
+      raw({
+        id: 5,
+        distribution: [
+          { edition: 0, gold: false, num_cards: '0' },
+          { edition: 1, gold: true, num_cards: '1' },
+        ],
+      }),
+    ],
+    settings
+  )
+  for (const id of [780, 2, 5]) {
+    assert.equal(cards.find((card) => card.id === id)?.preview, false)
+  }
+  for (const id of [3, 4]) {
+    assert.equal(cards.find((card) => card.id === id)?.preview, true)
+  }
 })
 test('Modern uses current game settings including reward/promo parent tiers and explicit exceptions', () => {
   const cards = normalizeCatalogue(
