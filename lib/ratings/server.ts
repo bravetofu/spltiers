@@ -1,4 +1,5 @@
 import 'server-only'
+import { ENGINE_VERSION } from './types'
 import { unstable_cache } from 'next/cache'
 import {
   ratingDatabase,
@@ -40,7 +41,7 @@ export const getRatingIndex = unstable_cache(
       ]),
     )
   },
-  ['rating-index-v1'],
+  ['rating-index-v1', ENGINE_VERSION],
   { tags: ['ratings'], revalidate: 300 },
 )
 export const getCardRatings = unstable_cache(
@@ -58,13 +59,13 @@ export const getCardRatings = unstable_cache(
       scoredAt: rows[0]?.scored_at as string | undefined,
     }
   },
-  ['card-ratings-v1'],
+  ['card-ratings-v1', ENGINE_VERSION],
   { tags: ['ratings'], revalidate: 300 },
 )
 export const getAbilityRatings = unstable_cache(
   async (league: League, format: BattleFormat, name?: string) =>
     publicScores('ability', league, format, name, true),
-  ['ability-ratings-v1'],
+  ['ability-ratings-v1', ENGINE_VERSION],
   { tags: ['ratings'], revalidate: 300 },
 )
 export const getAbilityDetails = unstable_cache(
@@ -86,12 +87,12 @@ export const getAbilityDetails = unstable_cache(
       ratings: (rows[0]?.ratings ?? []) as AbilityRating[],
     }
   },
-  ['ability-details-v1'],
+  ['ability-details-v1', ENGINE_VERSION],
   { tags: ['ratings'], revalidate: 300 },
 )
 export const getPublishedProfile = unstable_cache(
   () => publishedConfig(true),
-  ['rating-profile-v1'],
+  ['rating-profile-v1', ENGINE_VERSION],
   { tags: ['ratings'], revalidate: 300 },
 )
 export const getCollectorStatus = unstable_cache(

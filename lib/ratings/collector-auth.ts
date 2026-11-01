@@ -37,7 +37,7 @@ export async function authorizeCollector(
       algorithms: ['RS256'],
       maxTokenAge: '10m',
     })
-    return isCollectorWorkflow(payload)
+    return isCollectorWorkflow(payload) ? (payload.event_name === 'push' ? 'deployment' : true) : false
   } catch {
     return false
   }

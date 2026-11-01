@@ -6,14 +6,15 @@ import { getCatalogue } from '@/lib/splinterlands/catalogue-server'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 export async function GET(request: NextRequest) {
-  if (!(await authorizeCollector(request.headers.get('authorization') ?? '')))
+  const authorization = await authorizeCollector(request.headers.get('authorization') ?? '')
+  if (!authorization)
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   try {
     const result = await runCollector(await getCatalogue())
     revalidateTag('rating-collection')
-    if ('ratingsRefreshed' in result && result.ratingsRefreshed)
+    if (authorization === 'deployment' || ('ratingsRefreshed' in result && result.ratingsRefreshed))
       revalidateTag('ratings')
-    return NextResponse.json(result, {
+    return NextResponse.json({...result, deploymentCommit: process.env.VERCEL_GIT_COMMIT_SHA}, {
       headers: { 'Cache-Control': 'no-store' },
     })
   } catch {
