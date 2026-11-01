@@ -206,6 +206,16 @@ export async function writeSnapshot(
     WHERE singleton AND active_profile_id = ${profileId}::uuid AND EXISTS (SELECT 1 FROM rating_snapshots WHERE id = ${snapshotId}::uuid) RETURNING revision
   `,
   )
+  // Preserve each publication's first snapshot and its two newest snapshots.
+  // Raw battles and curated profile history are retained independently.
+  queries.push(sql`DELETE FROM rating_snapshots WHERE id IN (
+    SELECT id FROM (
+      SELECT id, row_number() OVER (ORDER BY created_at, id) AS first_rank,
+        row_number() OVER (ORDER BY created_at DESC, id DESC) AS newest_rank
+      FROM rating_snapshots WHERE profile_id = ${profileId}::uuid
+    ) ranked WHERE first_rank > 1 AND newest_rank > 2
+  ) AND id <> (SELECT active_snapshot_id FROM rating_workspace WHERE singleton)
+    AND EXISTS (SELECT 1 FROM rating_snapshots WHERE id = ${snapshotId}::uuid)`)
   const results = await sql.transaction(queries)
-  return results.at(-1)?.[0]?.revision as number | undefined
+  return results.at(-2)?.[0]?.revision as number | undefined
 }

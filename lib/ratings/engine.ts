@@ -1,3 +1,4 @@
+import { teamEngineParts } from './team-engines'
 import {
   abilitiesAt,
   levelForLeague,
@@ -80,6 +81,7 @@ export function curatedCard(
   league: League,
   format: BattleFormat,
   profile: RatingProfile,
+  catalogue: CatalogueCard[] = [],
 ): { score: number; parts: ScorePart[]; level: number } | null {
   if (card.kind === 'land' || (format === 'modern' && !card.modern)) return null
   const level = levelForLeague(card, league)
@@ -243,6 +245,7 @@ export function curatedCard(
     })
   else if (card.splinters.length > 1)
     parts.push({ label: 'Dual-splinter flexibility', value: 0.25 })
+  parts.push(...teamEngineParts(card, league, format, catalogue, profile))
   const raw = parts.reduce((sum, part) => sum + part.value, 0)
   // Fixed smooth calibration: stable when a new card is added, and no artificial
   // requirement that the strongest card in a pool must be a perfect 10.
@@ -275,8 +278,9 @@ export function rateCard(
   format: BattleFormat,
   profile: RatingProfile,
   evidence?: Evidence,
+  catalogue: CatalogueCard[] = [],
 ): CardRating | null {
-  const prior = curatedCard(card, league, format, profile)
+  const prior = curatedCard(card, league, format, profile, catalogue)
   return prior
     ? {
         cardId: card.id,
@@ -332,6 +336,7 @@ export function allRatings(
           format,
           profile,
           evidence[`card:${ratingKey(card.id, league, format)}`],
+          cards,
         )
         if (rating) cardRatings.push(rating)
       }

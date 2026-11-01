@@ -257,3 +257,47 @@ test('shared-post discovery accepts only official replay URLs and extracts no ar
     [id],
   )
 })
+
+test('repeatable tribute rewards mechanics and affordability, not card identity', () => {
+  const grix = cards.find((c) => c.name === 'Grix')!
+  const score = (card: CatalogueCard, pool = cards) =>
+    curatedCard(card, 'diamond', 'modern', profile, pool)!.score
+  const original = score(grix)
+  assert.ok(original > 9.8)
+  const anonymous = { ...grix, id: 999999, name: 'Anonymous test unit' }
+  assert.equal(
+    score(
+      anonymous,
+      cards.map((c) => (c.id === grix.id ? anonymous : c)),
+    ),
+    original,
+  )
+  const without = (ability: string) => ({
+    ...grix,
+    stats: {
+      ...grix.stats,
+      abilities: (grix.stats.abilities as string[][]).map((level) =>
+        level.filter((a) => a !== ability),
+      ),
+    },
+  })
+  assert.ok(score(without('Rebirth')) < original)
+  assert.ok(score(without('Taunt')) < original)
+  assert.ok(
+    score({ ...grix, stats: { ...grix.stats, mana: [9, 9, 9, 9] } }) < original,
+  )
+  assert.ok(score(grix, []) < original)
+  const mancer = cards.find((c) => c.name === 'Dragonlord Mancer')!
+  assert.ok(
+    score(mancer, cards) >
+      score(
+        mancer,
+        cards.filter(
+          (c) => !abilitiesAt(c, c.maxLevel).includes('Bloodline Tribute'),
+        ),
+      ),
+  )
+  assert.ok(
+    curatedCard(grix, 'bronze', 'modern', profile, cards)!.score < original,
+  )
+})

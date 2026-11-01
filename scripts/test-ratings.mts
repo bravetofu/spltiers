@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises'
 import nextEnv from '@next/env'
 import { SignJWT } from 'jose'
 import { ratingDatabase, readWorkspace } from '../lib/ratings/store'
-import { saveCollectedBattle } from '../lib/ratings/collector'
+import { saveCollectedBattle, runCollector } from '../lib/ratings/collector'
 import { parseBattle } from '../lib/ratings/battles'
 import type { CatalogueCard } from '../lib/splinterlands/catalogue'
 nextEnv.loadEnvConfig(process.cwd())
@@ -149,6 +149,21 @@ try {
     count[0].n > 6000,
     'Publication must include the whole score snapshot',
   )
+  const firstSnapshot = (
+    await sql`SELECT id::text FROM rating_snapshots WHERE profile_id=${versions[0].id}::uuid ORDER BY created_at,id LIMIT 1`
+  )[0].id
+  for (let i = 0; i < 4; i++)
+    assert.equal(
+      (await request('/api/admin/ratings', { action: 'refresh' })).status,
+      200,
+    )
+  const retained =
+    await sql`SELECT id::text FROM rating_snapshots WHERE profile_id=${versions[0].id}::uuid`
+  assert.equal(retained.length, 3, 'Automatic snapshot history must be bounded')
+  assert.ok(
+    retained.some((row) => row.id === firstSnapshot),
+    'Publication snapshot must be preserved',
+  )
   const restored = await request('/api/admin/ratings', {
     action: 'restore',
     profileId: original.workspace!.active_profile_id,
@@ -167,6 +182,24 @@ try {
       'utf8',
     ),
   ) as CatalogueCard[]
+  const snapshotBefore = (
+    await sql`SELECT active_snapshot_id::text FROM rating_workspace WHERE singleton`
+  )[0].active_snapshot_id
+  const collection = await runCollector(cards, {
+    maxRequests: 0,
+    durationMs: 0,
+  })
+  assert.equal(
+    'ratingsRefreshed' in collection && collection.ratingsRefreshed,
+    false,
+  )
+  assert.equal(
+    (
+      await sql`SELECT active_snapshot_id::text FROM rating_workspace WHERE singleton`
+    )[0].active_snapshot_id,
+    snapshotBefore,
+    'Frequent collection must reuse a fresh score snapshot',
+  )
   const raw = JSON.parse(
     await readFile(
       new URL('../tests/fixtures/modern-ranked-battle.json', import.meta.url),

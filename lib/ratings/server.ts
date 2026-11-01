@@ -97,5 +97,5 @@ export const getPublishedProfile = unstable_cache(
 export const getCollectorStatus = unstable_cache(
   () => collectorStatus(true),
   ['rating-collector-v1'],
-  { tags: ['ratings'], revalidate: 60 },
+  { tags: ['ratings', 'rating-collection'], revalidate: 60 },
 )

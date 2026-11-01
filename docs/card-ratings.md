@@ -52,8 +52,7 @@ Raw replays and versioned snapshots allow future parser and model improvements.
 
 ## Collection and API findings
 
-Vercel calls `/api/cron/collect-battles` daily at 02:00 UTC. The route requires
-`Authorization: Bearer <CRON_SECRET>` and fails closed if it is unset. A database
+GitHub Actions calls `/api/cron/collect-battles` at minutes 7, 22, 37 and 52 each hour; scheduled Actions can be delayed. The public repository uses a minimal runner without checkout. Vercel also retains the daily 02:00 UTC fallback. The GitHub job authenticates with a short-lived OIDC identity verified against the issuer, audience, repository and owner IDs, main branch, exact workflow path, and allowed event. No shared GitHub secret is needed. The Vercel fallback uses `Authorization: Bearer <CRON_SECRET>`; invalid identities fail closed. A database
 lease prevents overlapping runs. Each run has request, time and replay limits;
 pending IDs and a rotating player roster persist between runs. The admin can
 seed accounts, submit research replay IDs, run collection and refresh scores.
@@ -136,3 +135,21 @@ The database integration test checks authorization, validation, private drafts,
 preview, publication/cache invalidation, concurrent publication, restore,
 source bias, idempotent ingestion and parser upgrades; it restores test changes.
 The unit fixture is a real ranked replay with the large round log omitted.
+
+## Engine 1.1 and collection storage
+
+Bloodline Tribute models up to three compatible beneficiaries, one death trigger
+or two with Rebirth, higher trigger reliability with Taunt, and mana affordability.
+The existing ability contribution is subtracted to avoid counting the same base
+benefit twice. Matching bloodline and Shapeshift allies are drawn from the legal
+format catalogue at the selected cap. Bloodline Dominion and Scavenger partnerships
+are conditional team-building priors; no card name or ID is special-cased. This
+is an approximate team model and assumes appropriate active splinters/rulesets,
+not a simulation or an observed win-rate claim.
+
+Collection recomputes ratings only when the active snapshot is at least 24 hours
+old (or explicitly forced). Admin publication/refresh remains immediate. Each
+profile retains its first snapshot and two most recent snapshots; redundant
+automatic snapshots are pruned transactionally. Raw replay archives and published
+curation history are preserved. A scoring-engine deployment refreshes the
+published profile once without overwriting the draft or its curation.

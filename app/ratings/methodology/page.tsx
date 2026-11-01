@@ -78,6 +78,18 @@ export default async function Methodology() {
           constants were not copied. Current starting weights are open to review
           in the publishing workflow.
         </p>
+        <h2>Team engines and partnerships</h2>
+        <p>
+          Bloodline Tribute is valued as a conditional team buff: up to three
+          matching-bloodline or Shapeshift allies, shared attack types, and
+          additional death triggers from Rebirth. Taunt improves trigger
+          reliability, and low mana leaves room for the beneficiaries.
+          Compatible Bloodline Dominion summoners expand the available team;
+          Scavenger can benefit from repeated deaths. These are team-building
+          assumptions, not measured causal contributions. Only abilities
+          unlocked at the selected level count, and alternative partners are not
+          added together.
+        </p>
         <h2>How battle evidence changes a score</h2>
         <p>
           The collector retains replay data, source, time, format and parser
@@ -148,13 +160,15 @@ export default async function Methodology() {
             : 'The collection job has not completed a run yet.'}
         </p>
         <p>
-          A daily job discovers players from public leaderboards and opponents,
-          samples their active ranked queues, and resolves full replays without
-          an access token. Shared or manually submitted replays are archived for
-          research only, because players selectively share their results. Bulk
-          history access depends on the upstream API’s current access rules.
-          Publicly discoverable matches are a sample, not a complete or random
-          game-wide archive.
+          A job scheduled every 15 minutes discovers players from public
+          leaderboards and opponents, samples their active ranked queues, and
+          resolves full replays without an access token. Ratings refresh daily;
+          collection runs retain new replays between refreshes. Scheduled runs
+          may be delayed by the hosting provider. Shared or manually submitted
+          replays are archived for research only, because players selectively
+          share their results. Bulk history access depends on the upstream API’s
+          current access rules. Publicly discoverable matches are a sample, not
+          a complete or random game-wide archive.
         </p>
         <h2>Publishing and accountability</h2>
         <p>

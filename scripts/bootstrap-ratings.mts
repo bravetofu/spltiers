@@ -5,9 +5,12 @@ import {
   ratingDatabase,
   readWorkspace,
   writeSnapshot,
+  publishedConfig,
+  readEvidence,
 } from '../lib/ratings/store'
 import { allRatings } from '../lib/ratings/engine'
 import { checkedProfile } from '../lib/ratings/validation'
+import { ENGINE_VERSION } from '../lib/ratings/types'
 import type { CatalogueCard } from '../lib/splinterlands/catalogue'
 nextEnv.loadEnvConfig(process.cwd())
 const config = checkedProfile(
@@ -57,4 +60,16 @@ if (
       await runCollector(cards, { maxRequests: 60, durationMs: 60000 }),
     ),
   )
+}
+
+// Recompute existing curation once when the scoring engine changes.
+const active =
+  await sql`SELECT engine_version FROM rating_snapshots WHERE id = (SELECT active_snapshot_id FROM rating_workspace WHERE singleton)`
+if (active[0]?.engine_version !== ENGINE_VERSION) {
+  const profile = await publishedConfig()
+  if (profile)
+    await writeSnapshot(
+      profile.id,
+      allRatings(cards, profile.config, await readEvidence()),
+    )
 }

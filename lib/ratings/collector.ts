@@ -89,6 +89,7 @@ export type CollectionOptions = {
   maxRequests?: number
   durationMs?: number
   replayIds?: string[]
+  refreshRatings?: boolean
 }
 export async function runCollector(
   catalogue: CatalogueCard[],
@@ -113,6 +114,7 @@ export async function runCollector(
     accessBlocked = false,
     historyAttempted = false,
     failures = 0
+  let ratingsRefreshed = false
   const available = () =>
     Date.now() < deadline - 1500 && requests < maxRequests && collected < 200
   async function request(
@@ -336,7 +338,13 @@ export async function runCollector(
     // Refresh even without new matches: evidence must age out, and game stats or
     // format eligibility can change independently of collection activity.
     let profile = await publishedConfig()
-    if (profile) {
+    const latest =
+      await sql`SELECT created_at FROM rating_snapshots WHERE id = (SELECT active_snapshot_id FROM rating_workspace WHERE singleton)`
+    const due =
+      !latest[0] ||
+      Date.now() - new Date(latest[0].created_at).getTime() >= 86400000
+    if (profile && (options.refreshRatings || due)) {
+      ratingsRefreshed = true
       const evidence = await readEvidence()
       const revision = await writeSnapshot(
         profile.id,
@@ -364,7 +372,7 @@ export async function runCollector(
           : 'completed'
     const message = `${mode}. Archived ${collected} new replay${collected === 1 ? '' : 's'}. Shared/manual replays are research-only; only qualifying ranked queue/history samples affect ratings.${accessBlocked && username && token ? ' Configured history authentication was rejected.' : ''}${failures ? ` ${failures} upstream request(s) failed.` : ''}`
     await sql`UPDATE rating_job_runs SET status = ${status}, message = ${message}, collected = ${collected}, requests = ${requests}, players = ${players}, finished_at = now() WHERE id = ${runId}::uuid`
-    return { status, message, collected, requests, players }
+    return { status, message, collected, requests, players, ratingsRefreshed }
   } catch (error) {
     // Never log request URLs: authenticated history queries contain a secret.
     const message =
