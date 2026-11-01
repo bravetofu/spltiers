@@ -1,6 +1,10 @@
 const columns = [
   'Card',
   'Rating',
+  'Uses',
+  'Wins',
+  'Losses',
+  'Win rate',
   'Splinter',
   'Rarity',
   'Edition',

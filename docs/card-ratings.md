@@ -52,6 +52,26 @@ Raw replays and versioned snapshots allow future parser and model improvements.
 
 ## Collection and API findings
 
+### Public card battle results
+
+Unit and summoner tables and detail pages show lifetime collected ranked uses,
+wins, losses and win rate for the selected format and league cap. Details also
+show draws. These are the collected sample, not global game totals. One card
+appearance per team counts as a use, including underlevelled cards. A mirror
+match contributes two uses (a win and a loss, or two draws). Win rate is
+`wins / uses`; draws remain in the denominator, and an empty sample has no rate.
+Shared/manual research replays, surrenders, incomplete/unresolved matches and
+unmapped caps are excluded using the existing battle eligibility checks.
+
+`rating_card_usage` records descriptive appearances separately from strength
+observations. It has no 90-day cutoff, player-volume cap or time weighting.
+Collector transactions deduplicate replays and replace derived rows atomically
+when reprocessing. Deploy initialization backfills archived replays with parser
+version 2. Cached public totals invalidate after collection, independently of
+the daily rating snapshots. Rating evidence retains its stricter filters.
+
+### Collection schedule
+
 GitHub Actions calls `/api/cron/collect-battles` every three hours at minute 7 (00:07, 03:07, …, 21:07 UTC; eight scheduled runs per day); scheduled Actions can be delayed. The public repository uses a minimal runner without checkout. The GitHub job authenticates with a short-lived OIDC identity verified against the issuer, audience, repository and owner IDs, main branch, exact workflow path, and allowed event. No shared GitHub secret is needed. Manual server triggers can also use `Authorization: Bearer <CRON_SECRET>`; invalid identities fail closed. A database
 lease prevents overlapping runs. Each run has request, time and replay limits;
 pending IDs and a rotating player roster persist between runs. The admin can

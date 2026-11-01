@@ -1381,3 +1381,26 @@
 .rating-admin-fields:disabled {
   opacity: 0.7;
 }
+
+.card-battle-stats {
+  margin: 1.5rem 0;
+}
+.battle-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+.battle-metrics dt {
+  color: var(--text-muted, #9ca3af);
+  font-size: 0.85rem;
+}
+.battle-metrics dd {
+  margin: 0.3rem 0 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.battle-win-rate {
+  white-space: nowrap;
+}

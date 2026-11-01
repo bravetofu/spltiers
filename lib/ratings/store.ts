@@ -10,6 +10,33 @@ import type {
   RatingProfile,
 } from './types'
 import { ENGINE_VERSION } from './types'
+import type { CardBattleStats } from './battle-stats'
+
+export async function readCardBattleStats(
+  cachedRead = false,
+): Promise<CardBattleStats[]> {
+  const sql = ratingDatabase(cachedRead)
+  // Lifetime collected sample, without strength-model time/volume weighting.
+  const rows = await sql`
+    SELECT u.card_id, b.league, b.format, count(*)::int AS uses,
+      count(*) FILTER (WHERE u.outcome = 1)::int AS wins,
+      count(*) FILTER (WHERE u.outcome = 0)::int AS losses,
+      count(*) FILTER (WHERE u.outcome = 0.5)::int AS draws
+    FROM rating_card_usage u JOIN rating_battles b ON b.id = u.battle_id
+    WHERE b.eligible AND b.league IS NOT NULL
+    GROUP BY u.card_id, b.league, b.format
+    ORDER BY u.card_id, b.league, b.format
+  `
+  return rows.map((r) => ({
+    cardId: r.card_id,
+    league: r.league,
+    format: r.format,
+    uses: r.uses,
+    wins: r.wins,
+    losses: r.losses,
+    draws: r.draws,
+  }))
+}
 
 neonConfig.fetchEndpoint = (host) => `https://${host}/sql`
 export function ratingDatabase(cachedRead = false) {
@@ -27,7 +54,12 @@ export async function readWorkspace() {
     sql`SELECT id::text, started_at::text, finished_at::text, status, message, collected, requests, players FROM rating_job_runs ORDER BY started_at DESC LIMIT 12`,
     sql`SELECT count(*)::int AS battles, count(*) FILTER (WHERE eligible)::int AS eligible, max(played_at)::text AS latest FROM rating_battles`,
   ])
-  return { workspace: workspace[0] ?? null, profiles, runs, counts: counts[0] }
+  return {
+    workspace: workspace[0] ?? null,
+    profiles,
+    runs,
+    counts: counts[0],
+  }
 }
 export async function saveDraft(config: RatingProfile, revision: number) {
   const sql = ratingDatabase()

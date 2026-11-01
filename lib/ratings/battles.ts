@@ -22,6 +22,12 @@ export type BattleObservation = {
   expected: number
   mirrored: boolean
 }
+export type CardUsage = {
+  side: 1 | 2
+  cardId: number
+  level: number
+  outcome: number
+}
 export type ParsedBattle = {
   id: string
   queueIds: string[]
@@ -38,6 +44,7 @@ export type ParsedBattle = {
   parserVersion: number
   raw: Record<string, unknown>
   observations: BattleObservation[]
+  cardUsage: CardUsage[]
   players: string[]
 }
 const record = (v: unknown): v is Record<string, unknown> =>
@@ -207,6 +214,7 @@ export function parseBattle(
                   ? 'Missing battle context'
                   : null
   const observations: BattleObservation[] = []
+  const cardUsage: CardUsage[] = []
   if (!exclusion && league) {
     const featureSets = lineups.map((team) => {
       const features = new Map<
@@ -241,6 +249,15 @@ export function parseBattle(
       const expected =
         1 / (1 + Math.pow(10, (ratings[1 - side]! - ratings[side]!) / 400))
       const outcome = draw ? 0.5 : winner === players[side] ? 1 : 0
+      // Usage is descriptive: retain underlevelled and mirrored appearances.
+      // Strength evidence keeps its separate cap-level and mirror exclusions.
+      for (const unit of lineups[side])
+        cardUsage.push({
+          side: (side + 1) as 1 | 2,
+          cardId: Number(unit.card_detail_id),
+          level: Number(unit.level),
+          outcome,
+        })
       for (const [key, feature] of Array.from(featureSets[side]))
         observations.push({
           side: (side + 1) as 1 | 2,
@@ -294,6 +311,7 @@ export function parseBattle(
       keep.filter((key) => key in value).map((key) => [key, value[key]]),
     ),
     observations,
+    cardUsage,
     players,
   }
 }

@@ -6,7 +6,9 @@ import {
   publicScores,
   publishedConfig,
   collectorStatus,
+  readCardBattleStats,
 } from './store'
+import { EMPTY_BATTLE_STATS, type BattleStats } from './battle-stats'
 import type {
   AbilityRating,
   AbilityWeight,
@@ -19,48 +21,72 @@ import type {
 
 export type ScoreIndex = Record<
   string,
-  [number, Confidence, number, BattleFormat]
+  [number, Confidence, number, BattleFormat, BattleStats | null]
 >
+export const getBattleStats = unstable_cache(
+  () => readCardBattleStats(true),
+  ['card-battle-usage-v1'],
+  { tags: ['rating-collection'], revalidate: 300 },
+)
 export const getRatingIndex = unstable_cache(
   async (
     league: League,
     format: BattleFormat | 'auto',
   ): Promise<ScoreIndex> => {
     const sql = ratingDatabase(true)
-    const rows = await sql`
+    const [rows, stats] = await Promise.all([
+      sql`
     SELECT DISTINCT ON (s.subject) s.subject, (s.data->>'score')::float AS score,
       s.data->>'confidence' AS confidence, (s.data->'evidence'->>'battles')::int AS battles, s.format
     FROM rating_workspace w JOIN rating_scores s ON s.snapshot_id = w.active_snapshot_id
     WHERE w.singleton AND s.kind = 'card' AND s.league = ${league} AND (${format} = 'auto' OR s.format = ${format})
     ORDER BY s.subject, s.format
-  `
+  `,
+      getBattleStats().catch(() => null),
+    ])
+    const usage = new Map(
+      stats?.map((s) => [`${s.cardId}:${s.league}:${s.format}`, s]),
+    )
     return Object.fromEntries(
       rows.map((row) => [
         row.subject,
-        [row.score, row.confidence, row.battles, row.format],
+        [
+          row.score,
+          row.confidence,
+          row.battles,
+          row.format,
+          stats === null
+            ? null
+            : (usage.get(`${row.subject}:${league}:${row.format}`) ??
+              EMPTY_BATTLE_STATS),
+        ],
       ]),
     )
   },
-  ['rating-index-v1', ENGINE_VERSION],
-  { tags: ['ratings'], revalidate: 300 },
+  ['rating-index-v2', ENGINE_VERSION],
+  { tags: ['ratings', 'rating-collection'], revalidate: 300 },
 )
 export const getCardRatings = unstable_cache(
   async (id: number) => {
     const sql = ratingDatabase(true)
-    const rows = await sql`
+    const [rows, stats] = await Promise.all([
+      sql`
     SELECT s.data, p.label, p.id::text, p.published_at::text, sn.created_at::text AS scored_at
     FROM rating_workspace w JOIN rating_scores s ON s.snapshot_id = w.active_snapshot_id
     JOIN rating_profiles p ON p.id = w.active_profile_id JOIN rating_snapshots sn ON sn.id = w.active_snapshot_id
     WHERE w.singleton AND s.kind = 'card' AND s.subject = ${String(id)}
-  `
+  `,
+      getBattleStats().catch(() => null),
+    ])
     return {
       ratings: rows.map((row) => row.data) as CardRating[],
       version: rows[0]?.label as string | undefined,
       scoredAt: rows[0]?.scored_at as string | undefined,
+      battleStats: stats?.filter((s) => s.cardId === id) ?? null,
     }
   },
-  ['card-ratings-v1', ENGINE_VERSION],
-  { tags: ['ratings'], revalidate: 300 },
+  ['card-ratings-v2', ENGINE_VERSION],
+  { tags: ['ratings', 'rating-collection'], revalidate: 300 },
 )
 export const getAbilityRatings = unstable_cache(
   async (league: League, format: BattleFormat, name?: string) =>

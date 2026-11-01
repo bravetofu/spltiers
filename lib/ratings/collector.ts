@@ -56,6 +56,7 @@ export async function saveCollectedBattle(
   const processingToken = randomUUID()
   const raw = JSON.stringify(battle.raw)
   const observations = JSON.stringify(battle.observations)
+  const usage = JSON.stringify(battle.cardUsage)
   const [saved] = await sql.transaction([
     sql`
       INSERT INTO rating_battles (id, queue_ids, played_at, format, match_type, league, league_method, mana, rulesets, winner, eligible, exclusion, parser_version, source, raw, processing_token)
@@ -75,6 +76,14 @@ export async function saveCollectedBattle(
       FROM jsonb_to_recordset(${observations}::jsonb) AS o(side smallint, kind text, subject text, level smallint, player text, outcome real, expected real, mirrored boolean)
       WHERE EXISTS (SELECT 1 FROM rating_battles WHERE id = ${battle.id} AND processing_token = ${processingToken}::uuid)
       ON CONFLICT (battle_id, side, kind, subject) DO NOTHING
+    `,
+    sql`DELETE FROM rating_card_usage WHERE battle_id = ${battle.id} AND EXISTS (SELECT 1 FROM rating_battles WHERE id = ${battle.id} AND processing_token = ${processingToken}::uuid)`,
+    sql`
+      INSERT INTO rating_card_usage (battle_id, side, card_id, level, outcome)
+      SELECT ${battle.id}, side, "cardId", level, outcome
+      FROM jsonb_to_recordset(${usage}::jsonb) AS u(side smallint, "cardId" integer, level smallint, outcome real)
+      WHERE EXISTS (SELECT 1 FROM rating_battles WHERE id = ${battle.id} AND processing_token = ${processingToken}::uuid)
+      ON CONFLICT (battle_id, side, card_id) DO NOTHING
     `,
     sql`DELETE FROM rating_pending_battles WHERE queue_id = ANY(${battle.queueIds}::text[])`,
     sql`INSERT INTO rating_collection_accounts (player, discovered_from) SELECT player, 'opponent' FROM unnest(${battle.players}::text[]) AS player ON CONFLICT (player) DO NOTHING`,
@@ -203,6 +212,12 @@ export async function runCollector(
     }
   }
   try {
+    // Catch replays written by the previous deployment during the rollout.
+    // Keep the scheduled maintenance batch small enough for the collection budget.
+    if (available()) {
+      const { backfillBattleUsage } = await import('./backfill')
+      await backfillBattleUsage(catalogue, 10)
+    }
     if (options.replayIds?.length)
       await pending(options.replayIds, 'manual-replay')
     const admin = process.env.NEXT_PUBLIC_HIVE_ADMIN_ACCOUNT ?? 'brave.sps'
@@ -372,7 +387,14 @@ export async function runCollector(
           : 'completed'
     const message = `${mode}. Archived ${collected} new replay${collected === 1 ? '' : 's'}. Shared/manual replays are research-only; only qualifying ranked queue/history samples affect ratings.${accessBlocked && username && token ? ' Configured history authentication was rejected.' : ''}${failures ? ` ${failures} upstream request(s) failed.` : ''}`
     await sql`UPDATE rating_job_runs SET status = ${status}, message = ${message}, collected = ${collected}, requests = ${requests}, players = ${players}, finished_at = now() WHERE id = ${runId}::uuid`
-    return { status, message, collected, requests, players, ratingsRefreshed }
+    return {
+      status,
+      message,
+      collected,
+      requests,
+      players,
+      ratingsRefreshed,
+    }
   } catch (error) {
     // Never log request URLs: authenticated history queries contain a secret.
     const message =

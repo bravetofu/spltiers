@@ -18,6 +18,7 @@ import { validAccount, validQueueId } from '@/lib/ratings/battles'
 export const maxDuration = 300
 function refresh() {
   revalidateTag('ratings')
+  revalidateTag('rating-collection')
   revalidatePath('/cards')
   revalidatePath('/abilities')
   revalidatePath('/ratings/methodology')

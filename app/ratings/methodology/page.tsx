@@ -127,6 +127,22 @@ export default async function Methodology() {
           up to 65%. Scores remain bounded at 0–10. No data, unavailable data or
           weak evidence does not mean a zero rating.
         </p>
+        <h2>Card uses and win rates</h2>
+        <p>
+          Tables and card pages show uses, wins, losses and win rate from our
+          lifetime collected ranked sample, scoped to the selected format and
+          league cap. These are not global game totals. Each team using a card
+          contributes one use, including underlevelled cards. A mirror match
+          contributes two uses: one win and one loss, or two draws.
+        </p>
+        <p>
+          Win rate is wins divided by uses. Draws remain in the denominator and
+          are shown separately on card pages; an empty sample displays no rate.
+          Shared research replays and matches failing the eligibility checks
+          above are excluded. Usage totals update after collection and do not
+          use the rating model’s 90-day window, daily account limits or mirror
+          exclusions. Ratings still refresh daily using their filtered evidence.
+        </p>
         <h2>Confidence and limitations</h2>
         <p>
           “Curated only” means the battle threshold has not been met. “Early,”

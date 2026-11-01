@@ -10,23 +10,34 @@ import {
   type League,
 } from '@/lib/ratings/types'
 import RatingBadge, { CONFIDENCE_LABELS } from './RatingBadge'
+import {
+  EMPTY_BATTLE_STATS,
+  formatWinRate,
+  type CardBattleStats,
+} from '@/lib/ratings/battle-stats'
 
 export default function CardRatings({
   card,
   ratings,
   version,
   scoredAt,
+  battleStats,
 }: {
   card: CatalogueCard
   ratings: CardRating[]
   version?: string
   scoredAt?: string
+  battleStats?: CardBattleStats[] | null
 }) {
   const [league, setLeague] = useState<League>('diamond')
   const [format, setFormat] = useState<BattleFormat>(
     card.modern ? 'modern' : 'wild',
   )
   const rating = ratings.find((r) => r.league === league && r.format === format)
+  const usage = battleStats
+    ? (battleStats.find((s) => s.league === league && s.format === format) ??
+      EMPTY_BATTLE_STATS)
+    : null
   if (card.kind === 'land')
     return (
       <section className="card-section rating-panel">
@@ -79,6 +90,57 @@ export default function CardRatings({
           ))}
         </div>
       </div>
+      <section
+        className="card-battle-stats"
+        aria-label="Collected battle results"
+      >
+        <h3>Collected battle results</h3>
+        {usage ? (
+          <>
+            <dl className="battle-metrics">
+              <div>
+                <dt>Uses</dt>
+                <dd>{usage.uses.toLocaleString('en-US')}</dd>
+              </div>
+              <div>
+                <dt>Wins</dt>
+                <dd>{usage.wins.toLocaleString('en-US')}</dd>
+              </div>
+              <div>
+                <dt>Losses</dt>
+                <dd>{usage.losses.toLocaleString('en-US')}</dd>
+              </div>
+              <div>
+                <dt>Draws</dt>
+                <dd>{usage.draws.toLocaleString('en-US')}</dd>
+              </div>
+              <div>
+                <dt>Win rate</dt>
+                <dd>{formatWinRate(usage)}</dd>
+              </div>
+            </dl>
+            {!usage.uses && (
+              <p className="rating-note">
+                No collected battles for this card in this format and league
+                yet.
+              </p>
+            )}
+          </>
+        ) : (
+          <p className="rating-note">
+            Battle results are temporarily unavailable.
+          </p>
+        )}
+        <p className="rating-note">
+          Lifetime collected ranked sample for{' '}
+          {format === 'modern' ? 'Modern' : 'Wild'}, {LEAGUE_NAMES[league]}{' '}
+          caps. One use per team, including underlevelled cards; mirror matches
+          count once for each team. Win rate = wins ÷ uses; draws are not wins.
+          Shared research replays and incomplete matches are excluded. Totals
+          update after collection and may differ from the filtered evidence used
+          for ratings.
+        </p>
+      </section>
       {rating ? (
         <>
           <div className="rating-summary">
@@ -106,7 +168,7 @@ export default function CardRatings({
                 </strong>
               </div>
               <div>
-                <span>Qualifying matches</span>
+                <span>Rating evidence</span>
                 <strong>
                   {rating.evidence.battles.toLocaleString('en-US')}
                 </strong>
@@ -125,8 +187,9 @@ export default function CardRatings({
           </p>
           {rating.evidence.battles > 0 && (
             <p className="rating-note">
-              Observed win rate: {(rating.evidence.rawWinRate * 100).toFixed(1)}
-              % · Player-adjusted:{' '}
+              Rating evidence outcome rate (draws count as half):{' '}
+              {(rating.evidence.rawWinRate * 100).toFixed(1)}% ·
+              Player-adjusted:{' '}
               {(rating.evidence.adjustedWinRate * 100).toFixed(1)}% ·{' '}
               {rating.evidence.days} distinct days. Shared cards on both teams
               and underlevelled card appearances are excluded from strength

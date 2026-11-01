@@ -27,6 +27,7 @@ import RatingBadge from '@/components/ratings/RatingBadge'
 import { useRatingIndex } from '@/components/ratings/useRatingIndex'
 import type { ScoreIndex } from '@/lib/ratings/server'
 import type { BattleFormat, League } from '@/lib/ratings/types'
+import { cardWinRate, formatWinRate } from '@/lib/ratings/battle-stats'
 
 const TABS: { kind: CardKind; label: string }[] = [
   { kind: 'unit', label: 'Units' },
@@ -42,6 +43,12 @@ const STATS: StatKey[] = [
   'armor',
   'health',
 ]
+const BATTLE_COLUMNS = [
+  ['uses', 'Uses'],
+  ['wins', 'Wins'],
+  ['losses', 'Losses'],
+  ['winRate', 'Win rate'],
+] as const
 const PAGE_SIZE = 50
 const DEFAULTS: CatalogueFilters = {
   kind: 'unit',
@@ -111,42 +118,35 @@ export default function CatalogueTable({
       ),
     [cards],
   )
-  const rows = useMemo(
-    () =>
-      filterCards(cards, deferredFilters).sort((a, b) => {
-        const av =
-          sort === 'rating'
-            ? (ratings.scores[a.id]?.[0] ?? -1)
-            : sort === 'name'
-              ? a.name
-              : sort === 'rarity'
-                ? a.rarity
-                : (statAt(
-                    a,
-                    sort as StatKey,
-                    levelForLeague(a, deferredFilters.league),
-                  ) ?? 0)
-        const bv =
-          sort === 'rating'
-            ? (ratings.scores[b.id]?.[0] ?? -1)
-            : sort === 'name'
-              ? b.name
-              : sort === 'rarity'
-                ? b.rarity
-                : (statAt(
-                    b,
-                    sort as StatKey,
-                    levelForLeague(b, deferredFilters.league),
-                  ) ?? 0)
-        return (
-          direction *
-            (typeof av === 'string' && typeof bv === 'string'
-              ? av.localeCompare(bv)
-              : Number(av) - Number(bv)) || a.name.localeCompare(b.name)
-        )
-      }),
-    [cards, deferredFilters, sort, direction, ratings.scores],
-  )
+  const rows = useMemo(() => {
+    const value = (card: CatalogueCard) => {
+      const rating = ratings.scores[card.id]
+      const usage = rating?.[4]
+      if (sort === 'rating') return rating?.[0] ?? -1
+      if (sort === 'winRate') return usage ? (cardWinRate(usage) ?? -1) : -1
+      if (sort === 'uses' || sort === 'wins' || sort === 'losses')
+        return usage?.[sort] ?? -1
+      if (sort === 'name') return card.name
+      if (sort === 'rarity') return card.rarity
+      return (
+        statAt(
+          card,
+          sort as StatKey,
+          levelForLeague(card, deferredFilters.league),
+        ) ?? 0
+      )
+    }
+    return filterCards(cards, deferredFilters).sort((a, b) => {
+      const av = value(a),
+        bv = value(b)
+      return (
+        direction *
+          (typeof av === 'string' && typeof bv === 'string'
+            ? av.localeCompare(bv)
+            : Number(av) - Number(bv)) || a.name.localeCompare(b.name)
+      )
+    })
+  }, [cards, deferredFilters, sort, direction, ratings.scores])
   const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE))
   const currentPage = Math.min(page, pages)
   function update(changes: Partial<CatalogueFilters>) {
@@ -165,7 +165,13 @@ export default function CatalogueTable({
   }
   function sortBy(key: string) {
     setSort(key)
-    setDirection(sort === key ? -direction : key === 'rating' ? -1 : 1)
+    setDirection(
+      sort === key
+        ? -direction
+        : key === 'rating' || BATTLE_COLUMNS.some(([column]) => column === key)
+          ? -1
+          : 1,
+    )
     setPage(1)
   }
   const select = (
@@ -357,7 +363,12 @@ export default function CatalogueTable({
           <thead>
             <tr>
               {heading('name', 'Card')}
-              {deferredFilters.kind !== 'land' && heading('rating', 'Rating')}
+              {deferredFilters.kind !== 'land' && (
+                <>
+                  {heading('rating', 'Rating')}
+                  {BATTLE_COLUMNS.map(([key, label]) => heading(key, label))}
+                </>
+              )}
               <th scope="col">Splinter</th>
               {heading('rarity', 'Rarity')}
               <th scope="col">Edition</th>
@@ -422,6 +433,11 @@ export default function CatalogueTable({
             (deferredFilters.format
               ? `${deferredFilters.format === 'modern' ? 'Modern' : 'Wild'} battle context. `
               : 'Modern context for Modern cards; Wild context for Wild-exclusive cards. ')}
+          Uses, wins and losses cover the lifetime collected ranked sample at
+          the selected league cap, including underlevelled cards. One use per
+          team; mirror matches count twice. Win rate = wins ÷ uses, with draws
+          included in uses. These totals update after collection; rating
+          evidence is filtered separately.{' '}
           <Link href="/ratings/methodology">
             Scores and confidence explained ↗
           </Link>
@@ -486,17 +502,34 @@ const CatalogueRow = memo(function CatalogueRow({
         </Link>
       </th>
       {kind !== 'land' && (
-        <td>
-          {rating ? (
-            <RatingBadge
-              score={rating[0]}
-              confidence={rating[1]}
-              battles={rating[2]}
-            />
-          ) : (
-            <span className="muted">—</span>
-          )}
-        </td>
+        <>
+          <td>
+            {rating ? (
+              <RatingBadge
+                score={rating[0]}
+                confidence={rating[1]}
+                battles={rating[2]}
+              />
+            ) : (
+              <span className="muted">—</span>
+            )}
+          </td>
+          {(['uses', 'wins', 'losses'] as const).map((key) => (
+            <td className="number-cell" key={key}>
+              {rating?.[4] ? rating[4][key].toLocaleString('en-US') : '—'}
+            </td>
+          ))}
+          <td
+            className="number-cell battle-win-rate"
+            title={
+              rating?.[4]
+                ? `${rating[4].wins} wins, ${rating[4].losses} losses, ${rating[4].draws} draws in ${rating[4].uses} uses`
+                : 'Battle results unavailable'
+            }
+          >
+            {rating?.[4] ? formatWinRate(rating[4]) : '—'}
+          </td>
+        </>
       )}
       <td>
         <div className="splinter-badges">

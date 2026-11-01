@@ -27,6 +27,7 @@ import CardArt from './CardArt'
 import AbilityTooltipProvider from './AbilityTooltipProvider'
 import CardRatings from '@/components/ratings/CardRatings'
 import type { CardRating } from '@/lib/ratings/types'
+import type { CardBattleStats } from '@/lib/ratings/battle-stats'
 
 type Prices = {
   source: string
@@ -56,7 +57,12 @@ export default function CardDetail({
   ratingData,
 }: {
   card: CatalogueCard
-  ratingData: { ratings: CardRating[]; version?: string; scoredAt?: string }
+  ratingData: {
+    ratings: CardRating[]
+    version?: string
+    scoredAt?: string
+    battleStats?: CardBattleStats[] | null
+  }
 }) {
   const [edition, setEdition] = useState(card.editions[0])
   const [editionReady, setEditionReady] = useState(false)
