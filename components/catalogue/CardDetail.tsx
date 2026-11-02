@@ -123,28 +123,8 @@ export default function CardDetail({
             ? 'land cards'
             : 'summoners'}
       </Link>
-      <div className="card-detail-hero">
-        <section className="card-art-panel" aria-label="Card artwork">
-          <CardArt
-            key={`${edition}-${displayedFoil}`}
-            card={card}
-            edition={edition}
-            foil={displayedFoil}
-          />
-          <div className="foil-options" role="group" aria-label="Artwork foil">
-            {availableFoils.map((entry) => (
-              <button
-                key={entry.id}
-                aria-pressed={displayedFoil === entry.id}
-                onClick={() => setFoil(entry.id)}
-                style={{ '--foil-color': entry.color } as React.CSSProperties}
-              >
-                {entry.name}
-              </button>
-            ))}
-          </div>
-        </section>
-        <div className="card-overview">
+      <header className="card-overview">
+        <div className="card-heading-copy">
           <p className="catalogue-eyebrow">
             {card.kind === 'unit'
               ? 'Unit'
@@ -166,82 +146,102 @@ export default function CardDetail({
                   : 'Wild-exclusive'}
             </span>
           </div>
-          <div className="detail-edition">
-            <span className="detail-edition-label">Edition</span>
-            {card.editions.length === 1 ? (
-              <p>{editionName(edition)}</p>
-            ) : (
-              <div
-                className="edition-options"
-                role="group"
-                aria-label="Edition"
-              >
-                {card.editions.map((id) => (
-                  <button
-                    key={id}
-                    aria-pressed={edition === id}
-                    onClick={() => {
-                      setEdition(id)
-                      window.history.replaceState(
-                        null,
-                        '',
-                        `/card/${card.slug}?edition=${id}`,
-                      )
-                    }}
-                  >
-                    {editionName(id)}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          {card.kind === 'summoner' && (
-            <section className="card-detail-section">
-              <h2>Stat effects</h2>
-              <StatEffects card={card} level={card.maxLevel} />
-            </section>
-          )}
-          <section className="card-detail-section">
-            <h2>
-              {card.kind === 'land'
-                ? 'Land abilities at maximum level'
-                : 'Abilities at maximum level'}
-            </h2>
-            <AbilityList
-              abilities={card.kind === 'land' ? landAbilities : allAbilities}
-              labels
-            />
-            {!!card.stats.racialSynergy?.length && (
-              <div className="bloodline-detail">
-                {card.stats.racialSynergy.map((synergy) => (
-                  <div key={synergy.race}>
-                    <h3>Bloodline Dominion · {synergy.race}</h3>
-                    <AbilityList abilities={synergy.abilities ?? []} labels />
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-          {card.kind !== 'land' && !!landAbilities.length && (
-            <section className="card-detail-section">
-              <h2>Land abilities</h2>
-              <AbilityList abilities={landAbilities} labels />
-            </section>
-          )}
-          {card.kind === 'summoner' && !!card.stats.ptrOptions?.length && (
-            <section className="card-detail-section">
-              <h2>Tactics</h2>
-              <p className="muted">Choose one option before battle.</p>
-              <SummonerTactics card={card} full />
-            </section>
+        </div>
+        <div className="detail-edition">
+          <span className="detail-edition-label">Edition</span>
+          {card.editions.length === 1 ? (
+            <p>{editionName(edition)}</p>
+          ) : (
+            <div className="edition-options" role="group" aria-label="Edition">
+              {card.editions.map((id) => (
+                <button
+                  key={id}
+                  aria-pressed={edition === id}
+                  onClick={() => {
+                    setEdition(id)
+                    window.history.replaceState(
+                      null,
+                      '',
+                      `/card/${card.slug}?edition=${id}`,
+                    )
+                  }}
+                >
+                  {editionName(id)}
+                </button>
+              ))}
+            </div>
           )}
         </div>
+      </header>
+      <div className="card-detail-hero">
+        <section className="card-art-panel" aria-label="Card artwork">
+          <CardArt
+            key={`${edition}-${displayedFoil}`}
+            card={card}
+            edition={edition}
+            foil={displayedFoil}
+          />
+          <div className="foil-options" role="group" aria-label="Artwork foil">
+            {availableFoils.map((entry) => (
+              <button
+                key={entry.id}
+                aria-pressed={displayedFoil === entry.id}
+                onClick={() => setFoil(entry.id)}
+                style={{ '--foil-color': entry.color } as React.CSSProperties}
+              >
+                {entry.name}
+              </button>
+            ))}
+          </div>
+        </section>
         <PriceHistoryChart
           cardId={card.id}
           edition={edition}
           foil={displayedFoil}
           ready={editionReady}
         />
+      </div>
+      <div className="card-mechanics">
+        {card.kind === 'summoner' && (
+          <section className="card-detail-section">
+            <h2>Stat effects</h2>
+            <StatEffects card={card} level={card.maxLevel} />
+          </section>
+        )}
+        <section className="card-detail-section">
+          <h2>
+            {card.kind === 'land'
+              ? 'Land abilities at maximum level'
+              : 'Abilities at maximum level'}
+          </h2>
+          <AbilityList
+            abilities={card.kind === 'land' ? landAbilities : allAbilities}
+            labels
+          />
+          {!!card.stats.racialSynergy?.length && (
+            <div className="bloodline-detail">
+              {card.stats.racialSynergy.map((synergy) => (
+                <div key={synergy.race}>
+                  <h3>Bloodline Dominion · {synergy.race}</h3>
+                  <AbilityList abilities={synergy.abilities ?? []} labels />
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+        {card.kind !== 'land' && !!landAbilities.length && (
+          <section className="card-detail-section">
+            <h2>Land abilities</h2>
+            <AbilityList abilities={landAbilities} labels />
+          </section>
+        )}
+        {card.kind === 'summoner' && !!card.stats.ptrOptions?.length && (
+          <section className="card-detail-section">
+            <h2>Tactics</h2>
+            <p className="muted">Choose one option before battle.</p>
+            <SummonerTactics card={card} full />
+          </section>
+        )}
       </div>
       <section className="card-section" aria-label="Live market prices">
         <div className="card-section-heading">

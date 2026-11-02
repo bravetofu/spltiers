@@ -1,0 +1,9 @@
+.anchor { display: inline-flex; flex-shrink: 0; }
+.panel { position: fixed; z-index: 10000; width: 330px; max-width: calc(100vw - 16px); max-height: min(480px, calc(100vh - 16px)); overflow: auto; padding: 16px; background: #151d27; color: #e6edf3; border: 1px solid #384656; border-radius: 10px; box-shadow: 0 10px 35px #0009; font-size: 12px; line-height: 1.6; }
+.panel p { margin: 8px 0; color: #aebdce; }
+.panel table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.panel th, .panel td { padding: 6px 8px; border-bottom: 1px solid #303c49; text-align: right; }
+.panel th:first-child { text-align: left; }
+.panel thead { color: #aebdce; font-size: 11px; }
+.panel strong { color: #f0f6fc; }
+.panel summary { cursor: pointer; }

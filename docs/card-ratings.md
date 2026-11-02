@@ -219,3 +219,16 @@ profile retains its first snapshot and two most recent snapshots; redundant
 automatic snapshots are pruned transactionally. Raw replay archives and published
 curation history are preserved. A scoring-engine deployment refreshes the
 published profile once without overwriting the draft or its curation.
+
+## Admin tier reference
+
+The tier editor shows unit ratings from the active published snapshot in one
+batched query, cached for five minutes and invalidated on publishing. Hover or
+focus a unit to see its equal-weight average and the Modern/Wild score at each
+league cap. Only available scores contribute; missing scopes are not zeroes.
+
+Bands are S ≥9, A ≥8 and <9, B ≥6.5 and <8, C ≥5 and <6.5, D <5.
+A red exclamation mark identifies a placed unit outside its average score band
+and updates immediately during editing. Unranked units and units without
+published scores have no warning. These references never alter saved tiers,
+apply to summoners/land, or appear on public tier lists.

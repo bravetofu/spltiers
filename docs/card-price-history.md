@@ -3,8 +3,9 @@
 Each card detail hero has a daily USD asking-price chart tied to the artwork's
 foil and edition selection. Lowest / BCX and the lowest actual 1-BCX copy are
 separate lines; available USD listing counts have a separate bar panel on the
-same UTC date axis. Range buttons show 30, 90 or 365 calendar days. Hover/touch,
-a keyboard date slider and a data table expose exact observations. A single
+same UTC date axis. Range buttons show 30, 90 or 365 calendar days. Hover/touch or focus the plot and use Left/Right (Home/End) to inspect exact
+observations. The info button opens chart notes and an expandable daily data
+table on hover, focus or tap, keeping the main chart compact. A single
 snapshot renders as a dot. Missing values break lines rather than becoming zero
 or interpolating across the gap.
 

@@ -526,9 +526,10 @@
 }
 .card-detail-hero {
   display: grid;
-  grid-template-columns: 320px minmax(0, 1fr);
-  gap: 54px;
-  margin-bottom: 48px;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 32px;
+  margin-bottom: 24px;
+  align-items: start;
 }
 .card-art-panel {
   min-width: 0;
@@ -1416,12 +1417,20 @@
 }
 .catalogue-battle-coverage p { margin: 0; }
 
-/* Daily market history shares the hero with artwork and card identity. */
-.card-detail-hero {
-  grid-template-columns: 260px minmax(180px, .8fr) minmax(340px, 1.4fr);
-  gap: 30px;
-  align-items: start;
-}
+/* Identity, art/chart, and mechanics form three clear rows. */
+.card-overview { display: flex; justify-content: space-between; align-items: center; gap: 24px; margin-bottom: 24px; }
+.card-heading-copy { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; column-gap: 20px; row-gap: 8px; }
+.card-overview .catalogue-eyebrow { flex-basis: 100%; margin: 0; }
+.card-overview h1 { margin: 0; font-size: clamp(28px, 3vw, 38px); }
+.card-overview .card-meta { margin-bottom: 0; }
+.card-overview .detail-edition { margin: 0; text-align: right; flex-shrink: 0; }
+.card-mechanics { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 24px; margin-bottom: 32px; padding: 20px 0; border-top: 1px solid #252e38; border-bottom: 1px solid #252e38; }
+.card-mechanics .card-detail-section { margin: 0; }
+.history-title { display: flex; align-items: center; gap: 8px; }
+.history-info-button { width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid #465466; border-radius: 50%; color: #b6c6d9; font: 600 12px Georgia, serif; cursor: help; }
+.history-info-button:hover, .history-info-button:focus-visible { color: #fff; border-color: #91a8c5; }
+.history-plot { position: relative; border-radius: 6px; }
+.history-plot:focus-visible { outline: 1px solid #5dd8d0; outline-offset: 3px; }
 .card-overview { min-width: 0; }
 .price-history-panel { min-width: 0; padding: 20px; border: 1px solid #30363d; border-radius: 12px; background: #10161e; }
 .price-history-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
@@ -1436,7 +1445,7 @@
 .history-legend i { display: inline-block; width: 16px; border-top: 2px solid; }
 .history-low { color: #5dd8d0; }
 .history-single { color: #f6b969; border-top-style: dashed !important; }
-.price-history-chart { width: 100%; height: auto; display: block; overflow: visible; touch-action: pan-y; }
+.price-history-chart { width: 100%; height: 300px; display: block; overflow: visible; touch-action: pan-y; }
 .price-history-chart text { fill: #9aa9bc; font-size: 11px; }
 .history-grid { stroke: #2c3745; stroke-width: 1; }
 .history-low-series { stroke: #5dd8d0; fill: #5dd8d0; }
@@ -1444,27 +1453,23 @@
 .history-bar { fill: #516985; }
 .history-bar.active { fill: #8aa9d0; }
 .history-cursor { stroke: #8aa9d0; stroke-dasharray: 2 4; opacity: .5; pointer-events: none; }
-.history-readout { min-height: 70px; border-top: 1px solid #2c3745; padding-top: 12px; font-size: 12px; }
+.history-readout { position: absolute; top: 6px; right: 6px; width: min(285px, calc(100% - 12px)); padding: 12px; background: #182330f5; border: 1px solid #405269; border-radius: 8px; box-shadow: 0 6px 24px #0008; font-size: 12px; pointer-events: none; }
 .history-readout strong { font-weight: 500; }
 .history-readout strong span { font-size: 10px; color: var(--text-muted); }
 .history-readout dl { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; margin-top: 8px; }
 .history-readout dt { color: var(--text-muted); font-size: 10px; }
 .history-readout dd { font-variant-numeric: tabular-nums; margin-top: 3px; overflow-wrap: anywhere; }
-.history-note { color: var(--text-muted); font-size: 10px; line-height: 1.7; margin: 12px 0 0; }
-.history-empty { min-height: 285px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 15px; color: var(--text-muted); font-size: 13px; line-height: 1.8; text-align: center; }
+.history-empty { min-height: 316px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 15px; color: var(--text-muted); font-size: 13px; line-height: 1.8; text-align: center; }
 .history-loading div { height: 60px; width: 100%; background: #18212c; border-radius: 4px; }
 .history-loading div + div { height: 30px; }
-.history-date-control { display: flex; align-items: center; gap: 12px; font-size: 10px; color: var(--text-muted); margin-top: 12px; }
-.history-date-control input { min-width: 0; flex: 1; accent-color: #5dd8d0; }
 .history-data { margin-top: 12px; font-size: 11px; color: var(--text-muted); }
 .history-data summary { cursor: pointer; }
 .history-data > div { margin-top: 10px; max-height: 260px; overflow: auto; }
-.history-data .price-table th, .history-data .price-table td { padding: 8px; min-width: 75px; font-size: 10px; }
-@media (max-width: 1050px) {
-  .card-detail-hero { grid-template-columns: 260px minmax(0, 1fr); }
-  .price-history-panel { grid-column: 1 / -1; }
-}
-@media (max-width: 600px) {
-  .card-detail-hero { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+
+@media (max-width: 760px) {
+  .card-detail-hero { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .card-art-panel { width: 280px; max-width: 100%; margin: 0 auto; }
+  .card-overview { align-items: flex-start; }
+  .card-overview .detail-edition { max-width: 130px; }
   .price-history-panel { padding: 16px 12px; }
 }

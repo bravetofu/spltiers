@@ -1,5 +1,13 @@
 'use client'
-import { useEffect, useMemo, useState } from 'react'
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+import HoverDetails from '@/components/HoverDetails'
 import {
   dailyPoints,
   lineSegments,
@@ -36,6 +44,10 @@ export default function PriceHistoryChart({
   const [days, setDays] = useState(90)
   const [selected, setSelected] = useState<number | null>(null)
   const [loadedEdition, setLoadedEdition] = useState<number | null>(null)
+  const [inspecting, setInspecting] = useState(false)
+  const readoutId = useId()
+  const svg = useRef<SVGSVGElement>(null)
+  const [plotWidth, setPlotWidth] = useState(640)
   useEffect(() => {
     if (!ready || cardId === 505) return
     const controller = new AbortController()
@@ -74,13 +86,28 @@ export default function PriceHistoryChart({
     ? Math.min(selected ?? points.length - 1, points.length - 1)
     : 0
   const point = points[active]
+  useLayoutEffect(() => {
+    if (!svg.current) return
+    const observer = new ResizeObserver(([entry]) =>
+      setPlotWidth(Math.max(280, Math.round(entry.contentRect.width))),
+    )
+    observer.observe(svg.current)
+    return () => observer.disconnect()
+  }, [points.length])
   const priceValues = points
     .flatMap((p) => [p.perBcx, p.singleBcx])
     .filter((v): v is number => v !== null)
   const maxPrice = priceValues.length ? Math.max(...priceValues) * 1.12 : 1
   const maxListings = Math.max(1, ...points.map((p) => p.listings ?? 0))
+  const plotLeft = Math.max(50, money(maxPrice).length * 6 + 12)
+  const plotRight = plotWidth - 20
+  // Keep endpoint bars inside the plot, clear of the vertical-axis labels.
+  const dataLeft = plotLeft + 12
+  const dataRight = plotRight - 12
   const x = (i: number) =>
-    points.length <= 1 ? 255 : 50 + (i * 410) / (points.length - 1)
+    points.length <= 1
+      ? (plotLeft + plotRight) / 2
+      : dataLeft + (i * (dataRight - dataLeft)) / (points.length - 1)
   const y = (v: number) => 180 - (v / maxPrice) * 155
   const barWidth = Math.min(22, 350 / Math.max(1, points.length))
   const loading = !error && (!ready || loadedEdition !== edition || !history)
@@ -88,8 +115,70 @@ export default function PriceHistoryChart({
     <section className="price-history-panel" aria-label="Daily price history">
       <div className="price-history-heading">
         <div>
-          <p className="catalogue-eyebrow">Market history</p>
-          <h2>Daily prices</h2>
+          <div className="history-title">
+            <h2>Daily prices</h2>
+            <HoverDetails
+              label="About price history"
+              interactive
+              content={
+                <>
+                  <strong>About this chart</strong>
+                  <p>
+                    Daily USD asking prices, not completed sales. Lowest / BCX
+                    includes combined copies; the second line requires an actual
+                    1-BCX listing.
+                  </p>
+                  <p>
+                    Missing prices stay as gaps. Listing counts are captured
+                    once per UTC day. Hover the chart or focus it and use the
+                    arrow keys to inspect a date.
+                  </p>
+                  {points.filter((p) => p.observedAt).length === 1 && (
+                    <p>
+                      First daily snapshot. A trend will appear as more days are
+                      collected.
+                    </p>
+                  )}
+                  {!!points.length && (
+                    <details className="history-data">
+                      <summary>View daily data</summary>
+                      <div>
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Date (UTC)</th>
+                              <th>Lowest / BCX</th>
+                              <th>1-BCX</th>
+                              <th>Listings</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {points.map((p) => (
+                              <tr key={p.day}>
+                                <th scope="row">{p.day}</th>
+                                <td>{money(p.perBcx)}</td>
+                                <td>{money(p.singleBcx)}</td>
+                                <td>{p.listings ?? '—'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </details>
+                  )}
+                </>
+              }
+            >
+              <button
+                type="button"
+                className="history-info-button"
+                aria-haspopup="dialog"
+                aria-label="About price history"
+              >
+                i
+              </button>
+            </HoverDetails>
+          </div>
         </div>
         <div className="history-ranges" role="group" aria-label="Chart period">
           {([30, 90, 365] as const).map((n) => (
@@ -144,196 +233,208 @@ export default function PriceHistoryChart({
               Single 1-BCX copy
             </span>
           </div>
-          <svg
-            className="price-history-chart"
-            viewBox="0 0 480 300"
-            role="img"
-            aria-label="Daily USD asking prices with available listing counts below. Missing values are gaps."
-            onPointerMove={(e) => {
-              const box = e.currentTarget.getBoundingClientRect()
-              const at = ((e.clientX - box.left) / box.width) * 480
-              setSelected(
-                points.length <= 1
-                  ? 0
-                  : Math.max(
-                      0,
-                      Math.min(
-                        points.length - 1,
-                        Math.round(((at - 50) / 410) * (points.length - 1)),
-                      ),
-                    ),
-              )
+          <div
+            className="history-plot"
+            tabIndex={0}
+            role="group"
+            aria-label="Inspect daily prices with left and right arrow keys"
+            aria-describedby={inspecting ? readoutId : undefined}
+            onFocus={() => setInspecting(true)}
+            onBlur={() => setInspecting(false)}
+            onPointerEnter={() => setInspecting(true)}
+            onPointerLeave={(e) => {
+              if (document.activeElement !== e.currentTarget)
+                setInspecting(false)
             }}
-            onPointerLeave={() => setSelected(null)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                setInspecting(false)
+                return
+              }
+              if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
+                e.preventDefault()
+                setInspecting(true)
+                setSelected(
+                  e.key === 'Home'
+                    ? 0
+                    : e.key === 'End'
+                      ? points.length - 1
+                      : Math.max(
+                          0,
+                          Math.min(
+                            points.length - 1,
+                            active + (e.key === 'ArrowLeft' ? -1 : 1),
+                          ),
+                        ),
+                )
+              }
+            }}
           >
-            {[0, 0.5, 1].map((f) => (
-              <g key={f}>
-                <line
-                  x1="50"
-                  x2="460"
-                  y1={y(maxPrice * f)}
-                  y2={y(maxPrice * f)}
-                  className="history-grid"
-                />
-                <text x="43" y={y(maxPrice * f) + 4} textAnchor="end">
-                  {money(maxPrice * f)}
-                </text>
-              </g>
-            ))}
-            {!priceValues.length && (
-              <text x="255" y="105" textAnchor="middle">
-                No listed prices in this period
-              </text>
-            )}
-            {(['perBcx', 'singleBcx'] as const).map((field, series) => (
-              <g
-                key={field}
-                className={
-                  series ? 'history-single-series' : 'history-low-series'
-                }
-              >
-                {lineSegments(points, field, x, y).map((d, i) => (
-                  <path
-                    key={i}
-                    d={d}
-                    fill="none"
-                    strokeWidth="2"
-                    strokeDasharray={series ? '5 3' : undefined}
-                  />
-                ))}
-                {points.map((p, i) =>
-                  p[field] === null ? null : (
-                    <circle
-                      key={p.day}
-                      cx={x(i)}
-                      cy={y(p[field]!)}
-                      r={series ? 4 : 2.5}
-                      fill={series ? 'none' : undefined}
-                      strokeWidth="2"
-                    />
-                  ),
-                )}
-              </g>
-            ))}
-            <text x="50" y="212">
-              Available listings
-            </text>
-            <text x="43" y="232" textAnchor="end">
-              {maxListings}
-            </text>
-            <text x="43" y="269" textAnchor="end">
-              0
-            </text>
-            <line x1="50" x2="460" y1="265" y2="265" className="history-grid" />
-            {points.map((p, i) =>
-              p.listings === null ? null : (
-                <rect
-                  key={p.day}
-                  x={x(i) - barWidth / 2}
-                  y={265 - Math.max(1, (p.listings / maxListings) * 40)}
-                  width={barWidth}
-                  height={Math.max(1, (p.listings / maxListings) * 40)}
-                  className={
-                    i === active ? 'history-bar active' : 'history-bar'
-                  }
-                />
-              ),
-            )}
-            <line
-              x1={x(active)}
-              x2={x(active)}
-              y1="20"
-              y2="270"
-              className="history-cursor"
-            />
-            <text
-              x={points.length === 1 ? 255 : 50}
-              y="292"
-              textAnchor={points.length === 1 ? 'middle' : 'start'}
+            <svg
+              ref={svg}
+              className="price-history-chart"
+              viewBox={`0 0 ${plotWidth} 300`}
+              role="img"
+              aria-label="Daily USD asking prices with available listing counts below. Missing values are gaps."
+              onPointerMove={(e) => {
+                const transform = e.currentTarget.getScreenCTM()
+                if (!transform) return
+                const at = new DOMPoint(e.clientX, e.clientY).matrixTransform(
+                  transform.inverse(),
+                ).x
+                setInspecting(true)
+                setSelected(
+                  points.length <= 1
+                    ? 0
+                    : Math.max(
+                        0,
+                        Math.min(
+                          points.length - 1,
+                          Math.round(
+                            ((at - dataLeft) / (dataRight - dataLeft)) *
+                              (points.length - 1),
+                          ),
+                        ),
+                      ),
+                )
+              }}
             >
-              {dateLabel(points[0].day)}
-            </text>
-            {points.length > 1 && (
-              <text x="460" y="292" textAnchor="end">
-                {dateLabel(points[points.length - 1].day)}
+              {[0, 0.5, 1].map((f) => (
+                <g key={f}>
+                  <line
+                    x1={plotLeft}
+                    x2={plotRight}
+                    y1={y(maxPrice * f)}
+                    y2={y(maxPrice * f)}
+                    className="history-grid"
+                  />
+                  <text
+                    x={plotLeft - 7}
+                    y={y(maxPrice * f) + 4}
+                    textAnchor="end"
+                  >
+                    {money(maxPrice * f)}
+                  </text>
+                </g>
+              ))}
+              {!priceValues.length && (
+                <text
+                  x={(plotLeft + plotRight) / 2}
+                  y="105"
+                  textAnchor="middle"
+                >
+                  No listed prices in this period
+                </text>
+              )}
+              {(['perBcx', 'singleBcx'] as const).map((field, series) => (
+                <g
+                  key={field}
+                  className={
+                    series ? 'history-single-series' : 'history-low-series'
+                  }
+                >
+                  {lineSegments(points, field, x, y).map((d, i) => (
+                    <path
+                      key={i}
+                      d={d}
+                      fill="none"
+                      strokeWidth="2"
+                      strokeDasharray={series ? '5 3' : undefined}
+                    />
+                  ))}
+                  {points.map((p, i) =>
+                    p[field] === null ? null : (
+                      <circle
+                        key={p.day}
+                        cx={x(i)}
+                        cy={y(p[field]!)}
+                        r={series ? 4 : 2.5}
+                        fill={series ? 'none' : undefined}
+                        strokeWidth="2"
+                      />
+                    ),
+                  )}
+                </g>
+              ))}
+              <text x={plotLeft} y="212">
+                Available listings
               </text>
-            )}
-          </svg>
-          <div className="history-readout" aria-live="polite">
-            <strong>
-              {point.day} <span>UTC</span>
-            </strong>
-            {point.observedAt ? (
-              <dl>
-                <div>
-                  <dt>Lowest / BCX</dt>
-                  <dd>{money(point.perBcx)}</dd>
-                </div>
-                <div>
-                  <dt>Single 1-BCX</dt>
-                  <dd>{money(point.singleBcx)}</dd>
-                </div>
-                <div>
-                  <dt>Listings</dt>
-                  <dd>{point.listings?.toLocaleString('en-US') ?? '—'}</dd>
-                </div>
-              </dl>
-            ) : (
-              <p>No snapshot recorded. Prices and listing count are unknown.</p>
+              <text x={plotLeft - 7} y="232" textAnchor="end">
+                {maxListings}
+              </text>
+              <text x={plotLeft - 7} y="269" textAnchor="end">
+                0
+              </text>
+              <line
+                x1={plotLeft}
+                x2={plotRight}
+                y1="265"
+                y2="265"
+                className="history-grid"
+              />
+              {points.map((p, i) =>
+                p.listings === null ? null : (
+                  <rect
+                    key={p.day}
+                    x={x(i) - barWidth / 2}
+                    y={265 - Math.max(1, (p.listings / maxListings) * 40)}
+                    width={barWidth}
+                    height={Math.max(1, (p.listings / maxListings) * 40)}
+                    className={
+                      i === active ? 'history-bar active' : 'history-bar'
+                    }
+                  />
+                ),
+              )}
+              <line
+                x1={x(active)}
+                x2={x(active)}
+                y1="20"
+                y2="270"
+                className="history-cursor"
+              />
+              <text
+                x={points.length === 1 ? (plotLeft + plotRight) / 2 : plotLeft}
+                y="292"
+                textAnchor={points.length === 1 ? 'middle' : 'start'}
+              >
+                {dateLabel(points[0].day)}
+              </text>
+              {points.length > 1 && (
+                <text x={plotRight} y="292" textAnchor="end">
+                  {dateLabel(points[points.length - 1].day)}
+                </text>
+              )}
+            </svg>
+            {inspecting && (
+              <div className="history-readout" id={readoutId} role="tooltip">
+                <strong>
+                  {point.day} <span>UTC</span>
+                </strong>
+                {point.observedAt ? (
+                  <dl>
+                    <div>
+                      <dt>Lowest / BCX</dt>
+                      <dd>{money(point.perBcx)}</dd>
+                    </div>
+                    <div>
+                      <dt>Single 1-BCX</dt>
+                      <dd>{money(point.singleBcx)}</dd>
+                    </div>
+                    <div>
+                      <dt>Listings</dt>
+                      <dd>{point.listings?.toLocaleString('en-US') ?? '—'}</dd>
+                    </div>
+                  </dl>
+                ) : (
+                  <p>
+                    No snapshot recorded. Prices and listing count are unknown.
+                  </p>
+                )}
+              </div>
             )}
           </div>
-          {points.length > 1 && (
-            <label className="history-date-control">
-              Inspect date
-              <input
-                type="range"
-                min="0"
-                max={points.length - 1}
-                value={active}
-                onChange={(e) => setSelected(Number(e.target.value))}
-                aria-label="History date"
-                aria-valuetext={point.day}
-              />
-            </label>
-          )}
-          {points.filter((p) => p.observedAt).length === 1 && (
-            <p className="history-note">
-              First daily snapshot. A trend will appear as more days are
-              collected.
-            </p>
-          )}
-          <details className="history-data">
-            <summary>View daily data</summary>
-            <div className="catalogue-table-wrap">
-              <table className="price-table">
-                <thead>
-                  <tr>
-                    <th>Date (UTC)</th>
-                    <th>Lowest / BCX</th>
-                    <th>Single 1-BCX</th>
-                    <th>Listings</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {points.map((p) => (
-                    <tr key={p.day}>
-                      <th scope="row">{p.day}</th>
-                      <td>{money(p.perBcx)}</td>
-                      <td>{money(p.singleBcx)}</td>
-                      <td>{p.listings ?? '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </details>
         </>
-      )}
-      {cardId !== 505 && (
-        <p className="history-note">
-          Daily asking prices, not completed sales. Missing prices stay as gaps.
-          Listing counts are captured once per UTC day.
-        </p>
       )}
     </section>
   )

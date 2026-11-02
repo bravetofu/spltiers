@@ -16,10 +16,18 @@ import {
 import { useDraggable } from '@dnd-kit/core'
 import CardThumb from '@/components/CardThumb'
 import type { CardData } from '@/app/actions/cards'
+import HoverDetails from '@/components/HoverDetails'
+import TierRatingDetails from './TierRatingDetails'
+import {
+  tierMismatch,
+  type TierKey,
+  type TierRatingIndex,
+  type TierRatingSummary,
+} from '@/lib/ratings/tier-reference'
+import './tier-editor.css'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type TierKey = 'S' | 'A' | 'B' | 'C' | 'D'
 const TIERS: TierKey[] = ['S', 'A', 'B', 'C', 'D']
 
 type CardState = CardData & {
@@ -45,6 +53,8 @@ type Props = {
   cardSet: CardSet
   allCards: CardData[]
   existingEntries: ExistingEntry[]
+  ratings: TierRatingIndex | null
+  unitIds: number[]
 }
 
 // ─── Tier config ──────────────────────────────────────────────────────────────
@@ -64,24 +74,33 @@ function DraggableCard({
   size,
   onClick,
   isSelected,
+  rating,
+  isUnit,
+  dragging,
 }: {
   card: CardState
   size: number
   onClick?: () => void
   isSelected?: boolean
+  rating?: TierRatingSummary
+  isUnit: boolean
+  dragging: boolean
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `card-${card.card_id}`,
     data: { card },
   })
 
-  return (
+  const tile = (
     <div
       ref={setNodeRef}
       {...listeners}
       {...attributes}
       onClick={onClick}
-      title={card.card_name}
+      title={isUnit ? undefined : card.card_name}
+      aria-label={card.card_name}
+      data-card-id={card.card_id}
+      className="tier-rating-tile"
       style={{
         opacity: isDragging ? 0.3 : 1,
         cursor: 'grab',
@@ -98,8 +117,26 @@ function DraggableCard({
         size={size}
         isSoulbound={card.is_soulbound}
       />
+      {isUnit && rating && tierMismatch(card.tier, rating) && (
+        <span
+          className="tier-rating-mismatch"
+          role="img"
+          aria-label={`Rating mismatch: average ${rating.average.toFixed(4)} suggests ${rating.tier}, currently ${card.tier}`}
+        >
+          !
+        </span>
+      )}
     </div>
   )
+  return isUnit ? (
+    <HoverDetails
+      label={`${card.card_name} ratings`}
+      disabled={dragging || isDragging}
+      content={<TierRatingDetails name={card.card_name} summary={rating} tier={card.tier} />}
+    >
+      {tile}
+    </HoverDetails>
+  ) : tile
 }
 
 // ─── Droppable zone ───────────────────────────────────────────────────────────
@@ -117,6 +154,7 @@ function DroppableZone({
   return (
     <div
       ref={setNodeRef}
+      data-tier-zone={id}
       style={{
         ...style,
         outline: isOver ? '1px solid #3498db' : undefined,
@@ -130,7 +168,8 @@ function DroppableZone({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function TierEditor({ cardSet, allCards, existingEntries }: Props) {
+export default function TierEditor({ cardSet, allCards, existingEntries, ratings, unitIds }: Props) {
+  const units = useMemo(() => new Set(unitIds), [unitIds])
   // Build initial card state
   const initial = useMemo<CardState[]>(() => {
     const entryMap = new Map<number, ExistingEntry>()
@@ -338,12 +377,21 @@ export default function TierEditor({ cardSet, allCards, existingEntries }: Props
         </div>
       </div>
 
+      <div className="tier-rating-legend">
+        {ratings ? (
+          <>
+            <b>! Rating reference</b> Red marks indicate a unit outside its average score band.
+            Hover or focus a unit for scores. S ≥9 · A ≥8 · B ≥6.5 · C ≥5 · D &lt;5
+          </>
+        ) : 'Rating comparison is temporarily unavailable. Tier editing is still available.'}
+      </div>
       {/* Main layout */}
       <DndContext
         sensors={sensors}
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
+        onDragCancel={() => setActiveCard(null)}
       >
         <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
           {/* ── Left: Unranked pool (220px) ─────────────────────────────────── */}
@@ -418,6 +466,9 @@ export default function TierEditor({ cardSet, allCards, existingEntries }: Props
                   key={card.card_id}
                   card={card}
                   size={62}
+                  rating={ratings?.[card.card_id]}
+                  isUnit={units.has(card.card_id)}
+                  dragging={!!activeCard}
                 />
               ))}
               {unrankedCards.length === 0 && (
@@ -494,6 +545,9 @@ export default function TierEditor({ cardSet, allCards, existingEntries }: Props
                         key={card.card_id}
                         card={card}
                         size={62}
+                        rating={ratings?.[card.card_id]}
+                        isUnit={units.has(card.card_id)}
+                        dragging={!!activeCard}
                         isSelected={selectedCardId === card.card_id}
                         onClick={() =>
                           setSelectedCardId((prev) =>

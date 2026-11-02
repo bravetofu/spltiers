@@ -9,6 +9,7 @@ import {
   readCardBattleStats,
 } from './store'
 import { EMPTY_BATTLE_STATS, type BattleStats } from './battle-stats'
+import { summarizeTierRatings, type ScopeScore } from './tier-reference'
 import type {
   AbilityRating,
   AbilityWeight,
@@ -23,6 +24,20 @@ export type ScoreIndex = Record<
   string,
   [number, Confidence, number, BattleFormat, BattleStats | null]
 >
+export const getTierReferenceRatings = unstable_cache(
+  async (cardIds: number[]) => {
+    if (!cardIds.length) return {}
+    const sql = ratingDatabase(true)
+    const rows = await sql`
+      SELECT s.subject::int AS "cardId", s.league, s.format, (s.data->>'score')::float AS score
+      FROM rating_workspace w JOIN rating_scores s ON s.snapshot_id=w.active_snapshot_id
+      WHERE w.singleton AND s.kind='card' AND s.subject=ANY(${cardIds.map(String)}::text[])
+    `
+    return summarizeTierRatings(rows as ScopeScore[])
+  },
+  ['tier-reference-ratings-v1', ENGINE_VERSION],
+  { tags: ['ratings'], revalidate: 300 },
+)
 export const getBattleStats = unstable_cache(
   () => readCardBattleStats(true),
   ['card-battle-usage-v1'],
