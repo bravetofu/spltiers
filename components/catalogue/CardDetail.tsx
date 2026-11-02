@@ -24,6 +24,7 @@ import type { FoilPrice } from '@/lib/splinterlands/card-prices'
 import { AbilityList } from './AbilityIcon'
 import { StatEffects, SummonerTactics } from './CardEffects'
 import CardArt from './CardArt'
+import PriceHistoryChart from './PriceHistoryChart'
 import AbilityTooltipProvider from './AbilityTooltipProvider'
 import CardRatings from '@/components/ratings/CardRatings'
 import type { CardRating } from '@/lib/ratings/types'
@@ -235,6 +236,12 @@ export default function CardDetail({
             </section>
           )}
         </div>
+        <PriceHistoryChart
+          cardId={card.id}
+          edition={edition}
+          foil={displayedFoil}
+          ready={editionReady}
+        />
       </div>
       <section className="card-section" aria-label="Live market prices">
         <div className="card-section-heading">

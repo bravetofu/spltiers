@@ -1,16 +1,19 @@
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose'
 import { timingSafeEqual } from 'node:crypto'
-const audience = 'https://www.splintiers.com/api/cron/collect-battles'
+type Collector = 'battles' | 'prices'
 const keys = createRemoteJWKSet(
   new URL('https://token.actions.githubusercontent.com/.well-known/jwks'),
 )
-export function isCollectorWorkflow(payload: JWTPayload) {
+export function isCollectorWorkflow(
+  payload: JWTPayload,
+  collector: Collector = 'battles',
+) {
   return (
     payload.repository_id === '1181334053' &&
     payload.repository_owner_id === '221731944' &&
     payload.ref === 'refs/heads/main' &&
     payload.workflow_ref ===
-      'bravetofu/spltiers/.github/workflows/collect-battles.yml@refs/heads/main' &&
+      `bravetofu/spltiers/.github/workflows/collect-${collector}.yml@refs/heads/main` &&
     ['schedule', 'workflow_dispatch', 'push'].includes(
       String(payload.event_name),
     )
@@ -19,6 +22,7 @@ export function isCollectorWorkflow(payload: JWTPayload) {
 export async function authorizeCollector(
   header: string,
   secret = process.env.CRON_SECRET,
+  collector: Collector = 'battles',
 ) {
   const expected = Buffer.from(`Bearer ${secret ?? ''}`),
     actual = Buffer.from(header)
@@ -33,11 +37,15 @@ export async function authorizeCollector(
   try {
     const { payload } = await jwtVerify(token, keys, {
       issuer: 'https://token.actions.githubusercontent.com',
-      audience,
+      audience: `https://www.splintiers.com/api/cron/collect-${collector}`,
       algorithms: ['RS256'],
       maxTokenAge: '10m',
     })
-    return isCollectorWorkflow(payload) ? (payload.event_name === 'push' ? 'deployment' : true) : false
+    return isCollectorWorkflow(payload, collector)
+      ? payload.event_name === 'push'
+        ? 'deployment'
+        : true
+      : false
   } catch {
     return false
   }
