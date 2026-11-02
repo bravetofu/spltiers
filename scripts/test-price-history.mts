@@ -92,6 +92,28 @@ try {
   result = await collectDailyPrices(cards, { fetcher, retryFailed: true })
   assert.equal(result.status, 'completed')
   assert.equal((await readPriceHistory(other, edition)).points.length, 5)
+  await sql`INSERT INTO card_price_targets(day,card_id,edition) VALUES(${day}::date,${cardId - 3},${edition})`
+  result = await collectDailyPrices(cards, {
+    fetcher: (async () =>
+      new Response('', {
+        status: 429,
+        headers: { 'retry-after': '120' },
+      })) as typeof fetch,
+  })
+  assert.equal(result.status, 'rate-limited')
+  const cooldown = (
+    await sql`SELECT extract(epoch FROM expires_at-now())::float AS seconds,owner FROM card_price_lease WHERE singleton`
+  )[0]
+  assert.ok(cooldown.seconds > 110)
+  assert.equal(cooldown.owner, null)
+  assert.equal((await collectDailyPrices(cards, { fetcher })).status, 'busy')
+  assert.equal(
+    (
+      await sql`SELECT attempts FROM card_price_targets WHERE day=${day}::date AND card_id=${cardId - 3}`
+    )[0].attempts,
+    0,
+  )
+  await sql`UPDATE card_price_lease SET owner=NULL,expires_at=NULL WHERE singleton`
   const busy = randomUUID()
   await sql`UPDATE card_price_lease SET owner=${busy}::uuid,expires_at=now()+interval '1 minute' WHERE singleton`
   assert.equal((await collectDailyPrices(cards, { fetcher })).status, 'busy')

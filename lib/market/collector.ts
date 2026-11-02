@@ -20,7 +20,18 @@ export async function collectDailyPrices(
   if (!lease.length) return { status: 'busy', collected: 0 }
   const deadline = Date.now() + Math.min(210000, options.durationMs ?? 160000)
   let collected = 0,
-    rateLimited = false
+    rateLimited = false,
+    retryAfterSeconds = 60,
+    nextRequestAt = Date.now()
+  const pacedFetch: typeof fetch = async (input, init) => {
+    const start = Math.max(Date.now(), nextRequestAt)
+    nextRequestAt = start + 500
+    await new Promise((resolve) =>
+      setTimeout(resolve, Math.max(0, start - Date.now())),
+    )
+    if (rateLimited) throw new MarketError('rate_limited', retryAfterSeconds)
+    return (options.fetcher ?? fetch)(input, init)
+  }
   try {
     const [{ day }] =
       await sql`SELECT (now() AT TIME ZONE 'UTC')::date::text AS day`
@@ -55,7 +66,7 @@ export async function collectDailyPrices(
           const prices = await fetchDailyPrices(
             item.card_id,
             item.edition,
-            options.fetcher,
+            pacedFetch,
           )
           const observedAt = new Date().toISOString()
           if (observedAt.slice(0, 10) !== day) break
@@ -70,14 +81,19 @@ export async function collectDailyPrices(
         } catch (error) {
           const reason =
             error instanceof MarketError ? error.message : 'collection_failed'
-          if (reason === 'rate_limited') rateLimited = true
+          if (reason === 'rate_limited') {
+            rateLimited = true
+            retryAfterSeconds = Math.max(
+              retryAfterSeconds,
+              (error as MarketError).retryAfterSeconds,
+            )
+          }
           await sql`UPDATE card_price_targets SET last_error=${reason}, attempts=attempts-${reason === 'rate_limited' ? 1 : 0}
             WHERE day=${day}::date AND card_id=${item.card_id} AND edition=${item.edition}`
         }
-        await new Promise((resolve) => setTimeout(resolve, 200))
       }
     }
-    const results = await Promise.allSettled([worker(), worker(), worker()])
+    const results = await Promise.allSettled([worker(), worker()])
     if (results.some((result) => result.status === 'rejected'))
       throw new Error('Price collection storage unavailable')
     const [counts] =
@@ -94,8 +110,17 @@ export async function collectDailyPrices(
           : counts.completed + counts.failed === counts.total
             ? 'partial'
             : 'pending'
-    return { status, day, collected, ...counts }
+    return {
+      status,
+      day,
+      collected,
+      ...counts,
+      ...(rateLimited ? { retryAfterSeconds } : {}),
+    }
   } finally {
-    await sql`UPDATE card_price_lease SET owner=NULL,expires_at=NULL WHERE singleton AND owner=${owner}::uuid`
+    // Persist cooldown across invocations, including manual and overlapping triggers.
+    await sql`UPDATE card_price_lease SET owner=NULL,
+      expires_at=CASE WHEN ${rateLimited} THEN now()+${retryAfterSeconds}*interval '1 second' ELSE NULL END
+      WHERE singleton AND owner=${owner}::uuid`
   }
 }

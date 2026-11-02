@@ -1,5 +1,19 @@
 import { summarizePrices, type SaleListing } from '../splinterlands/card-prices'
-export class MarketError extends Error {}
+export class MarketError extends Error {
+  constructor(
+    message: string,
+    public retryAfterSeconds = 60,
+  ) {
+    super(message)
+  }
+}
+export function retryDelay(value: string | null, now = Date.now()) {
+  if (!value) return 60
+  const seconds = /^\d+$/.test(value)
+    ? Number(value)
+    : Math.ceil((Date.parse(value) - now) / 1000)
+  return Number.isFinite(seconds) ? Math.max(60, Math.min(3600, seconds)) : 60
+}
 export async function fetchDailyPrices(
   cardId: number,
   edition: number,
@@ -17,6 +31,7 @@ export async function fetchDailyPrices(
       if (!response.ok)
         throw new MarketError(
           response.status === 429 ? 'rate_limited' : 'upstream_unavailable',
+          retryDelay(response.headers.get('retry-after')),
         )
       const data: unknown = await response.json()
       if (!Array.isArray(data)) throw new MarketError('invalid_response')

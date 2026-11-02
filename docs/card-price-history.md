@@ -26,7 +26,7 @@ Runi is an Ethereum NFT with no comparable BCX market and is explicitly marked
 not applicable; its existing live OpenSea floor remains available.
 
 Migration 007 adds daily jobs, card/edition targets, snapshots and an independent
-collection lease. A batch handles up to 80 card editions with three workers,
+collection lease. A batch handles up to 80 card editions with two workers and market requests spaced 500 ms apart,
 20-second request deadlines and a 160-second work budget. Actions resumes batches
 until completion, backing off on rate limits and temporary deployment/network
 errors. No Splinterlands login token is needed. GitHub OIDC verifies the exact
@@ -37,7 +37,8 @@ Both API responses must succeed before all five foil rows publish atomically.
 A successful empty market records null prices and zero listings. A failed
 request records no history row, so prices AND listings remain unknown. At most
 three failed attempts are made per target per day, except HTTP 429s which pause
-and retry without exhausting that counter. Partial days fail the workflow
+and retry without exhausting that counter. Retry-After hints are respected up to
+one hour, and the database lease preserves the cooldown across invocations. Partial days fail the workflow
 visibly. Re-running via workflow_dispatch retries exhausted failures while
 preserving every successful snapshot. A date check prevents observations taken
 after UTC midnight being assigned to the previous date.

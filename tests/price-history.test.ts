@@ -5,7 +5,7 @@ import {
   lineSegments,
   type PricePoint,
 } from '../lib/market/history'
-import { fetchDailyPrices } from '../lib/market/listings'
+import { fetchDailyPrices, retryDelay } from '../lib/market/listings'
 import { isCollectorWorkflow } from '../lib/ratings/collector-auth'
 const point = (
   day: string,
@@ -165,4 +165,13 @@ test('price and battle workflows cannot impersonate one another', () => {
     isCollectorWorkflow({ ...payload, event_name: 'pull_request' }, 'prices'),
     false,
   )
+})
+
+test('rate-limit cooldown accepts seconds or HTTP dates and rejects malformed hints', () => {
+  const now = Date.parse('2026-11-02T02:00:00Z')
+  assert.equal(retryDelay('300', now), 300)
+  assert.equal(retryDelay('Mon, 02 Nov 2026 02:05:00 GMT', now), 300)
+  assert.equal(retryDelay(null, now), 60)
+  assert.equal(retryDelay('invalid', now), 60)
+  assert.equal(retryDelay('0', now), 60)
 })

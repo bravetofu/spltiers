@@ -45,7 +45,7 @@ jobs:
                       raise SystemExit('Some card editions failed after three attempts; missing observations remain gaps.')
                   if result.get('status') not in ('pending', 'busy', 'rate-limited'):
                       raise SystemExit('Unexpected collection status.')
-                  time.sleep(60 if result.get('status') in ('busy', 'rate-limited') else 2)
+                  time.sleep(max(60, result.get('retryAfterSeconds', 60)) if result.get('status') in ('busy', 'rate-limited') else 2)
               except (urllib.error.URLError, TimeoutError):
                   failures += 1
                   if failures >= 8:
