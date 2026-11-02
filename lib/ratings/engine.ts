@@ -39,22 +39,52 @@ export function abilityPrior(name: string, profile: RatingProfile): number {
 export function blendRating(
   curated: number,
   evidence: Evidence = EMPTY_EVIDENCE,
+  model: 'card' | 'ability' = 'ability',
 ): Rating {
+  curated = round(clamp(curated))
+  const card = model === 'card'
   const usable =
-    evidence.battles >= 30 && evidence.players >= 5 && evidence.effective >= 20
+    evidence.battles >= (card ? 20 : 30) &&
+    evidence.players >= 5 &&
+    evidence.effective >= (card ? 15 : 20)
   const reliability =
-    (evidence.effective / (evidence.effective + 150)) *
-    Math.min(1, evidence.players / 20) *
-    Math.min(1, evidence.days / 7)
-  const battleWeight = usable ? Math.min(0.65, 0.65 * reliability) : 0
+    (evidence.effective / (evidence.effective + (card ? 75 : 150))) *
+    Math.min(1, evidence.players / (card ? 15 : 20)) *
+    Math.min(1, evidence.days / (card ? 3 : 7))
+  const battleWeight = usable ? (card ? 0.8 : 0.65) * reliability : 0
   // The 0–10 strength scale is not a win-probability scale. Center evidence on
   // the curated prior: expected results preserve it; +/-5 percentage points
   // of player-adjusted performance imply +/-1 potential rating point.
   const battleScore = evidence.battles
     ? clamp(curated + (evidence.adjustedWinRate - 0.5) * 20)
     : null
+  const usage = card ? evidence.usage : undefined
+  const usageUsable =
+    !!usage &&
+    usage.battles >= 20 &&
+    usage.players >= 5 &&
+    usage.effective >= 15 &&
+    usage.totalEffective >= 50
+  const usageWeight = usageUsable
+    ? (usage.totalEffective / (usage.totalEffective + 100)) *
+      (usage.effective / (usage.effective + 30)) *
+      Math.min(1, usage.players / 15) *
+      Math.min(1, usage.days / 3)
+    : 0
+  // Popularity is a limited utility signal, never a penalty for an unseen card.
+  // A card in 20% of sampled matches reaches the one-point pre-confidence cap.
+  const usageAdjustment = round(
+    usageWeight * Math.min(1, (usage?.weightedRate ?? 0) / 0.2),
+  )
+  const winRateAdjustment = round(
+    ((battleScore ?? curated) - curated) * battleWeight,
+  )
+  const unbounded = curated + winRateAdjustment + usageAdjustment
+  const score = round(clamp(unbounded))
   const confidence = !usable
-    ? 'curated'
+    ? usageUsable
+      ? 'early'
+      : 'curated'
     : evidence.effective >= 500 && evidence.players >= 30 && evidence.days >= 14
       ? 'strong'
       : evidence.effective >= 150 &&
@@ -63,14 +93,14 @@ export function blendRating(
         ? 'moderate'
         : 'early'
   return {
-    score: round(
-      clamp(
-        curated * (1 - battleWeight) + (battleScore ?? curated) * battleWeight,
-      ),
-    ),
-    curated: round(clamp(curated)),
+    score,
+    curated,
     battleScore: battleScore === null ? null : round(battleScore),
     battleWeight: round(battleWeight),
+    usageWeight: round(usageWeight),
+    winRateAdjustment,
+    usageAdjustment,
+    boundsAdjustment: round(score - unbounded),
     confidence,
     evidence,
   }
@@ -288,7 +318,7 @@ export function rateCard(
         format,
         level: prior.level,
         parts: prior.parts,
-        ...blendRating(prior.score, evidence),
+        ...blendRating(prior.score, evidence, 'card'),
       }
     : null
 }

@@ -13,6 +13,12 @@ import {
 } from './battles'
 import { allRatings } from './engine'
 import type { CatalogueCard } from '../splinterlands/catalogue'
+import {
+  prioritizeTargets,
+  type Coverage,
+  type CollectionTarget,
+} from './collection-priority'
+import type { BattleFormat } from './types'
 
 const GAME = 'https://api.splinterlands.io'
 const RESEARCH_SOURCES = new Set(['shared-replay', 'manual-replay'])
@@ -87,6 +93,14 @@ export async function saveCollectedBattle(
     `,
     sql`DELETE FROM rating_pending_battles WHERE queue_id = ANY(${battle.queueIds}::text[])`,
     sql`INSERT INTO rating_collection_accounts (player, discovered_from) SELECT player, 'opponent' FROM unnest(${battle.players}::text[]) AS player ON CONFLICT (player) DO NOTHING`,
+    sql`
+      INSERT INTO rating_collection_targets (player, format, league, last_seen)
+      SELECT player, b.format, b.league, b.played_at
+      FROM unnest(${battle.players}::text[]) AS player CROSS JOIN rating_battles b
+      WHERE b.id = ${battle.id} AND b.eligible AND b.league IS NOT NULL
+      ON CONFLICT (player, format) DO UPDATE SET league = EXCLUDED.league, last_seen = EXCLUDED.last_seen
+      WHERE rating_collection_targets.last_seen IS NULL OR rating_collection_targets.last_seen < EXCLUDED.last_seen
+    `,
   ])
   return {
     inserted: !!saved[0]?.inserted,
@@ -132,6 +146,8 @@ export async function runCollector(
     attempted: false,
     rejected: false,
     responses: 0,
+    requested: { modern: 0, wild: 0 },
+    targetedScopes: {} as Record<string, number>,
     fetched: { modern: 0, wild: 0 },
     accepted: { modern: 0, wild: 0 },
     scopes: {} as Record<string, number>,
@@ -139,6 +155,7 @@ export async function runCollector(
     skippedNonRanked: 0,
   }
   let ratingsRefreshed = false
+  let coverage: Coverage[] = []
   const available = () =>
     Date.now() < deadline - 1500 && requests < maxRequests && collected < 200
   async function request(
@@ -198,12 +215,15 @@ export async function runCollector(
     `
   }
   const historyPlayers = new Set<string>()
-  async function collectHistory(player: string) {
-    if (accessBlocked || historyPlayers.has(player)) return
-    historyPlayers.add(player)
-    for (const format of ['modern', 'wild'] as const) {
+  async function collectHistory(player: string, formats: BattleFormat[]) {
+    if (accessBlocked) return
+    for (const format of formats) {
       if (!available()) break
+      const key = `${player}:${format}`
+      if (historyPlayers.has(key)) continue
+      historyPlayers.add(key)
       historyAttempted = history.attempted = true
+      history.requested[format]++
       const params = new URLSearchParams({
         player,
         format,
@@ -256,6 +276,12 @@ export async function runCollector(
         }
         if ((error as Error).message === 'RATE_LIMITED') throw error
         failures++
+      } finally {
+        await sql`
+          INSERT INTO rating_collection_targets (player, format, last_checked)
+          VALUES (${player}, ${format}, now())
+          ON CONFLICT (player, format) DO UPDATE SET last_checked = now()
+        `
       }
     }
   }
@@ -309,11 +335,26 @@ export async function runCollector(
     if (options.replayIds?.length)
       await pending(options.replayIds, 'manual-replay')
     const admin = process.env.NEXT_PUBLIC_HIVE_ADMIN_ACCOUNT ?? 'brave.sps'
+    coverage = (await sql`
+      SELECT format, league, count(*)::int AS battles FROM rating_battles
+      WHERE eligible AND league IS NOT NULL AND played_at >= now() - interval '90 days'
+      GROUP BY format, league
+    `) as Coverage[]
+    const formats = (['modern', 'wild'] as BattleFormat[]).sort(
+      (a, b) =>
+        coverage
+          .filter((c) => c.format === a)
+          .reduce((n, c) => n + c.battles, 0) -
+        coverage
+          .filter((c) => c.format === b)
+          .reduce((n, c) => n + c.battles, 0),
+    )
     // Test configured authentication before discovery/retry work can consume the budget.
     const login = username ?? admin
     if (authenticatedHistory && validAccount(login) && available()) {
+      await sql`INSERT INTO rating_collection_accounts (player, discovered_from) VALUES (${login}, 'site account') ON CONFLICT (player) DO NOTHING`
       players++
-      await collectHistory(login)
+      await collectHistory(login, formats)
     }
     if (validAccount(admin))
       await sql`INSERT INTO rating_collection_accounts (player, discovered_from) VALUES (${admin}, 'site account') ON CONFLICT (player) DO NOTHING`
@@ -328,7 +369,7 @@ export async function runCollector(
         failures++
       }
     // Previous-season boards keep a rollover from erasing the discovery roster.
-    for (const format of ['modern', 'wild'])
+    for (const format of formats)
       for (const board of [0, 1, 2, 3]) {
         if (!available()) break
         try {
@@ -381,22 +422,32 @@ export async function runCollector(
         }
     // Working bulk history takes priority over repeatedly unresolved queue IDs.
     if (!authenticatedHistory || accessBlocked) await processPending()
-    const accounts = await sql`
-        SELECT player FROM (
-          SELECT player, discovered_from, last_checked, created_at,
-            row_number() OVER (PARTITION BY discovered_from ORDER BY last_checked ASC NULLS FIRST, created_at, player) AS source_rank
-          FROM rating_collection_accounts
-        ) roster
-        ORDER BY source_rank, discovered_from, last_checked ASC NULLS FIRST, created_at, player
-        LIMIT 40
-      `
-    for (const account of accounts) {
+    const candidates = (await sql`
+      WITH roster AS (
+        SELECT a.player, f.format,
+          CASE WHEN t.last_seen >= now() - interval '30 days' THEN t.league END AS league,
+          CASE WHEN ${accessBlocked} THEN a.last_checked ELSE t.last_checked END AS last_checked
+        FROM rating_collection_accounts a CROSS JOIN (VALUES ('modern'), ('wild')) f(format)
+        LEFT JOIN rating_collection_targets t ON t.player = a.player AND t.format = f.format
+      ), ranked AS (
+        SELECT *, row_number() OVER (PARTITION BY format, league ORDER BY last_checked ASC NULLS FIRST, player) AS scope_rank
+        FROM roster
+      )
+      SELECT player, format, league, last_checked::text AS "lastChecked" FROM ranked WHERE scope_rank <= 20
+    `) as CollectionTarget[]
+    const targets = prioritizeTargets(candidates, coverage)
+    const queuedPlayers = new Set<string>()
+    for (const target of targets) {
       if (!available()) break
-      const player = account.player as string
+      const player = target.player
+      const scope = `${target.format}:${target.league ?? 'unknown'}`
+      history.targetedScopes[scope] = (history.targetedScopes[scope] ?? 0) + 1
       players++
       try {
-        await collectHistory(player)
+        await collectHistory(player, [target.format])
         if (!available()) break
+        if (queuedPlayers.has(player)) continue
+        queuedPlayers.add(player)
         const queue = await request(
           `${GAME}/battle/battle_queue?username=${encodeURIComponent(player)}`,
         )

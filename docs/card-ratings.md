@@ -28,21 +28,45 @@ calibration, with a combined ±2 limit for each card/scope. Notes are required.
 Battle evidence estimates performance above/below a pre-battle Elo expectation
 (400-point scale). Five percentage points of residual performance estimate one
 rating point of adjustment around the curated baseline. Results at expectation
-preserve that baseline. The estimate is bounded to 0–10, then confidence-limited:
+preserve that baseline. Engine 1.2 uses separate win and usage contributions:
 
 ```
-weight = 0.65 × effective / (effective + 150)
-         × min(players / 20, 1) × min(days / 7, 1)
-score = curated + weight × (estimatedBattleScore - curated)
+winWeight = 0.8 × effective / (effective + 75)
+            × min(players / 15, 1) × min(days / 3, 1)
+winAdjustment = winWeight × (clamp(curated + 20 × (adjustedRate - 0.5), 0, 10) - curated)
+useWeight = totalEffective / (totalEffective + 100)
+            × cardEffective / (cardEffective + 30)
+            × min(cardPlayers / 15, 1) × min(cardDays / 3, 1)
+useBonus = useWeight × min(weightedUseRate / 0.2, 1)
+score = clamp(curated + winAdjustment + useBonus, 0, 10)
 ```
 
-No adjustment applies before 30 matches, five players and 20 effective samples.
-Only the last 90 days count, with a 30-day half-life and at most ten appearances
-per player, feature, scope and UTC day. Effective sample mass is the sum of
-decayed weights, so an old cohort loses influence even without new matches.
-Mirrored cards/abilities are excluded. Underlevelled card appearances cannot
-represent strength at the cap. Moderate confidence requires 150 effective
-samples, 15 players and seven days; strong requires 500, 30 and 14 respectively.
+Card win adjustments require 20 non-mirrored cap-level appearances, five players
+and 15 effective samples. Only the last 90 days count, with a 30-day half-life
+and at most ten appearances per player, feature, scope and UTC day. Effective
+sample mass is the sum of decayed weights. Underlevelled appearances and mirrors
+cannot establish cap-level performance. Ability ratings retain the previous
+30/5/20 gates, 0.65 × effective/(effective+150) × min(players/20,1) × min(days/7,1)
+weight, and no usage bonus.
+
+Use rate is distinct matches containing the card on either team divided by all
+eligible matches in that format/cap in the last 90 days. A mirror counts once.
+Underlevelled appearances count as selection evidence only. Both numerator and
+denominator use identical match weights: time decay × min(1, 10 / maximum of
+the two players’ daily match counts in this scope). Thus prolific accounts cannot
+contribute more than ten effective matches per day. The UI shows the raw match
+share, counts and weighted share. A bonus needs 20 card matches, five card users,
+15 effective card matches and 50 effective scope matches. It is capped at one
+point before confidence weighting, saturates at 20% match share and never
+penalizes unobserved cards. Sampling, ownership and affordability confound usage.
+The final breakdown separates baseline, win adjustment, usage bonus and bounds.
+
+Moderate confidence requires 150 effective win samples, 15 players and seven
+days; strong requires 500, 30 and 14. Usage alone can establish early confidence.
+Both signals use the selected format and level cap; there is no cross-scope
+borrowing. All daily refresh, admin preview/publication and deploy-init paths
+read both evidence streams together. The engine version triggers a deployment
+refresh without replacing published curation.
 
 These are associations, not causal estimates. Teammates, bots, ownership,
 rulesets and selection of leaderboard accounts remain confounders. Shared and
@@ -75,8 +99,8 @@ is null. Explicit replay formats and allowed-card settings take precedence.
 Standalone unlabelled replay responses remain unmapped. The original raw format
 is preserved and history context is restored from the stored format on reparse.
 Non-ranked history rows are skipped before they can exhaust the ingestion cap.
-Player selection rotates across discovery sources so a growing opponent queue
-cannot starve leaderboard accounts. Unsupported-format pending replays stop
+Account/format selection balances scarce observed caps with exploration of
+previously unchecked accounts. Unsupported-format pending replays stop
 retrying, and fresh pending IDs precede repeated failures.
 
 The default maxed table rechecks the public API after hydration, just like the
@@ -85,9 +109,17 @@ and provides a shortcut to sort by uses; an empty sample is identified explicitl
 
 ### Collection schedule
 
-GitHub Actions calls `/api/cron/collect-battles` every three hours at minute 7 (00:07, 03:07, …, 21:07 UTC; eight scheduled runs per day); scheduled Actions can be delayed. The public repository uses a minimal runner without checkout. The GitHub job authenticates with a short-lived OIDC identity verified against the issuer, audience, repository and owner IDs, main branch, exact workflow path, and allowed event. No shared GitHub secret is needed. Manual server triggers can also use `Authorization: Bearer <CRON_SECRET>`; invalid identities fail closed. A database
+GitHub Actions calls `/api/cron/collect-battles` every hour at minute 7 (24 scheduled runs per day); scheduled Actions can be delayed. The public repository uses a minimal runner without checkout. The GitHub job authenticates with a short-lived OIDC identity verified against the issuer, audience, repository and owner IDs, main branch, exact workflow path, and allowed event. No shared GitHub secret is needed. Manual server triggers can also use `Authorization: Bearer <CRON_SECRET>`; invalid identities fail closed. A database
 lease prevents overlapping runs. Each run has request, time and replay limits;
-pending IDs and a rotating player roster persist between runs. The admin can
+pending IDs and a rotating player roster persist between runs. Migration 006
+tracks last check per account/format and the most recent observed cap, seeded
+from existing eligible battles. Recent (90-day) scope counts prioritize known
+underrepresented caps; unknown accounts use their format’s average coverage.
+Every fifth planned history request explores the longest-unchecked target.
+Planning adds 20 estimated matches per allocated scope slot to spread the
+budget. Cap observations older than 30 days become unknown. Leaderboard labels
+are discovery hints, never a substitute for replay eligibility. API availability
+and actual match activity determine whether missing scopes can be filled. The admin can
 seed accounts, submit research replay IDs, run collection and refresh scores.
 
 Verified against live APIs on 2026-10-31:
@@ -126,9 +158,9 @@ use optimistic revisions; concurrent publication returns 409 to the stale
 writer. Restoring a prior version creates a draft and requires publication.
 Collection always scores against the published profile, never the draft.
 
-Neon migrations 002–004 add profiles, score snapshots, a singleton workspace,
-raw battles, normalized observations, player/pending queues, job runs and a
-lease. Canonical IDs join the two sorted queue IDs. Ingestion is idempotent;
+Neon migrations 002–006 add profiles, score snapshots, a singleton workspace,
+raw battles, normalized observations, descriptive usage, account/format targets,
+player/pending queues, job runs and a lease. Canonical IDs join the two sorted queue IDs. Ingestion is idempotent;
 parser upgrades replace observations atomically, guarded against older writers.
 Research-only captures can be promoted if later independently discovered from
 a ranked queue/history source. Publishing atomically swaps the active snapshot;
@@ -156,6 +188,7 @@ npm run lint
 npm run build
 # With the local app running, development database only:
 npm run test:ratings-db
+ALLOW_USAGE_DB_TEST=1 node --import tsx scripts/test-rating-signals.mts
 ```
 
 The Vercel build command applies additive migrations and initializes only an

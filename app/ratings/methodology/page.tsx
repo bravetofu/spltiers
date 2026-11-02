@@ -24,8 +24,8 @@ export default async function Methodology() {
           <h1>Strength, with the reasoning attached.</h1>
           <p>
             Every combat card and ability can receive a 0–10 rating. Curated
-            mechanics provide a starting point; independent ranked results
-            gradually refine it.
+            mechanics provide a starting point; ranked win results and observed
+            card use gradually refine it.
           </p>
           <div className="catalogue-header-links">
             <Link href="/cards">Card library ↗</Link>
@@ -117,15 +117,54 @@ export default async function Methodology() {
           ten recent appearances per feature, scope and day.
         </p>
         <p>
-          A minimum of 30 qualifying matches, five distinct players and 20
-          effective samples is required before battle evidence changes a rating.
-          Results above or below the player-rating expectation estimate an
-          adjustment to the curated baseline: five percentage points correspond
-          to one rating point before confidence limits. Results at expectation
-          leave the baseline unchanged. The fraction of that adjustment applied
-          grows with effective sample size, player diversity and days covered,
-          up to 65%. Scores remain bounded at 0–10. No data, unavailable data or
-          weak evidence does not mean a zero rating.
+          For cards, a minimum of 20 qualifying appearances, five distinct
+          players and 15 effective samples is required before win results change
+          a rating. Results above or below the player-rating expectation
+          estimate an adjustment to the curated baseline: five percentage points
+          correspond to one rating point before confidence limits. Results at
+          expectation leave the baseline unchanged. The fraction of that
+          adjustment applied grows with effective sample size, player diversity
+          and days covered, up to 80% for cards. The weight is 0.8 × effective /
+          (effective + 75), multiplied by player breadth (up to 15 players) and
+          time breadth (up to three distinct days). Ability ratings retain the
+          more conservative 30-appearance, five-player, 20-effective-sample gate
+          and 65% maximum; abilities receive no popularity bonus. Scores remain
+          bounded at 0–10. No data, unavailable data or weak evidence does not
+          mean a zero rating.
+        </p>
+        <h2>Use rate as a utility signal</h2>
+        <p>
+          A card selected repeatedly across different players can offer
+          practical utility beyond its isolated stats. Use rate is the fraction
+          of recorded qualifying matches in the same format and card-level cap
+          containing that card on either team. A mirror counts once, so the rate
+          cannot exceed 100%. It includes underlevelled appearances as evidence
+          of selection, without treating them as evidence of maxed performance.
+        </p>
+        <p>
+          The rating uses the last 90 days. Both the numerator and denominator
+          receive the same 30-day time decay and account-volume weighting. A
+          match is downweighted when either player has more than ten recorded
+          matches in that format and cap on the same UTC day. This limits the
+          influence of prolific accounts while retaining their matches.
+        </p>
+        <p>
+          Use rate adds a utility bonus of up to one rating point before
+          confidence limits, reaching that ceiling at 20% weighted match share.
+          It requires use in at least 20 matches by five players, 15 effective
+          card matches and 50 effective matches in the scope. The bonus is
+          multiplied by totalEffective / (totalEffective + 100), cardEffective /
+          (cardEffective + 30), player breadth up to 15 players, and time
+          breadth up to three days. Unseen or rarely used cards receive no
+          popularity penalty. Ownership, cost and availability also affect
+          usage, so this bonus is deliberately smaller than the possible
+          win-rate adjustment.
+        </p>
+        <p>
+          Final score = curated baseline + confidence-limited win-rate
+          adjustment + confidence-limited use-rate bonus, bounded to 0–10. Card
+          breakdowns show both effects in rating points, the use-rate numerator
+          and denominator, and any adjustment needed to stay within the bounds.
         </p>
         <h2>Card uses and win rates</h2>
         <p>
@@ -133,9 +172,9 @@ export default async function Methodology() {
           lifetime collected ranked sample, scoped to the selected format and
           league cap. These are not global game totals. Each team using a card
           contributes one use, including underlevelled cards. A mirror match
-          contributes two uses: one win and one loss, or two draws. These buckets
-          describe card-level caps, not a player’s ladder rank: unrestricted
-          matches use the Diamond/Champion cap bucket.
+          contributes two uses: one win and one loss, or two draws. These
+          buckets describe card-level caps, not a player’s ladder rank:
+          unrestricted matches use the Diamond/Champion cap bucket.
         </p>
         <p>
           Win rate is wins divided by uses. Draws remain in the denominator and
@@ -147,20 +186,21 @@ export default async function Methodology() {
         </p>
         <h2>Confidence and limitations</h2>
         <p>
-          “Curated only” means the battle threshold has not been met. “Early,”
-          “Moderate” and “Strong” describe increasing sample breadth, not
-          certainty. Moderate requires at least 150 effective samples, 15
-          players and seven days; strong requires 500 effective samples, 30
-          players and 14 days.
+          “Curated only” means neither card evidence threshold has been met.
+          Usage evidence alone can establish “Early” confidence; higher levels
+          require win-result evidence. “Early,” “Moderate” and “Strong” describe
+          increasing sample breadth, not certainty. Moderate requires at least
+          150 effective samples, 15 players and seven days; strong requires 500
+          effective samples, 30 players and 14 days.
         </p>
         <p>
           These are observational associations. Player ratings, mirrored-feature
           exclusions and sampling limits reduce some bias; they do not fully
           isolate an individual card or ability from teammates, ownership, bots,
-          player preference or favorable rulesets. Popularity is not directly
-          rewarded. Sparse or highly correlated samples retain limited
-          influence. Standard/non-standard match counts are available to audit
-          context coverage.
+          player preference or favorable rulesets. The bounded use-rate bonus
+          measures observed selection, not universal strength. Sparse or highly
+          correlated samples retain limited influence. Standard/non-standard
+          match counts are available to audit context coverage.
         </p>
         <h2>Collection status</h2>
         <p>
@@ -178,9 +218,15 @@ export default async function Methodology() {
             : 'The collection job has not completed a run yet.'}
         </p>
         <p>
-          A job scheduled every three hours discovers players from public
-          leaderboards and opponents, samples their active ranked queues, and
-          resolves full replays without an access token. Ratings refresh daily;
+          A job scheduled every hour at minute seven discovers players from
+          public leaderboards and opponents, fetches authenticated ranked
+          history when credentials are available, and samples public queues and
+          replays. Account/format requests prioritize caps with fewer qualifying
+          battles in the last 90 days, using each account’s recently observed
+          cap. Every fifth planned request explores the longest-unchecked
+          account/format so existing coverage does not prevent discovering new
+          scopes. API leaderboard labels do not prove cap coverage, and missing
+          scopes cannot be guaranteed each run. Ratings refresh daily;
           collection runs retain new replays between refreshes. Scheduled runs
           may be delayed by the hosting provider. Shared or manually submitted
           replays are archived for research only, because players selectively

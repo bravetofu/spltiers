@@ -17,7 +17,7 @@ export default function RatingBadge({
   return (
     <span
       className={`rating-badge rating-${score >= 8 ? 'excellent' : score >= 6 ? 'good' : score >= 4 ? 'mixed' : 'weak'}`}
-      aria-label={`${score.toFixed(1)} out of 10. ${CONFIDENCE_LABELS[confidence]}. ${battles} qualifying matches.`}
+      aria-label={`${score.toFixed(1)} out of 10. ${CONFIDENCE_LABELS[confidence]}. ${battles} qualifying win-result samples.`}
     >
       {score.toFixed(1)}
       <small>/10</small>

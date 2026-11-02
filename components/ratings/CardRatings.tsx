@@ -34,6 +34,9 @@ export default function CardRatings({
     card.modern ? 'modern' : 'wild',
   )
   const rating = ratings.find((r) => r.league === league && r.format === format)
+  const ratingUsage = rating?.evidence.usage
+  const signed = (value: number) =>
+    `${value >= 0 ? '+' : ''}${value.toFixed(3)}`
   const usage = battleStats
     ? (battleStats.find((s) => s.league === league && s.format === format) ??
       EMPTY_BATTLE_STATS)
@@ -161,27 +164,33 @@ export default function CardRatings({
                 <strong>{rating.curated.toFixed(1)} / 10</strong>
               </div>
               <div>
-                <span>Battle adjustment</span>
+                <span>Win-rate effect</span>
                 <strong>
-                  {rating.score >= rating.curated ? '+' : ''}
-                  {(rating.score - rating.curated).toFixed(1)} pts
+                  {signed(
+                    rating.winRateAdjustment ?? rating.score - rating.curated,
+                  )}{' '}
+                  pts
                 </strong>
               </div>
               <div>
-                <span>Rating evidence</span>
+                <span>Use-rate effect</span>
+                <strong>{signed(rating.usageAdjustment ?? 0)} pts</strong>
+              </div>
+              <div>
+                <span>Win-result samples</span>
                 <strong>
                   {rating.evidence.battles.toLocaleString('en-US')}
                 </strong>
               </div>
               <div>
-                <span>Distinct players</span>
+                <span>Win-sample players</span>
                 <strong>{rating.evidence.players}</strong>
               </div>
             </div>
           </div>
           <p className="rating-note">
-            {rating.battleWeight
-              ? `Recent results adjust the curated baseline, with ${Math.round(rating.battleWeight * 100)}% of the estimated performance adjustment applied after confidence limits, time decay and account concentration limits. `
+            {rating.battleWeight || rating.usageWeight
+              ? 'Recent win results and selection frequency adjust the curated baseline separately, after sample-size, player-diversity and time limits. '
               : 'The curated model determines this rating until enough independent battle evidence is available. '}
             Battle association is not proof that a card caused a win.
           </p>
@@ -191,13 +200,83 @@ export default function CardRatings({
               {(rating.evidence.rawWinRate * 100).toFixed(1)}% ·
               Player-adjusted:{' '}
               {(rating.evidence.adjustedWinRate * 100).toFixed(1)}% ·{' '}
-              {rating.evidence.days} distinct days. Shared cards on both teams
-              and underlevelled card appearances are excluded from strength
-              evidence.
+              {rating.evidence.days} distinct days ·{' '}
+              {rating.evidence.effective.toFixed(1)} effective samples. Shared
+              cards on both teams and underlevelled card appearances are
+              excluded from strength evidence.
             </p>
           )}
+          <p className="rating-note">
+            {ratingUsage
+              ? `Use rate: ${(ratingUsage.rate * 100).toFixed(1)}% — used in ${ratingUsage.battles.toLocaleString('en-US')} of ${ratingUsage.totalBattles.toLocaleString('en-US')} recorded matches in this format and cap over the last 90 days, by ${ratingUsage.players} players across ${ratingUsage.days} days. After time decay and account-volume limits: ${(ratingUsage.weightedRate * 100).toFixed(1)}% (${ratingUsage.effective.toFixed(1)} effective card matches). `
+              : 'No recent qualifying usage sample for this card and scope. '}
+            A mirror counts as one match for use rate. Selection frequency
+            includes underlevelled appearances; win-rate strength evidence
+            requires the card at the selected cap. These rating inputs are
+            captured at the last daily refresh.
+          </p>
           <details className="rating-breakdown">
             <summary>See the scoring breakdown</summary>
+            <div className="catalogue-table-wrap">
+              <table className="price-table">
+                <caption>Final rating calculation (0–10 rating points)</caption>
+                <thead>
+                  <tr>
+                    <th>Contribution</th>
+                    <th>Points</th>
+                    <th>Reason</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <th scope="row">Curated baseline</th>
+                    <td>{rating.curated.toFixed(3)}</td>
+                    <td>
+                      Calibrated stats, abilities, synergies and curator
+                      adjustments.
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Win-rate adjustment</th>
+                    <td>
+                      {signed(
+                        rating.winRateAdjustment ??
+                          rating.score - rating.curated,
+                      )}
+                    </td>
+                    <td>
+                      {rating.battleWeight
+                        ? `${(rating.evidence.adjustedWinRate * 100).toFixed(1)}% player-adjusted outcome rate; ${(rating.battleWeight * 100).toFixed(1)}% of the estimated score change applied.`
+                        : 'Needs 20 non-mirrored cap-level appearances, 5 players and 15 effective samples. No win-rate adjustment yet.'}
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Use-rate utility bonus</th>
+                    <td>{signed(rating.usageAdjustment ?? 0)}</td>
+                    <td>
+                      {rating.usageWeight
+                        ? `${((ratingUsage?.weightedRate ?? 0) * 100).toFixed(1)}% weighted match share; ${(rating.usageWeight * 100).toFixed(1)}% confidence weight. At most +1 point before confidence limits; reaches that cap at 20% match share.`
+                        : 'Needs use in 20 matches, 5 players, 15 effective card matches and 50 effective matches in this scope. Unseen or rare cards receive no penalty.'}
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row">0–10 bounds</th>
+                    <td>{signed(rating.boundsAdjustment ?? 0)}</td>
+                    <td>Keep the final score between zero and ten.</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Final rating</th>
+                    <td>
+                      <strong>{rating.score.toFixed(3)}</strong>
+                    </td>
+                    <td>
+                      Curated baseline + win-rate adjustment + use-rate bonus +
+                      bounds.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
             <p>
               Stats, abilities and synergies contribute model points. A fixed
               calibration maps their subtotal to 0–10; curator adjustments then

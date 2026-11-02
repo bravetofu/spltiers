@@ -59,7 +59,18 @@ export type RatingProfile = {
   statSynergies: StatSynergy[]
   adjustments: CardAdjustment[]
 }
+export type UsageEvidence = {
+  battles: number
+  totalBattles: number
+  players: number
+  days: number
+  effective: number
+  totalEffective: number
+  rate: number
+  weightedRate: number
+}
 export type Evidence = {
+  usage?: UsageEvidence
   battles: number
   players: number
   days: number
@@ -78,6 +89,10 @@ export type Rating = {
   curated: number
   battleScore: number | null
   battleWeight: number
+  usageWeight: number
+  winRateAdjustment: number
+  usageAdjustment: number
+  boundsAdjustment: number
   confidence: Confidence
   evidence: Evidence
 }
@@ -113,7 +128,7 @@ export type CollectorStatus = {
     collected: number
   } | null
 }
-export const ENGINE_VERSION = 'hybrid-1.1'
+export const ENGINE_VERSION = 'hybrid-1.2'
 export const PARSER_VERSION = 3
 export const EVIDENCE_WINDOW_DAYS = 90
 export const EVIDENCE_HALF_LIFE_DAYS = 30

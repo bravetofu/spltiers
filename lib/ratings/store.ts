@@ -9,7 +9,7 @@ import type {
   PublishedInfo,
   RatingProfile,
 } from './types'
-import { ENGINE_VERSION } from './types'
+import { EMPTY_EVIDENCE, ENGINE_VERSION } from './types'
 import type { CardBattleStats } from './battle-stats'
 
 export async function readCardBattleStats(
@@ -131,7 +131,8 @@ export async function readEvidence(): Promise<Record<string, Evidence>> {
   const sql = ratingDatabase()
   // Limit dominance by prolific accounts before time decay, and exclude mirrored
   // features. Two sides of one match are not independent card-strength evidence.
-  const rows = await sql`
+  const [rows, usageRows] = await Promise.all([
+    sql`
     WITH recent AS (
       SELECT o.*, b.format, b.league, b.played_at, b.rulesets,
         row_number() OVER (PARTITION BY o.kind, o.subject, b.format, b.league, o.player, (b.played_at AT TIME ZONE 'UTC')::date ORDER BY b.played_at DESC) AS daily_rank
@@ -149,8 +150,48 @@ export async function readEvidence(): Promise<Record<string, Evidence>> {
       avg(outcome)::float AS raw_rate, max(played_at)::text AS latest,
       count(*) FILTER (WHERE cardinality(rulesets) = 0 OR rulesets = ARRAY['Standard'])::int AS standard_battles
     FROM weighted GROUP BY kind, subject, league, format
-  `
-  return Object.fromEntries(
+  `,
+    sql`
+    WITH recent AS (
+      SELECT id, league, format, played_at,
+        raw->>'player_1' AS player1, raw->>'player_2' AS player2
+      FROM rating_battles
+      WHERE eligible AND league IS NOT NULL AND played_at >= now() - interval '90 days'
+    ), sides AS (
+      SELECT id, league, format, played_at, player1 AS player, 1 AS side FROM recent
+      UNION ALL
+      SELECT id, league, format, played_at, player2, 2 FROM recent
+    ), volumes AS (
+      SELECT *, count(*) OVER (PARTITION BY league, format, player, (played_at AT TIME ZONE 'UTC')::date) AS volume
+      FROM sides
+    ), weighted AS (
+      SELECT id, league, format, played_at,
+        power(0.5, greatest(0, extract(epoch FROM (now() - played_at)) / 86400) / 30)
+          * least(1.0, 10.0 / max(volume)) AS weight
+      FROM volumes GROUP BY id, league, format, played_at
+    ), totals AS (
+      SELECT league, format, count(*)::int AS total, sum(weight)::float AS mass
+      FROM weighted GROUP BY league, format
+    ), appearances AS (
+      SELECT w.*, u.card_id, v.player
+      FROM weighted w JOIN rating_card_usage u ON u.battle_id = w.id
+      JOIN volumes v ON v.id = u.battle_id AND v.side = u.side
+    ), card_matches AS (
+      SELECT DISTINCT id, league, format, played_at, weight, card_id FROM appearances
+    ), breadth AS (
+      SELECT card_id, league, format, count(DISTINCT player)::int AS players
+      FROM appearances GROUP BY card_id, league, format
+    )
+    SELECT c.card_id, c.league, c.format, count(*)::int AS battles, t.total,
+      b.players, count(DISTINCT (c.played_at AT TIME ZONE 'UTC')::date)::int AS days,
+      sum(c.weight)::float AS effective, t.mass,
+      count(*)::float / t.total AS rate, sum(c.weight)::float / t.mass AS weighted_rate
+    FROM card_matches c JOIN totals t USING (league, format)
+    JOIN breadth b USING (card_id, league, format)
+    GROUP BY c.card_id, c.league, c.format, t.total, t.mass, b.players
+  `,
+  ])
+  const evidence: Record<string, Evidence> = Object.fromEntries(
     rows.map((r) => [
       `${r.kind}:${r.subject}:${r.league}:${r.format}`,
       {
@@ -168,6 +209,23 @@ export async function readEvidence(): Promise<Record<string, Evidence>> {
       },
     ]),
   )
+  for (const r of usageRows) {
+    const key = `card:${r.card_id}:${r.league}:${r.format}`
+    evidence[key] = {
+      ...(evidence[key] ?? EMPTY_EVIDENCE),
+      usage: {
+        battles: r.battles,
+        totalBattles: r.total,
+        players: r.players,
+        days: r.days,
+        effective: r.effective,
+        totalEffective: r.mass,
+        rate: r.rate,
+        weightedRate: r.weighted_rate,
+      },
+    }
+  }
+  return evidence
 }
 
 export async function writeSnapshot(
