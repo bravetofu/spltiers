@@ -63,3 +63,16 @@ test('invalid scores are ignored, duplicate scopes count once, and warnings foll
   assert.equal(tierMismatch('D', undefined), false)
   assert.equal(summarizeTierRatings([row(0)])[1].tier, 'D')
 })
+
+test('tier distance is symmetric, distinguishes all gaps and ignores unranked or unknown ratings', async () => {
+  const { tierDistance } = await import('../lib/ratings/tier-reference')
+  const top = summarizeTierRatings([row(9.5)])[1]
+  assert.equal(tierDistance('S', top), 0)
+  assert.equal(tierDistance('A', top), 1)
+  assert.equal(tierDistance('B', top), 2)
+  assert.equal(tierDistance('C', top), 3)
+  assert.equal(tierDistance('D', top), 4)
+  assert.equal(tierDistance('S', summarizeTierRatings([row(4)])[1]), 4)
+  assert.equal(tierDistance(null, top), 0)
+  assert.equal(tierDistance('S', undefined), 0)
+})

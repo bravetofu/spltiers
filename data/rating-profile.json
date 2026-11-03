@@ -111,18 +111,18 @@
       "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
     },
     "Bloodline Tribute": {
-      "standard": 7,
-      "nonStandard": 7,
+      "standard": 9.5,
+      "nonStandard": 9.5,
       "multiplier": 1,
       "drawback": false,
-      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+      "notes": "Powerful team-wide death buff. Shared attack types each gain power; resurrection can repeat the buff. Card scoring separately models compatible allies, Rebirth, discounted external Resurrect, Taunt and mana efficiency, without adding its base contribution twice."
     },
     "Bloodlust": {
-      "standard": 8,
-      "nonStandard": 8,
+      "standard": 9,
+      "nonStandard": 9,
       "multiplier": 1,
       "drawback": false,
-      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+      "notes": "Strong kill-driven snowball. Card contribution scales with cap-level damage output: weak ranged attackers realize less value, combined attacks more. No-attack recipients need compatible Weapons Training; attack and targeting pair bonuses are separate."
     },
     "Bulwark": {
       "standard": 5,
@@ -272,11 +272,11 @@
       "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
     },
     "Electrified": {
-      "standard": 1,
-      "nonStandard": 1,
+      "standard": 3,
+      "nonStandard": 3,
       "multiplier": 1,
       "drawback": true,
-      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+      "notes": "Still damages the friendly team, including its carrier, from round two. Reliable Painforge activation can offset part of that cost with suitable attackers and enough health. The card breakdown credits compatible recipients separately."
     },
     "Empower": {
       "standard": 6,
@@ -412,11 +412,11 @@
       "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
     },
     "Incendiary": {
-      "standard": 1,
-      "nonStandard": 1,
+      "standard": 3,
+      "nonStandard": 3,
       "multiplier": 1,
       "drawback": true,
-      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+      "notes": "Burning remains harmful but can fuel Painforge on its carrier and allies. Spread, timing and health constrain the payoff; Cleansing or resurrection can interrupt it. Conditional conversion is scored separately."
     },
     "Inspire": {
       "standard": 7,
@@ -594,11 +594,11 @@
       "notes": "Burst damage trades away alternate attack turns and can be wasted into shields or armor."
     },
     "Reckless": {
-      "standard": 1,
-      "nonStandard": 1,
+      "standard": 2.5,
+      "nonStandard": 2.5,
       "multiplier": 1,
       "drawback": true,
-      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+      "notes": "Friendly adjacent damage remains a liability; a successful attack can deliberately trigger an adjacent Painforge unit. Does not activate its own Painforge, and misses do not trigger damage."
     },
     "Redemption": {
       "standard": 3,
@@ -699,11 +699,11 @@
       "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
     },
     "Shapeshift": {
-      "standard": 8,
-      "nonStandard": 8,
+      "standard": 9.5,
+      "nonStandard": 9.5,
       "multiplier": 1,
       "drawback": false,
-      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+      "notes": "Universal bloodline eligibility: accesses all compatible bloodline summoner grants and allied Tribute/Pact effects. Card-level partner access is evaluated separately; alternatives and ruleset restrictions still matter."
     },
     "Shatter": {
       "standard": 4,
@@ -776,11 +776,11 @@
       "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
     },
     "Stray Shot": {
-      "standard": 1,
-      "nonStandard": 1,
+      "standard": 2.5,
+      "nonStandard": 2.5,
       "multiplier": 1,
       "drawback": true,
-      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+      "notes": "Ranged attacks damage a random friendly unit, including on misses. Can trigger Painforge, but random targeting and two true damage make it less controllable than deliberate adjacency. Card bonuses are discounted accordingly."
     },
     "Strengthen": {
       "standard": 7,
@@ -892,7 +892,7 @@
       "nonStandard": 1,
       "multiplier": 1,
       "drawback": true,
-      "notes": "Provisional mechanic-based prior. Review for the current meta; battle evidence remains separate."
+      "notes": "Exhaustion skips turns and is not a damage trigger. It does not enable Painforge and retains a substantial penalty. Conditional mitigation does not make the debilitation intrinsically beneficial."
     },
     "Wingbreak": {
       "standard": 5,

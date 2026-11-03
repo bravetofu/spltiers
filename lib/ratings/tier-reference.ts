@@ -56,3 +56,13 @@ export function tierMismatch(
 ) {
   return !!tier && !!summary && tier !== summary.tier
 }
+
+/** Four-tier differences use the highest alert severity too. */
+export function tierDistance(
+  tier: TierKey | null,
+  summary: TierRatingSummary | undefined,
+) {
+  if (!tier || !summary) return 0
+  const tiers: TierKey[] = ['S', 'A', 'B', 'C', 'D']
+  return Math.abs(tiers.indexOf(tier) - tiers.indexOf(summary.tier))
+}

@@ -78,17 +78,63 @@ export default async function Methodology() {
           constants were not copied. Current starting weights are open to review
           in the publishing workflow.
         </p>
-        <h2>Team engines and partnerships</h2>
+        <h2>How ability strength affects cards</h2>
         <p>
-          Bloodline Tribute is valued as a conditional team buff: up to three
-          matching-bloodline or Shapeshift allies, shared attack types, and
-          additional death triggers from Rebirth. Taunt improves trigger
-          reliability, and low mana leaves room for the beneficiaries.
-          Compatible Bloodline Dominion summoners expand the available team;
-          Scavenger can benefit from repeated deaths. These are team-building
-          assumptions, not measured causal contributions. Only abilities
-          unlocked at the selected level count, and alternative partners are not
-          added together.
+          Published curated ability weights feed both the ability ratings and
+          each card’s starting score. A unit’s ordinary beneficial ability adds
+          its prior divided by ten, multiplied by 1.3 and the league ability
+          multiplier. Drawbacks retain a negative contribution. The card model
+          then accounts for whether that unit can exploit the ability. We do not
+          feed battle-adjusted ability ratings back into cards, which would
+          count the same battle evidence twice.
+        </p>
+        <h2>Conditional abilities and team partners</h2>
+        <p>
+          Electrified, Incendiary, Reckless and Stray Shot can turn friendly
+          damage into Painforge power. Their harm penalties remain; a separate
+          contribution credits compatible Painforge attackers with enough
+          health. Reliable damage is worth more than random targeting or
+          uncertain Burning spread. Reckless needs a successful attack and
+          adjacent allies; Stray Shot needs ranged attack. Weary causes turn
+          loss, not damage, so it receives no Painforge bonus.
+        </p>
+        <p>
+          Shapeshift carries a strong prior because it qualifies for every
+          bloodline. Available summoner grants, Bloodline Tribute and Bloodline
+          Pact add bounded partner value. Only the best summoner package counts;
+          alternative summoners are never treated as simultaneous team buffs.
+        </p>
+        <p>
+          Bloodline Tribute models up to three compatible beneficiaries, each
+          shared attack type, repeated deaths from Rebirth and a discounted
+          extra trigger if compatible Resurrect support exists. Taunt improves
+          trigger reliability and low mana leaves room for beneficiaries. The
+          ordinary Tribute contribution is subtracted from the interaction
+          estimate to avoid counting it twice. Final Rest and Dispel can counter
+          the engine; unlimited resurrection loops are never assumed.
+        </p>
+        <p>
+          Bloodlust is a strong snowball ability, but a weak attacker is less
+          likely to realize it. Its card contribution scales with damage output:
+          combined attacks receive more value than a small ranged attack. A
+          no-attack unit can receive conditional credit for compatible Weapons
+          Training, discounted for team cost and positioning. Untrainable units
+          receive no such credit. Double Strike and targeting synergy bonuses
+          stay separate rather than being applied twice.
+        </p>
+        <p>
+          Card breakdowns name these conditional contributions. They use the
+          selected format’s available cards and abilities unlocked at that cap;
+          actual elements, mana, rulesets and lineup restrictions still apply.
+          These are curated team-building estimates, not simulated battles or
+          measured causal effects. Grix and Dragonlord Mancer illustrate the
+          mechanics, but neither receives a special name-based score.
+        </p>
+        <p>
+          The November 2026 review records player feedback, official mechanics,
+          assumptions and counterexamples in the maintained scoring methodology.
+          Future reviews should replace outdated assumptions and check for
+          overlapping bonuses before publishing new weights.
         </p>
         <h2>How battle evidence changes a score</h2>
         <p>

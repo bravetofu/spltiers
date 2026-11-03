@@ -84,8 +84,8 @@ export default function CatalogueTable({
     (deferredFilters.format || 'auto') as BattleFormat | 'auto',
   )
   const [page, setPage] = useState(1)
-  const [sort, setSort] = useState('name')
-  const [direction, setDirection] = useState(1)
+  const [sort, setSort] = useState(filters.kind === 'land' ? 'name' : 'uses')
+  const [direction, setDirection] = useState(filters.kind === 'land' ? 1 : -1)
   useEffect(() => {
     const next = parseCatalogueFilters(
       Object.fromEntries(new URLSearchParams(query)),
@@ -245,8 +245,8 @@ export default function CatalogueTable({
                       ? 2
                       : (index + (event.key === 'ArrowRight' ? 1 : 2)) % 3
                 ]
-              setSort('name')
-              setDirection(1)
+              setSort(next.kind === 'land' ? 'name' : 'uses')
+              setDirection(next.kind === 'land' ? 1 : -1)
               update({
                 kind: next.kind,
                 ...(next.kind === 'land' ? { format: '' } : {}),
@@ -254,8 +254,8 @@ export default function CatalogueTable({
               document.getElementById(`tab-${next.kind}`)?.focus()
             }}
             onClick={() => {
-              setSort('name')
-              setDirection(1)
+              setSort(tab.kind === 'land' ? 'name' : 'uses')
+              setDirection(tab.kind === 'land' ? 1 : -1)
               update({
                 kind: tab.kind,
                 ...(tab.kind === 'land' ? { format: '' } : {}),
@@ -326,8 +326,8 @@ export default function CatalogueTable({
           className="catalogue-reset"
           onClick={() => {
             update({ ...DEFAULTS, kind: filters.kind })
-            setSort('name')
-            setDirection(1)
+            setSort(filters.kind === 'land' ? 'name' : 'uses')
+            setDirection(filters.kind === 'land' ? 1 : -1)
           }}
         >
           Reset filters

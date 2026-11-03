@@ -1,4 +1,8 @@
 .tier-rating-tile { position: relative; }
-.tier-rating-mismatch { position: absolute; top: -4px; left: -4px; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; border: 2px solid #0d1117; border-radius: 50%; background: #ed344a; color: white; font-size: 12px; font-weight: 800; line-height: 1; box-shadow: 0 0 0 1px #ff7584; pointer-events: none; z-index: 2; }
+.tier-rating-mismatch { position: absolute; top: -4px; left: -4px; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; border: 2px solid #0d1117; border-radius: 50%; background: var(--tier-alert); color: white; font-size: 12px; font-weight: 800; line-height: 1; box-shadow: 0 0 0 1px var(--tier-alert); pointer-events: none; z-index: 2; }
 .tier-rating-legend { padding: 5px 20px; background: #121921; border-bottom: 1px solid #30363d; color: #aebdce; font-size: 11px; flex-shrink: 0; }
-.tier-rating-legend b { color: #ff6b7b; margin-right: 6px; }
+.tier-rating-legend b { color: #d3dce6; margin-right: 6px; }
+
+.tier-rating-distance-1 { --tier-alert: #84909f; color: #0d1117; }
+.tier-rating-distance-2 { --tier-alert: #f5ce46; color: #0d1117; }
+.tier-rating-distance-3 { --tier-alert: #ed344a; }

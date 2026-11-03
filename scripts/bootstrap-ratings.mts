@@ -10,6 +10,10 @@ import {
 } from '../lib/ratings/store'
 import { allRatings } from '../lib/ratings/engine'
 import { checkedProfile } from '../lib/ratings/validation'
+import {
+  ABILITY_REVIEW,
+  applyAbilityReview,
+} from '../lib/ratings/curation-review'
 import { ENGINE_VERSION } from '../lib/ratings/types'
 import type { CatalogueCard } from '../lib/splinterlands/catalogue'
 import { backfillBattleUsage } from '../lib/ratings/backfill'
@@ -52,6 +56,44 @@ if (!workspace?.active_profile_id) {
   console.log(
     'Published rating profile already exists; preserved all curation.',
   )
+
+// One-time, versioned player review. Merge only unchanged provisional weights;
+// preserve custom published curation and independently merge the private draft.
+if (
+  !(
+    await sql`SELECT id FROM rating_profiles WHERE label = ${ABILITY_REVIEW.label} LIMIT 1`
+  ).length
+) {
+  const state = await readWorkspace()
+  const published = await publishedConfig()
+  if (published && state.workspace) {
+    const reviewed = applyAbilityReview(published.config)
+    const draft = applyAbilityReview(checkedProfile(state.workspace.draft))
+    const revision = await writeSnapshot(
+      randomUUID(),
+      allRatings(cards, reviewed.config, await readEvidence()),
+      {
+        config: checkedProfile(reviewed.config),
+        draft: checkedProfile(draft.config),
+        revision: state.workspace.revision,
+        label: ABILITY_REVIEW.label,
+        notes:
+          ABILITY_REVIEW.notes +
+          (reviewed.preserved.length
+            ? ` Preserved custom weights: ${reviewed.preserved.join(', ')}.`
+            : ''),
+        author: 'player-requested methodology review',
+      },
+    )
+    if (!revision)
+      throw new Error(
+        'Concurrent curation changed during ability review; rerun initialization.',
+      )
+    console.log(
+      `Published ability review: ${reviewed.changed.length} provisional weights updated; ${reviewed.preserved.length} custom weights preserved. Private draft changes retained.`,
+    )
+  }
+}
 
 // Start the initial production collection once; scheduled and admin runs handle subsequent ingestion.
 if (

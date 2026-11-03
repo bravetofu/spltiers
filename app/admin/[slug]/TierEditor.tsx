@@ -20,6 +20,7 @@ import HoverDetails from '@/components/HoverDetails'
 import TierRatingDetails from './TierRatingDetails'
 import {
   tierMismatch,
+  tierDistance,
   type TierKey,
   type TierRatingIndex,
   type TierRatingSummary,
@@ -119,9 +120,9 @@ function DraggableCard({
       />
       {isUnit && rating && tierMismatch(card.tier, rating) && (
         <span
-          className="tier-rating-mismatch"
+          className={`tier-rating-mismatch tier-rating-distance-${Math.min(3, tierDistance(card.tier, rating))}`}
           role="img"
-          aria-label={`Rating mismatch: average ${rating.average.toFixed(4)} suggests ${rating.tier}, currently ${card.tier}`}
+          aria-label={`Rating mismatch: average ${rating.average.toFixed(4)} suggests ${rating.tier}, currently ${card.tier}; ${tierDistance(card.tier, rating)} tiers apart`}
         >
           !
         </span>
@@ -380,7 +381,7 @@ export default function TierEditor({ cardSet, allCards, existingEntries, ratings
       <div className="tier-rating-legend">
         {ratings ? (
           <>
-            <b>! Rating reference</b> Red marks indicate a unit outside its average score band.
+            <b>! Rating reference</b> Marks show tier distance: grey = 1, yellow = 2, red = 3 or more.
             Hover or focus a unit for scores. S ≥9 · A ≥8 · B ≥6.5 · C ≥5 · D &lt;5
           </>
         ) : 'Rating comparison is temporarily unavailable. Tier editing is still available.'}

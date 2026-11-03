@@ -237,6 +237,7 @@ export async function writeSnapshot(
     label: string
     notes: string
     author: string
+    draft?: RatingProfile
   },
 ) {
   const sql = ratingDatabase(),
@@ -288,7 +289,7 @@ export async function writeSnapshot(
   queries.push(
     publication
       ? sql`
-    UPDATE rating_workspace SET active_profile_id = ${profileId}::uuid, active_snapshot_id = ${snapshotId}::uuid, revision = revision + 1, updated_at = now()
+    UPDATE rating_workspace SET active_profile_id = ${profileId}::uuid, active_snapshot_id = ${snapshotId}::uuid, revision = revision + 1, updated_at = now(), draft = COALESCE(${publication.draft ? JSON.stringify(publication.draft) : null}::jsonb, draft)
     WHERE singleton AND EXISTS (SELECT 1 FROM rating_snapshots WHERE id = ${snapshotId}::uuid) RETURNING revision
   `
       : sql`

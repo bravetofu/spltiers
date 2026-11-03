@@ -7,6 +7,10 @@ Land has no combat rating. Tier lists remain separately curated.
 
 ## Context and model
 
+[Scoring methodology](scoring-methodology.md) is the maintained reference for
+ability/card interactions, coefficients, feedback, counterexamples and review
+process. This document covers evidence, storage and collection operations.
+
 Scores are separate for ranked Modern and Wild, at Bronze, Silver, Gold and
 Diamond/Champion rarity caps. Wild battle ratings include Modern cards; the
 catalogue's Wild filter still means Wild-exclusive cards.
@@ -28,7 +32,7 @@ calibration, with a combined ±2 limit for each card/scope. Notes are required.
 Battle evidence estimates performance above/below a pre-battle Elo expectation
 (400-point scale). Five percentage points of residual performance estimate one
 rating point of adjustment around the curated baseline. Results at expectation
-preserve that baseline. Engine 1.2 uses separate win and usage contributions:
+preserve that baseline. The current engine retains the separate win and usage contributions introduced in 1.2:
 
 ```
 winWeight = 0.8 × effective / (effective + 75)
@@ -105,7 +109,7 @@ retrying, and fresh pending IDs precede repeated failures.
 
 The default maxed table rechecks the public API after hydration, just like the
 other level filters. A coverage message states how many matching cards have uses
-and provides a shortcut to sort by uses; an empty sample is identified explicitly.
+and defaults to uses descending (name ascending breaks ties); an empty sample is identified explicitly.
 
 ### Collection schedule
 
@@ -191,8 +195,10 @@ npm run test:ratings-db
 ALLOW_USAGE_DB_TEST=1 node --import tsx scripts/test-rating-signals.mts
 ```
 
-The Vercel build command applies additive migrations and initializes only an
-empty ratings workspace, preserving published curation on later deployments.
+The Vercel build command applies additive migrations and initializes an
+empty ratings workspace. The versioned November 3 ability review upgrades only
+untouched provisional weights, preserving custom curation and private draft edits.
+Later deployments do not repeat that review.
 The first production deployment starts one bounded collection run. Subsequent
 collection is scheduled or initiated by an admin. To increase collection
 frequency, adjust the cron schedule to the hosting plan's supported interval.
@@ -202,16 +208,7 @@ preview, publication/cache invalidation, concurrent publication, restore,
 source bias, idempotent ingestion and parser upgrades; it restores test changes.
 The unit fixture is a real ranked replay with the large round log omitted.
 
-## Engine 1.1 and collection storage
-
-Bloodline Tribute models up to three compatible beneficiaries, one death trigger
-or two with Rebirth, higher trigger reliability with Taunt, and mana affordability.
-The existing ability contribution is subtracted to avoid counting the same base
-benefit twice. Matching bloodline and Shapeshift allies are drawn from the legal
-format catalogue at the selected cap. Bloodline Dominion and Scavenger partnerships
-are conditional team-building priors; no card name or ID is special-cased. This
-is an approximate team model and assumes appropriate active splinters/rulesets,
-not a simulation or an observed win-rate claim.
+## Snapshot refresh and retention
 
 Collection recomputes ratings only when the active snapshot is at least 24 hours
 old (or explicitly forced). Admin publication/refresh remains immediate. Each
@@ -228,7 +225,8 @@ focus a unit to see its equal-weight average and the Modern/Wild score at each
 league cap. Only available scores contribute; missing scopes are not zeroes.
 
 Bands are S ≥9, A ≥8 and <9, B ≥6.5 and <8, C ≥5 and <6.5, D <5.
-A red exclamation mark identifies a placed unit outside its average score band
-and updates immediately during editing. Unranked units and units without
+An exclamation mark identifies a placed unit outside its average score band
+and updates immediately during editing. Distance is grey for one tier, yellow
+for two tiers, and red for three or four tiers. Unranked units and units without
 published scores have no warning. These references never alter saved tiers,
 apply to summoners/land, or appear on public tier lists.

@@ -1,5 +1,6 @@
+import { abilityContext, type AbilityContext } from './ability-context'
+import { abilityPrior } from './ability-priors'
 import {
-  abilitiesAt,
   levelForLeague,
   statAt,
   type CatalogueCard,
@@ -13,21 +14,18 @@ export function teamEngineParts(
   format: BattleFormat,
   catalogue: CatalogueCard[],
   profile: RatingProfile,
+  context?: AbilityContext,
 ): ScorePart[] {
-  const names = (c: CatalogueCard) =>
-    new Set(
-      abilitiesAt(c, levelForLeague(c, league)).map((a) => a.split(':')[0]),
-    )
+  const { pool, names, compatible } =
+    context ?? abilityContext(catalogue, league, format)
   const own = names(card)
   if (!own.has('Bloodline Tribute') && !own.has('Bloodline Dominion')) return []
-  const pool = catalogue.filter(
-    (c) => c.kind !== 'land' && (format === 'wild' || c.modern),
-  )
   const parts: ScorePart[] = []
-  const sameTeam = (a: CatalogueCard, b: CatalogueCard) =>
-    a.splinters.includes('Neutral') ||
-    b.splinters.includes('Neutral') ||
-    a.splinters.some((s) => b.splinters.includes(s))
+  const externalReviver = (unit: CatalogueCard) =>
+    pool.find(
+      (c) =>
+        c.id !== unit.id && compatible(unit, c) && names(c).has('Resurrect'),
+    )
   const tributeValue = (unit: CatalogueCard, broaden: boolean) => {
     const abilities = names(unit),
       level = levelForLeague(unit, league)
@@ -36,8 +34,10 @@ export function teamEngineParts(
       (c) =>
         c.kind === 'unit' &&
         c.id !== unit.id &&
-        (broaden || sameTeam(unit, c)) &&
-        (c.bloodline === unit.bloodline || names(c).has('Shapeshift')),
+        (broaden || compatible(unit, c)) &&
+        (c.bloodline === unit.bloodline ||
+          abilities.has('Shapeshift') ||
+          names(c).has('Shapeshift')),
     )
     // Model three beneficiaries, not an automatic perfect five-unit bloodline team.
     const count = Math.min(3, recipients.length)
@@ -45,14 +45,15 @@ export function teamEngineParts(
       ? recipients.reduce(
           (sum, recipient) =>
             sum +
-            Math.max(
-              ...(['attack', 'ranged', 'magic'] as const).map((s) =>
-                (statAt(unit, s, level) ?? 0) > 0 &&
+            (['attack', 'ranged', 'magic'] as const).reduce(
+              (total, s) =>
+                total +
+                ((statAt(unit, s, level) ?? 0) > 0 &&
                 (statAt(recipient, s, levelForLeague(recipient, league)) ?? 0) >
                   0
                   ? profile.statWeights[s]
-                  : 0,
-              ),
+                  : 0),
+              0,
             ),
           0,
         ) / recipients.length
@@ -62,7 +63,8 @@ export function teamEngineParts(
       profile.statWeights.speed +
       profile.statWeights.armor +
       profile.statWeights.health
-    const triggers = abilities.has('Rebirth') ? 2 : 1
+    const triggers =
+      1 + (abilities.has('Rebirth') ? 1 : 0) + (externalReviver(unit) ? 0.5 : 0)
     const reliability = abilities.has('Taunt') ? 0.9 : 0.55
     const affordability = Math.min(
       1.5,
@@ -86,19 +88,14 @@ export function teamEngineParts(
     )
     const value = tributeValue(card, enablers.length > 0)
     // The ordinary ability prior already supplies the baseline; only add the interaction surplus.
-    const prior = profile.abilities['Bloodline Tribute']
-    const baseline = prior
-      ? (((prior.standard * profile.standardWeight +
-          prior.nonStandard * (1 - profile.standardWeight)) *
-          prior.multiplier) /
-          10) *
-        1.3 *
-        profile.leagueMultipliers[league].abilities
-      : 0
+    const baseline =
+      (abilityPrior('Bloodline Tribute', profile) / 10) *
+      1.3 *
+      profile.leagueMultipliers[league].abilities
     parts.push({
       label: 'Repeatable bloodline team buffs',
       value: Math.max(0, value - baseline),
-      note: `Up to three matching-bloodline or Shapeshift beneficiaries; ${own.has('Rebirth') ? 'two death triggers via Rebirth' : 'one death trigger'}. Taunt improves trigger reliability; low mana leaves room for beneficiaries. Shared attack types only. Conditional team-building value.`,
+      note: `Up to three matching-bloodline or Shapeshift beneficiaries; ${own.has('Rebirth') ? 'two death triggers via Rebirth' : 'one death trigger'}${externalReviver(card) ? ` plus half an expected repeat from compatible Resurrect support (${externalReviver(card)!.name})` : ''}. Taunt improves trigger reliability; low mana leaves room for beneficiaries. Each shared attack type contributes. Resurrect partners are alternatives, not an unlimited loop; Final Rest/Dispel can counter the engine. Conditional team-building value.`,
     })
     if (enablers.length)
       parts.push({

@@ -1,3 +1,10 @@
+import { abilityPrior, baseAbility } from './ability-priors'
+export { abilityPrior, baseAbility } from './ability-priors'
+import {
+  abilityContext,
+  contextualAbilityParts,
+  type AbilityContext,
+} from './ability-context'
 import { teamEngineParts } from './team-engines'
 import {
   abilitiesAt,
@@ -23,18 +30,6 @@ import {
 export const clamp = (value: number, min = 0, max = 10) =>
   Math.max(min, Math.min(max, value))
 const round = (value: number) => Math.round(value * 1000) / 1000
-export const baseAbility = (name: string) => name.split(':')[0]
-
-export function abilityPrior(name: string, profile: RatingProfile): number {
-  const weight = profile.abilities[baseAbility(name)]
-  if (!weight) return 5
-  return clamp(
-    (weight.standard * profile.standardWeight +
-      weight.nonStandard * (1 - profile.standardWeight)) *
-      weight.multiplier,
-  )
-}
-
 /** Shrink noisy observational evidence toward the curated prior. No evidence is not a zero rating. */
 export function blendRating(
   curated: number,
@@ -112,6 +107,7 @@ export function curatedCard(
   format: BattleFormat,
   profile: RatingProfile,
   catalogue: CatalogueCard[] = [],
+  context?: AbilityContext,
 ): { score: number; parts: ScorePart[]; level: number } | null {
   if (card.kind === 'land' || (format === 'modern' && !card.modern)) return null
   const level = levelForLeague(card, league)
@@ -275,7 +271,11 @@ export function curatedCard(
     })
   else if (card.splinters.length > 1)
     parts.push({ label: 'Dual-splinter flexibility', value: 0.25 })
-  parts.push(...teamEngineParts(card, league, format, catalogue, profile))
+  const teamContext = context ?? abilityContext(catalogue, league, format)
+  parts.push(...contextualAbilityParts(card, league, profile, teamContext))
+  parts.push(
+    ...teamEngineParts(card, league, format, catalogue, profile, teamContext),
+  )
   const raw = parts.reduce((sum, part) => sum + part.value, 0)
   // Fixed smooth calibration: stable when a new card is added, and no artificial
   // requirement that the strongest card in a pool must be a perfect 10.
@@ -309,8 +309,9 @@ export function rateCard(
   profile: RatingProfile,
   evidence?: Evidence,
   catalogue: CatalogueCard[] = [],
+  context?: AbilityContext,
 ): CardRating | null {
-  const prior = curatedCard(card, league, format, profile, catalogue)
+  const prior = curatedCard(card, league, format, profile, catalogue, context)
   return prior
     ? {
         cardId: card.id,
@@ -359,6 +360,7 @@ export function allRatings(
     abilityRatings: AbilityRating[] = []
   for (const format of ['modern', 'wild'] as const)
     for (const league of LEAGUES) {
+      const context = abilityContext(cards, league, format)
       for (const card of cards) {
         const rating = rateCard(
           card,
@@ -367,6 +369,7 @@ export function allRatings(
           profile,
           evidence[`card:${ratingKey(card.id, league, format)}`],
           cards,
+          context,
         )
         if (rating) cardRatings.push(rating)
       }

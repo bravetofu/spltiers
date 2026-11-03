@@ -56,7 +56,7 @@ const descriptions: Record<string, string> = {
   Dodge: 'Adds a 25% chance to evade physical attacks.',
   'Double Strike': 'Makes two attacks during its turn.',
   Echo: 'Activates healing, cleansing, and Repair abilities twice per round.',
-  Electrified: 'Deals 1 damage to all allies at the beginning of each round.',
+  Electrified: 'Deals 1 damage to all allies, including itself, at the beginning of round 2 and each following round.',
   Empower: 'While not Revealed, grants 1 power to itself and adjacent allies.',
   Enfeeble: 'Successful attacks lower the target’s melee power by 1.',
   Enrage:

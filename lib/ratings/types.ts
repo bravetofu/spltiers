@@ -128,7 +128,7 @@ export type CollectorStatus = {
     collected: number
   } | null
 }
-export const ENGINE_VERSION = 'hybrid-1.2'
+export const ENGINE_VERSION = 'hybrid-1.3'
 export const PARSER_VERSION = 3
 export const EVIDENCE_WINDOW_DAYS = 90
 export const EVIDENCE_HALF_LIFE_DAYS = 30
