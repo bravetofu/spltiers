@@ -7,6 +7,11 @@ import {
 } from './ability-context'
 import { teamEngineParts } from './team-engines'
 import {
+  practicalUnit,
+  PRACTICAL_ABILITIES,
+  type PracticalSummary,
+} from './practical-value'
+import {
   abilitiesAt,
   levelForLeague,
   statAt,
@@ -104,7 +109,12 @@ export function curatedCard(
   profile: RatingProfile,
   catalogue: CatalogueCard[] = [],
   context?: AbilityContext,
-): { score: number; parts: ScorePart[]; level: number } | null {
+): {
+  score: number
+  parts: ScorePart[]
+  level: number
+  practical?: PracticalSummary
+} | null {
   if (card.kind === 'land' || (format === 'modern' && !card.modern)) return null
   const level = levelForLeague(card, league)
   const abilities = abilitiesAt(card, level)
@@ -112,15 +122,33 @@ export function curatedCard(
   const mult = profile.leagueMultipliers[league]
   const get = (stat: StatKey) => statAt(card, stat, level) ?? 0
   const parts: ScorePart[] = [{ label: 'Baseline', value: 1.6 }]
+  const teamContext = context ?? abilityContext(catalogue, league, format)
+  let practical: PracticalSummary | undefined
   const mana = get('mana')
-  parts.push({
-    label: 'Mana cost',
-    value: mana * profile.statWeights.mana * mult.mana,
-    note: `${mana} mana`,
-  })
+  if (card.kind === 'summoner')
+    parts.push({
+      label: 'Mana cost',
+      value: mana * profile.statWeights.mana * mult.mana,
+      note: `${mana} mana`,
+    })
   if (card.kind === 'summoner') {
     // Summoner values affect a team. Signed enemy debuffs and ally buffs both have value;
     // unlike unit stats, negative stat effects must not be scored as bad self-stats.
+    parts.push({
+      label: 'Team access',
+      value:
+        1.5 +
+        (card.splinters.length > 1
+          ? 1.5
+          : card.splinters.includes('Dragon')
+            ? 0.6
+            : 0),
+      note: 'Access to a playable team has value even without buffs; dual-element and Dragon archons widen legal choices. Mana is charged separately.',
+    })
+    const legalUnits = teamContext.pool.filter(
+      (c) => c.kind === 'unit' && teamContext.compatible(card, c),
+    )
+    const teamSize = Math.max(1, Math.min(5, (32 - mana) / 6))
     const effects = (
       ['attack', 'ranged', 'magic', 'speed', 'armor', 'health'] as StatKey[]
     ).reduce(
@@ -131,43 +159,49 @@ export function curatedCard(
             stat as keyof typeof SUMMONER_WEIGHTS
           ] *
           mult.stats *
-          2,
+          (['attack', 'ranged', 'magic'].includes(stat) && get(stat) > 0
+            ? Math.min(
+                teamSize,
+                legalUnits.filter((c) => teamContext.stat(c, stat) > 0).length,
+              ) / 2
+            : teamSize / 2),
       0,
     )
-    parts.push({ label: 'Team stat effects', value: effects })
+    parts.push({
+      label: 'Team stat effects',
+      value: 4 * Math.log1p(effects / 4),
+      note: 'Team buffs and enemy debuffs with diminishing returns; several stat effects are not independent full-team advantages.',
+    })
   } else {
-    const offense = (['attack', 'ranged', 'magic'] as StatKey[]).reduce(
-      (sum, stat) => sum + get(stat) * profile.statWeights[stat] * mult.stats,
-      0,
-    )
-    const defense = (['speed', 'armor', 'health'] as StatKey[]).reduce(
-      (sum, stat) => sum + get(stat) * profile.statWeights[stat] * mult.stats,
-      0,
-    )
-    parts.push(
-      { label: 'Attack stats', value: offense },
-      { label: 'Speed and durability', value: defense },
-    )
-    const attackTypes = ['attack', 'ranged', 'magic'].filter(
-      (stat) => get(stat as StatKey) > 0,
-    ).length
-    if (attackTypes > 1)
-      parts.push({
-        label: 'Multiple attack types',
-        value: 0.45,
-        note: 'Extra flexibility beyond the individual attack values.',
-      })
-    if (!attackTypes && !names.has('Untrainable'))
-      parts.push({
-        label: 'No-attack utility',
-        value: 0.65,
-        note: 'Potential Weapons Training recipient; value depends on team composition.',
-      })
-    if (mana <= 1)
-      parts.push({
-        label: 'Low-mana flexibility',
-        value: mana === 0 ? 1.5 : 0.6,
-      })
+    const evaluated = practicalUnit(card, league, profile, teamContext)
+    parts.push(...evaluated.parts)
+    practical = evaluated.summary
+  }
+  const legalUnits =
+    card.kind === 'summoner'
+      ? teamContext.pool.filter(
+          (c) => c.kind === 'unit' && teamContext.compatible(card, c),
+        )
+      : []
+  const grantFactor = (name: string) => {
+    const base = baseAbility(name)
+    if (base === 'Close Range')
+      return Math.min(
+        1,
+        legalUnits.filter((c) => teamContext.stat(c, 'ranged') > 0).length / 3,
+      )
+    if (base === 'Bloodline Dominion') {
+      const choices = legalUnits.filter(
+        (c) =>
+          card.stats.racialSynergy?.some((s) => s.race === c.bloodline) ||
+          teamContext.names(c).has('Shapeshift'),
+      ).length
+      return Math.min(0.9, (Math.log1p(choices) / Math.log(30)) * 0.7)
+    }
+    if (base === 'Final Rest') return 0.65
+    if (base === 'Last Stand') return 0.45
+    if (base === 'Enrage') return 0.7
+    return 1
   }
   const abilityValue = (name: string) => {
     const info = profile.abilities[baseAbility(name)]
@@ -179,10 +213,11 @@ export function curatedCard(
     return (
       value *
       (card.kind === 'summoner' ? (profile.summonerAbilityFactor ?? 4) : 1.3) *
-      mult.abilities
+      mult.abilities *
+      (card.kind === 'summoner' ? grantFactor(name) : 1)
     )
   }
-  for (const name of abilities)
+  for (const name of card.kind === 'summoner' ? abilities : [])
     parts.push({
       label: name,
       value: abilityValue(name),
@@ -201,7 +236,8 @@ export function curatedCard(
         ) *
           Math.min(1, tactic.max / 3) +
         (tactic.stat_buff ?? []).reduce(
-          (sum, value) => sum + Math.abs(value) * 0.18,
+          (sum, value) =>
+            sum + Math.abs(value) * 0.35 * Math.min(3, tactic.max),
           0,
         ),
     )
@@ -209,7 +245,7 @@ export function curatedCard(
       parts.push({
         label: 'Tactical choice',
         value: Math.min(3, Math.max(...values)),
-        note: 'Values the strongest available option, scaled by recipient count; alternatives are not added together.',
+        note: 'Best alternative, scaled by the number of recipients and effect size. A flexible tactical choice is not several simultaneous buffs.',
       })
     const bloodlines = card.stats.racialSynergy ?? []
     if (bloodlines.length)
@@ -232,7 +268,13 @@ export function curatedCard(
   const pairPoints = { '-1': -0.5, '1': 0.15, '2': 0.35, '3': 0.65 }
   let synergy = 0
   for (const rule of profile.synergies)
-    if (rule.abilities.every((name) => names.has(name))) {
+    if (
+      rule.abilities.every((name) => names.has(name)) &&
+      !(
+        card.kind === 'unit' &&
+        rule.abilities.every((name) => PRACTICAL_ABILITIES.has(name))
+      )
+    ) {
       const bonus = pairPoints[String(rule.strength) as keyof typeof pairPoints]
       synergy += bonus
       parts.push({
@@ -246,7 +288,11 @@ export function curatedCard(
     parts.push({ label: 'Synergy overlap adjustment', value: 2 - synergy })
   let statSynergy = 0
   for (const rule of profile.statSynergies)
-    if (names.has(rule.ability) && get(rule.stat) >= rule.minimum) {
+    if (
+      names.has(rule.ability) &&
+      get(rule.stat) >= rule.minimum &&
+      !(card.kind === 'unit' && PRACTICAL_ABILITIES.has(rule.ability))
+    ) {
       statSynergy += rule.bonus
       parts.push({
         label: `${rule.ability} × ${rule.stat}`,
@@ -267,16 +313,29 @@ export function curatedCard(
     })
   else if (card.splinters.length > 1)
     parts.push({ label: 'Dual-splinter flexibility', value: 0.25 })
-  const teamContext = context ?? abilityContext(catalogue, league, format)
-  parts.push(...contextualAbilityParts(card, league, profile, teamContext))
   parts.push(
-    ...teamEngineParts(card, league, format, catalogue, profile, teamContext),
+    ...contextualAbilityParts(card, league, profile, teamContext).filter(
+      (p) => p.label !== 'Bloodlust trigger potential',
+    ),
+  )
+  parts.push(
+    ...teamEngineParts(
+      card,
+      league,
+      format,
+      catalogue,
+      profile,
+      teamContext,
+    ).map((p) => ({
+      ...p,
+      value: p.value * (card.kind === 'unit' ? 0.95 : 1),
+    })),
   )
   const raw = parts.reduce((sum, part) => sum + part.value, 0)
   // Fixed smooth calibration: stable when a new card is added, and no artificial
   // requirement that the strongest card in a pool must be a perfect 10.
   const center =
-    card.kind === 'summoner' ? (profile.summonerCalibration ?? 2.5) : 5
+    card.kind === 'summoner' ? (profile.summonerCalibration ?? 2.5) : 4
   let score = 10 / (1 + Math.exp(-(raw - center) / 2))
   for (const adjustment of profile.adjustments)
     if (
@@ -295,6 +354,15 @@ export function curatedCard(
     score: clamp(score),
     level,
     parts: parts.map((p) => ({ ...p, value: round(p.value) })),
+    practical: practical
+      ? {
+          ...practical,
+          scenarios: practical.scenarios.map((s) => ({
+            ...s,
+            value: round(s.value),
+          })),
+        }
+      : undefined,
   }
 }
 
@@ -315,6 +383,7 @@ export function rateCard(
         format,
         level: prior.level,
         parts: prior.parts,
+        practical: prior.practical,
         ...blendRating(prior.score, evidence, 'card'),
       }
     : null

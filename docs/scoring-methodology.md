@@ -1,192 +1,172 @@
 # Scoring methodology
 
-Current model: **hybrid-1.3**. This is the maintained design reference for curated
-card/ability strength. [Collection, persistence and operations](card-ratings.md)
-are documented separately. The public explanation is `/ratings/methodology`.
+Engine **practical-3.0** (2026-11-04). Collection, bounded daily storage and the
+unchanged evidence formulas are documented in [card-ratings.md](card-ratings.md).
+Public explanations live at `/ratings/methodology` and on each card page.
 
-## Scope and score composition
+## Scope and evidence
 
-Scores run from 0 to 10 for combat units and summoners, separately in Modern and
-Wild at Bronze, Silver, Gold and Diamond/Champion card caps. Use only unlocked
-abilities and cap-level stats. Land has no combat rating. Wild ratings include
-Modern cards; the library's Wild filter means Wild-exclusive cards.
+Preserve Bronze, Silver, Gold and Diamond/Champion rarity-level caps. The owner
+confirmed that archon league caps have been reinstated; older support statements
+about their removal do not override this. Use only cap-level stats and unlocked
+abilities. Modern and Wild have separate pools; land has no combat score.
 
-1. **Shared curated ability priors:** blend Standard/non-standard weights using
-   the profile's mix (currently 20%/80%), apply the ability multiplier, clamp to
-   0–10. These editable, published priors feed BOTH ability pages and card baselines.
-2. **Card raw subtotal:** baseline 1.6, mana cost, offense, speed/durability,
-   abilities, synergies, conditional team interactions and flexibility. A unit's
-   ordinary beneficial ability contributes `prior / 10 × 1.3 × leagueAbilityMultiplier`.
-   A drawback contributes `−(10 − prior) / 10 × 1.3 × leagueAbilityMultiplier`.
-   Higher drawback scores mean more useful/less harmful, not a guaranteed benefit.
-   Summoners use their configurable team ability factor (default 4), signed
-   team stat effects, best tactical alternative and discounted bloodline grants.
-3. **Card calibration:** `10 / (1 + exp(−(raw − center) / 2))`, center 5 for units,
-   2.5 for summoners. Explained curator adjustments follow, capped at ±2 per scope.
-4. **Evidence:** confidence-limited win adjustment and a small use-rate bonus
-   refine the curated baseline, with the result clamped to 0–10. Ability pages
-   have their own shrunken win evidence but no usage bonus. The evidence gates,
-   formulas and sampling limitations are in [the operations reference](card-ratings.md).
+Final score = practical baseline + confidence-weighted win adjustment +
+confidence-weighted usage bonus + 0–10 bounds. The existing 90-day summaries,
+30-day half-life, player-rating adjustment, mirror exclusion and sample gates
+remain unchanged. Usage remains a positive, bounded utility signal as requested:
+up to one point before confidence, reaching its ceiling at 20% weighted match
+share. Usage includes underlevelled selections; win evidence requires the card
+at the evaluated cap. Both are associations, not estimates of causal impact.
 
-The battle-adjusted ability score is **not** fed back into a card: that would
-count the same match evidence twice. Contextual card deltas are raw points before
-calibration; they are not directly additive to the displayed final 0–10 score.
-The card breakdown exposes each delta and its assumptions. Generic ability
-strength is not a promise that every carrier realizes its full value.
+Manual tiers are independent, non-league-specific review references. They are
+never read by the scoring engine, used as targets, or modified by this review.
 
-## Contextual ability valuation
+## Unit contribution model
 
-Partner availability is checked in the selected format and at the selected cap.
-Shared/Neutral/Dragon access and Bloodline Dominion access are considered.
-This is a team-building approximation, not a lineup simulator: active elements,
-modifiers, mana, positioning, Gladiator restrictions and team slots still matter.
-Unavailable or locked partner abilities never earn an interaction bonus.
-Alternative partners are not automatically summed into an impossible team.
+`practical-value.ts` evaluates the card against ten small, weighted situations:
 
-### Drawbacks and Painforge
+| Situation | Weight | Mana budget |
+| --- | ---: | ---: |
+| Low mana | 15% | 22 |
+| Mixed opposition | 25% | 32 |
+| High mana | 15% | 50 |
+| Armored opposition | 10% | 32 |
+| Magic opposition | 10% | 32 |
+| Reverse Speed | 5% | 32 |
+| Noxious Fumes | 5% | 32 |
+| Melee Mayhem | 5% | 32 |
+| Close Range | 5% | 32 |
+| Back to Basics | 5% | 32 |
 
-Electrified, Incendiary, Reckless and Stray Shot retain friendly-damage penalties,
-but can have strategic value when converted into attack power by Painforge.
-Weary is turn loss, not damage, so it earns no Painforge conversion bonus.
+These are sensitivity assumptions, not measured frequencies or a battle
+simulator. Multiple simultaneous modifiers and exact active-element restrictions
+are not enumerated. Format/cap catalogue averages supply representative speed,
+power and physical/magic mix. New cards can therefore change matchup estimates
+and legal partner availability; scores are not pool percentile ranks.
 
-The additional `Painforge damage conversion` component uses attack-type count
-and health to bound the receiver's payoff. Receiver capacity is
-`min(1.5, attackTypes × 0.75) × min(1, health / 6)`. It uses these provisional
-activation factors, chosen as modeling discounts rather than measured odds:
+For each situation, choose the highest-valued plausible frontline, backline or
+Reach-enabled second-position role. Both output and durability inform that choice.
+A backline melee allowance of 10% represents later advancement to the front.
+Melee Mayhem/Close Range enable their respective attacks. Compatible affordable
+Flank and archon Close Range offer discounted access (55% and 45%); an own ability
+receives full access. These are possible setups, not guaranteed grants.
 
-| Source | Factor | Requirement / limitation |
-| --- | ---: | --- |
-| Electrified | 0.8 | Reliable damage from round two; includes the source itself |
-| Incendiary | 0.7 self, 0.35 ally | Burning damages its carrier; ally spread is uncertain |
-| Reckless | 0.65 | Source must have an attack; a successful hit damages adjacent allies, not itself |
-| Stray Shot | 0.25 | Source needs ranged attack; random friendly target, damage even on misses |
+Attack output uses unlocked attack power, physical accuracy, a small allowance
+for enemy Phase, armor pressure, productive turns (bounded between 0.5 and 3),
+Double Strike and remaining-armor attacks. Double Strike's additional output and
+Armored Strike's armor contribution are weighted by their curated priors. Recharge
+gets a conservative 1.1 output factor for delayed burst. Weary reduces productive
+attacks and active support to 80% without available Invigorate. Timing estimates
+are priors, not measured survival or exhaustion probabilities.
 
-Use at most two recipients for Electrified and one for other sources. Sum those
-receiver capacities × activation factors, then take the best source. If the card
-is itself a receiver with an external source, compare that value with its enabling
-role and take the larger, not both. Cap at 1.2, then multiply by the unit ability
-scale and `Painforge prior / 10`. Keep the original harm penalty. Health cost,
-random targeting, Cleansing, Dispel and team cost prevent an unconditional upgrade.
-No-attack Painforge trainees and Poison rulesets are not yet simulated here.
+Incoming-hit probes use powers 1, rounded representative power, and 5. Shield/Void
+use their actual rounded damage breakpoints, including blocking power-one attacks;
+Forcefield responds to power five. The modeled benefits are discounted by the
+curated ability prior. Evasion, Phase, armor absorbing a whole physical hit and
+Void Armor affect durability. A bounded mitigation factor avoids unbounded tank
+scores. Heal follows `min(health, max(2, floor(health / 3)))`, then discounts for
+interruption and wasted healing. Repair can sustain armor. This is a compact
+expected-value approximation, not an exact attack sequence.
 
-### Shapeshift
+Support abilities scale with relevant recipients, team space, health, attack
+pressure or survival. Martyr accounts for adjacent recipients and Rebirth; Volley
+of Arrows accounts for available ranged allies. No-attack cards only gain attack
+output when an affordable unlocked Weapons Trainer exists; Untrainable blocks it.
+Training is capped at three power and discounted to 55% for setup/adjacency.
+Trainers select at most two eligible trainees that jointly fit a legal package.
 
-Shapeshift makes a unit eligible for every bloodline effect, including summoner
-grants, Bloodline Tribute and Bloodline Pact. Its higher generic prior reflects
-that broad flexibility; `Shapeshift bloodline access` adds bounded, available
-partner value at the selected cap:
+Mana's raw cost is multiplied by 1.15 at low mana, 0.75 at high mana and 1 otherwise.
+Cards below six mana receive `(6 - mana) × 0.18` for preserved team budget;
+zero/one-mana flexibility remains. These are transparent calibration choices.
 
-- For each compatible summoner, sum the unique racial-grant priors divided by 10.
-  Use the best summoner package, multiplied by 0.6 and capped at 1 raw point.
-- Add `0.6 × Tribute prior / 10` if a compatible Tribute source exists.
-- Add `0.35 × Pact prior / 10` if a compatible unit with Pact exists. Pact's
-  downside remains part of its generic valuation; this is access value only.
-- Multiply that sum by the unit ability scale and `Shapeshift prior / 10`.
+## Abilities, overlap and partners
 
-Different summoners are alternatives, not simultaneous buffs. Multiple identical
-racial grants within one package are deduplicated. Bloodline effects from other
-mechanics remain represented by the broad prior until explicitly modeled.
+Generic abilities retain the editable profile's Standard/non-standard prior blend.
+Quantitatively modeled effects have zero duplicate flat bonus; the breakdown says
+where their value is included. Old stat bonuses for modeled effects, and pair
+bonuses where both effects are modeled, are suppressed. Other pair/stat bonuses
+retain their existing overlap caps. Ability-page battle scores are not fed back
+into cards. Curated priors still scale the modeled benefits; they do not rewrite
+underlying rules such as attack permissions.
 
-### Bloodline Tribute and resurrection
+Partner access enumerates one archon and legal element choice. A Dragon archon
+selects one additional element, dual archons expose their own two elements, and
+Bloodline Dominion exposes matching bloodlines/Shapeshift. Six unit slots and
+archon/unit mana count. Ordinary ranked packages allow one Gladiator only with
+Conscript. Special Gladiator-enabling modifiers are not fully modeled.
 
-Tribute's team-wide gain needs compatible matching-bloodline or Shapeshift allies.
-Model up to three beneficiaries, with +1 health/speed/armor and the profile weight
-of **each** shared attack type (sum, not just the strongest type). Average shared
-attack value across available compatible recipients. Repeated death triggers use
-`1 + (Rebirth ? 1 : 0) + (compatible external Resurrect ? 0.5 : 0)`.
+Bloodline Tribute selects up to three inexpensive eligible beneficiaries in a
+legal 32-mana package. Count every shared attack type. Rebirth adds 0.85 modeled
+repeat triggers. External Resurrect adds 0.35 only if the reviver fits with those
+beneficiaries; this is a timing discount, not a fractional game resurrection.
+The estimate uses `4.5 × tanh(value / 4.5)` to bound repeated team gains. Subtract
+its already-credited ability baseline. Archon partnership contributions are
+bounded; additional partner combinations are not exhaustively optimized.
 
-The half-trigger external allowance represents uncertain timing/target selection,
-not half a game resurrection. Count only one external allowance regardless of how
-many alternative revivers are available. Multiply by trigger reliability (0.9
-with Taunt, otherwise 0.55), mana affordability `min(1.5, 6 / (3 + mana))`,
-beneficiary count and the league stat multiplier. Add only the surplus above the
-ordinary Tribute ability contribution, preventing baseline double-counting.
+Painforge credits poison pressure in its scenario and affordable compatible
+Electrified, Incendiary, Reckless, Stray Shot, Resurgence and Soul Siphon sources.
+Friendly-damage penalties remain. A trainable no-attack recipient receives only
+discounted conversion potential. Damage sources, trained damage and granted
+attacks are not fully simulated in temporal order. Shapeshift's base allowance is
+reduced while available bloodline grants supply conditional value.
 
-Bloodline Dominion can broaden available allies, and its best Tribute partner
-adds a bounded summoner interaction. Scavenger can benefit from the extra deaths.
-Final Rest and Dispel can counter the engine; infinite resurrection loops and
-perfect five-beneficiary teams are never assumed. Grix + Dragonlord Mancer is a
-regression example, not a name/ID override. Other cards with the same mechanics
-receive the same treatment.
+Final Rest follows the current dedicated article: one enemy resurrection block,
+not blanket suppression of death effects. Some general official pages still show
+the previous implementation. Death Has No Power may retain the older behavior.
 
-### Bloodlust
+## Archons and calibration
 
-Bloodlust's generic strength rises, but its contribution depends on the carrier's
-ability to secure kills. Define cap-level attack pressure as
-`melee + 0.85 × ranged + 1.1 × magic`. Its card contribution uses
-`factor = clamp(pressure / 3.5, 0.15, 1.6)`. The breakdown shows
-`Bloodlust trigger potential = ordinary Bloodlust contribution × (factor − 1)`.
-The floor leaves limited room for indirect kills; this is not a kill probability.
+Archons have a team-access baseline (1.5 raw points), plus dual-element (1.5) or
+Dragon (0.6) access. Team stat effects scale with feasible team size and relevant
+attack recipients, then use `4 × log(1 + effects / 4)` for diminishing returns.
+Tactics use the best alternative, recipient count and effect magnitude. Conditional
+Bloodline Dominion and Close Range grants require an eligible pool. Curated
+bloodline grants and bounded team-engine partnerships remain separate.
 
-For a no-attack, trainable unit, use the best compatible Weapons Training donor's
-weighted attack pressure, capped at 3 and discounted by 0.7 for adjacency and team
-cost. No donor, a locked donor ability, or Untrainable means no training credit.
-Only one donor is modeled; dual training is a future refinement. This component
-values the Bloodlust payoff, not the trained attack itself; the separate generic
-no-attack utility allowance remains a modest team-flexibility prior.
+The unit baseline starts at 1.6 raw points. After all contributions:
+`10 / (1 + exp(-(raw - center) / 2))`, with center 4 for units and the profile's
+archon center (default 2.5). The unit center was recalibrated after replacing flat
+ability bonuses with practical calculations. Explained curator adjustments follow,
+bounded at ±2 per card/scope. No named card or manual tier receives an override.
 
-Combined attack types naturally raise pressure. Double Strike, Opportunity,
-Sneak and Trample keep their existing pair-rule bonuses; the trigger multiplier
-does not also apply those ability multipliers. Pair bonuses have a combined
-2-point overlap cap, as do stat/ability synergies. Survivability and access to
-attack positions matter but are not yet fully modeled in the kill estimate.
+Card breakdowns show model contributions separately from final rating-point
+adjustments. Matchup sensitivity shows a unit's own subtotal relative to mixed
+opposition, before shared partner contributions, calibration and evidence.
 
-## Curated feedback ledger
+## Review and validation
 
-Player feedback is evidence for a modeling hypothesis, not a measured win effect.
-Retain its source/date, applicability, implementation and counterexample here.
+`scripts/review-ratings.mts` reads a captured published profile, frozen evidence,
+previous engine output and manual tier entries. It writes local comparison data
+under ignored `work/`, reporting all 5,560 card scopes, large movements and tier
+discrepancies. It performs no database writes. Compare like-for-like evidence so
+collection timing cannot masquerade as an engine change. Manual tiers are compared
+with the existing all-scope mean; individual cap differences are reviewed too.
 
-| Date / source | Feedback | Implemented rule and guardrail |
-| --- | --- | --- |
-| 2026-11-03 · owner/player | Some debilitations enable Painforge; Weary offers little upside | Four damage sources get conditional conversion credit, penalties retained; Weary excluded |
-| 2026-11-03 · owner/player | Shapeshift is among the strongest abilities | Prior 8 → 9.5; capped summoner/Tribute/Pact access, no stacking alternative summoners |
-| 2026-11-03 · owner/player | Tribute is exceptionally powerful, especially through repeated resurrection | Prior 7 → 9.5; all shared attack types and one discounted external revive allowance, baseline subtracted |
-| 2026-11-03 · owner/player | Bloodlust is powerful only if its carrier can get kills | Prior 8 → 9; attack-sensitive contribution and conditional training, weak ranged counterexample |
-| Earlier owner/player feedback, retained 2026-11-03 | Grix's cheap Taunt + Tribute + Rebirth works especially well with Mancer | General affordability, trigger, recipient-access and Scavenger rules; anonymized-card regression |
+Regression checks cover damage/healing breakpoints, speed reversal, attack scaling,
+armor-dependent attacks, conditional training, locked/illegal/unaffordable partners,
+Dragon/dual-element legality, Gladiator access, Weary mitigation, Back to Basics,
+unchanged evidence signals and all-catalogue finite bounds. See the dated score
+review for calibration findings and remaining discrepancies.
 
-Drawback priors become Electrified 3, Incendiary 3, Reckless 2.5, Stray Shot 2.5;
-Weary remains 1. These are provisional general-use strengths, not net values in
-an optimized Painforge team. Standard and non-standard priors currently match
-for this review: there is insufficient ruleset-frequency evidence to justify a
-precise split. Admin weights and notes remain editable and versioned.
+No new historical tables or collectors are required. Scenario summaries are small
+fields in the single replaceable score snapshot. Runtime partner indexes are cached
+per format/cap and discarded after recomputation.
 
-## Consistency and change process
+## Sources and precedence
 
-For each update: verify mechanics against official guides and live catalogue
-fields, record player feedback here, identify where the effect already enters
-the score, add counterexamples, compare representative scope deltas, and publish
-a named profile/engine revision. Review this document as a whole; replace obsolete
-rules instead of accumulating contradictory addenda. Do not turn sample size,
-usage or a named favorite card into a second implicit bonus.
+Reviewed official support mechanics on 2026-11-04; current card fields and explicit
+owner corrections take precedence over stale guides. Coefficients above are model
+judgments, not values supplied by Splinterlands.
 
-This review corrects the previous strongest-shared-attack-only Tribute estimate,
-and the assumption that only self-Rebirth can repeat it. Official sources can
-also disagree: the older Bloodlust guide says no summoner grants it, while the
-current catalogue includes Mancer's Bloodlust tactic. Use current card fields
-for grants and ability-specific current mechanics for triggers. The older reward
-FAQ's claim that Dispel removes Weapons Training conflicts with the current
-Weapons Training/Dispel guides; do not adopt it.
-
-The one-time `ability-review-2026-11-03.json` migration compares each previous
-provisional weight before replacing it. Custom published weights win; private
-draft changes are merged separately and are never published. A named profile,
-engine snapshot and revision check make the review auditable and idempotent.
-Subsequent deployments refresh evidence without resetting curation.
-
-Remaining work: evaluate conditional effects against lineup/ruleset-stratified
-holdouts; estimate actual Painforge activations, kill conversion and resurrection
-counts from round logs; model trained Painforge receivers, dual training and
-legal lineup costs. The coefficients above remain explicit priors until that
-validation is possible. Correlation of ability and card results is not causality.
-
-## Mechanic references (reviewed 2026-11-03)
-
-- [Painforge](https://support.splinterlands.com/hc/en-us/articles/36780755709460-Painforge)
-- [Electrified](https://support.splinterlands.com/hc/en-us/articles/29108697459988-Electrified)
-- [Incendiary](https://support.splinterlands.com/hc/en-us/articles/29109259338900-Incendiary)
-- [Reckless](https://support.splinterlands.com/hc/en-us/articles/36781010724116-Reckless)
-- [Stray Shot](https://support.splinterlands.com/hc/en-us/articles/43935917059220-Stray-Shot)
-- [Shapeshift](https://support.splinterlands.com/hc/en-us/articles/36779558246292-Shapeshift)
-- [Bloodline Tribute](https://support.splinterlands.com/hc/en-us/articles/36781718737428-Bloodline-Tribute)
-- [Bloodlust](https://support.splinterlands.com/hc/en-us/articles/12098803257236-Bloodlust)
+- [Card stats and positions](https://support.splinterlands.com/hc/en-us/articles/14364449285268-Intro-to-Stats-Anatomy-of-a-Card)
+- [Attack order and accuracy](https://support.splinterlands.com/hc/en-us/articles/4414334269460-Attack-Order-Accuracy)
+- [Shield](https://support.splinterlands.com/hc/en-us/articles/12431536947732-Shield)
+- [Heal](https://support.splinterlands.com/hc/en-us/articles/12308154407188-Heal)
+- [Armored Strike](https://support.splinterlands.com/hc/en-us/articles/21011376874260-Armored-Strike)
 - [Weapons Training](https://support.splinterlands.com/hc/en-us/articles/13681184306964-Weapons-Training)
+- [Bloodline Dominion](https://support.splinterlands.com/hc/en-us/articles/36784661689108-Bloodline-Dominion)
+- [Bloodline Tribute](https://support.splinterlands.com/hc/en-us/articles/36781718737428-Bloodline-Tribute)
+- [Painforge](https://support.splinterlands.com/hc/en-us/articles/36780755709460-Painforge)
+- [Final Rest, current and previous implementations](https://support.splinterlands.com/hc/en-us/articles/36779459616660-Final-Rest)
+- [Modifiers](https://support.splinterlands.com/hc/en-us/articles/9123215350548-List-of-Splinterlands-Modifiers)

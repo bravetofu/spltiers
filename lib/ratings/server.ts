@@ -86,7 +86,7 @@ export const getCardRatings = unstable_cache(
     const sql = ratingDatabase(true)
     const [rows, stats] = await Promise.all([
       sql`
-    SELECT s.data, p.label, p.id::text, p.published_at::text, sn.created_at::text AS scored_at
+    SELECT s.data, p.label, p.id::text, p.published_at::text, sn.created_at::text AS scored_at, sn.engine_version
     FROM rating_workspace w JOIN rating_scores s ON s.snapshot_id = w.active_snapshot_id
     JOIN rating_profiles p ON p.id = w.active_profile_id JOIN rating_snapshots sn ON sn.id = w.active_snapshot_id
     WHERE w.singleton AND s.kind = 'card' AND s.subject = ${String(id)}
@@ -95,7 +95,9 @@ export const getCardRatings = unstable_cache(
     ])
     return {
       ratings: rows.map((row) => row.data) as CardRating[],
-      version: rows[0]?.label as string | undefined,
+      version: rows[0]
+        ? `${rows[0].engine_version} · ${rows[0].label}`
+        : undefined,
       scoredAt: rows[0]?.scored_at as string | undefined,
       battleStats: stats?.filter((s) => s.cardId === id) ?? null,
     }

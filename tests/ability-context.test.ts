@@ -72,7 +72,8 @@ test('reviewed shared ability priors raise published strength and appear in card
       (p) => p.label === name,
     )!
     assert.ok(
-      Math.abs(part.value - (abilityPrior(name, profile) / 10) * 1.3) < 0.001,
+      part.value > 0 &&
+        part.value <= (abilityPrior(name, profile) / 10) * 1.3 * 1.6,
     )
   }
   assert.ok(
@@ -154,9 +155,9 @@ test('Shapeshift accesses other bloodlines and keeps alternative summoners mutua
   )
   const tribute = {
     ...unit(['Bloodline Tribute'], { magic: 2 }),
-    bloodline: 'Another race',
+    bloodline: 'Other race',
   }
-  const pact = { ...unit(['Bloodline Pact']), bloodline: 'Another race' }
+  const pact = { ...unit(['Bloodline Pact']), bloodline: 'Other race' }
   assert.ok(delta(shape, [summoner, tribute, pact]) > delta(shape, [summoner]))
   assert.equal(delta(shape, [{ ...summoner, modern: false }]), 0)
   const locked = {

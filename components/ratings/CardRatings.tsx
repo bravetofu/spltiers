@@ -160,7 +160,7 @@ export default function CardRatings({
             </div>
             <div className="rating-metrics">
               <div>
-                <span>Curated score</span>
+                <span>Practical baseline</span>
                 <strong>{rating.curated.toFixed(1)} / 10</strong>
               </div>
               <div>
@@ -191,9 +191,18 @@ export default function CardRatings({
           <p className="rating-note">
             {rating.battleWeight || rating.usageWeight
               ? 'Recent win results and selection frequency adjust the curated baseline separately, after sample-size and time weighting. '
-              : 'The curated model determines this rating until enough battle evidence is available. '}
+              : 'The practical model determines this rating until enough battle evidence is available. '}
             Battle association is not proof that a card caused a win.
           </p>
+          {rating.practical && (
+            <p className="rating-note">
+              Usually evaluated as{' '}
+              <strong>{rating.practical.role.toLowerCase()}</strong>. The
+              baseline considers usable attacks, survival and support across
+              mana budgets and selected matchups. These are explicit model
+              assumptions; the best position still depends on your actual team.
+            </p>
+          )}
           {rating.evidence.battles > 0 && (
             <p className="rating-note">
               Rating evidence outcome rate (draws count as half):{' '}
@@ -229,11 +238,11 @@ export default function CardRatings({
                 </thead>
                 <tbody>
                   <tr>
-                    <th scope="row">Curated baseline</th>
+                    <th scope="row">Practical baseline</th>
                     <td>{rating.curated.toFixed(3)}</td>
                     <td>
-                      Calibrated stats, abilities, synergies and curator
-                      adjustments.
+                      Role, usable attacks, survival, support, affordable
+                      partners and curator adjustments.
                     </td>
                   </tr>
                   <tr>
@@ -270,17 +279,19 @@ export default function CardRatings({
                       <strong>{rating.score.toFixed(3)}</strong>
                     </td>
                     <td>
-                      Curated baseline + win-rate adjustment + use-rate bonus +
-                      bounds.
+                      Practical baseline + win-rate adjustment + use-rate bonus
+                      + bounds.
                     </td>
                   </tr>
                 </tbody>
               </table>
             </div>
             <p>
-              Stats, abilities and synergies contribute model points. A fixed
-              calibration maps their subtotal to 0–10; curator adjustments then
-              change the final curated rating directly.
+              The contributions below are model points, not direct additions to
+              the 0–10 score. A fixed curve converts their total to the
+              practical baseline; curator adjustments then apply in rating
+              points. Effects already included in attack output or durability
+              have no duplicate flat bonus.
             </p>
             <div className="catalogue-table-wrap">
               <table className="price-table">
@@ -308,6 +319,47 @@ export default function CardRatings({
               </table>
             </div>
           </details>
+          {rating.practical && (
+            <details className="rating-breakdown">
+              <summary>Where this card gains or loses value</summary>
+              <p>
+                Changes below compare the card’s own contribution with mixed
+                opposition. They are model points before shared partner bonuses,
+                calibration and battle evidence—not separate 0–10 ratings.
+                Scenario weights are design assumptions, not observed
+                frequencies.
+              </p>
+              <div className="catalogue-table-wrap">
+                <table className="price-table">
+                  <thead>
+                    <tr>
+                      <th>Situation</th>
+                      <th>Model change</th>
+                      <th>Evaluated position</th>
+                      <th>Weight</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rating.practical.scenarios.map((s) => (
+                      <tr key={s.name}>
+                        <th scope="row">{s.name}</th>
+                        <td>
+                          {signed(
+                            s.value -
+                              (rating.practical?.scenarios.find(
+                                (x) => x.name === 'Mixed opposition',
+                              )?.value ?? 0),
+                          )}
+                        </td>
+                        <td>{s.role}</td>
+                        <td>{Math.round(s.weight * 100)}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          )}
           <p className="rating-note">
             {version}
             {scoredAt ? ` · Updated ${scoredAt.slice(0, 10)}` : ''} ·{' '}

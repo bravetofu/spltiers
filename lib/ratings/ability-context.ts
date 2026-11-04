@@ -13,6 +13,8 @@ export const PAINFORGE_SOURCES = [
   'Incendiary',
   'Reckless',
   'Stray Shot',
+  'Resurgence',
+  'Soul Siphon',
 ] as const
 export function abilityContext(
   catalogue: CatalogueCard[],
@@ -35,32 +37,99 @@ export function abilityContext(
   }
   const stat = (c: CatalogueCard, s: StatKey) =>
     statAt(c, s, levelForLeague(c, league)) ?? 0
-  // Potential team access, conditional on active elements/rulesets, not a legal lineup solver.
-  const sameTeam = (a: CatalogueCard, b: CatalogueCard) =>
-    ['Neutral', 'Dragon'].some(
-      (s) => a.splinters.includes(s) || b.splinters.includes(s),
-    ) || a.splinters.some((s) => b.splinters.includes(s))
-  const racialAccess = (summoner: CatalogueCard, unit: CatalogueCard) =>
-    names(summoner).has('Bloodline Dominion') &&
-    (names(unit).has('Shapeshift') ||
-      !!summoner.stats.racialSynergy?.some((s) => s.race === unit.bloodline))
-  const grantsAccess = (summoner: CatalogueCard, unit: CatalogueCard) =>
-    sameTeam(summoner, unit) || racialAccess(summoner, unit)
+  // Each lane is one archon and one legal element choice. Dragon does not
+  // permit two unrelated base elements at once; dual archons do.
   const summoners = pool.filter((c) => c.kind === 'summoner')
-  const compatible = (a: CatalogueCard, b: CatalogueCard) =>
-    sameTeam(a, b) ||
-    (a.kind === 'summoner'
-      ? grantsAccess(a, b)
-      : b.kind === 'summoner'
-        ? grantsAccess(b, a)
-        : summoners.some(
-            (s) =>
-              names(s).has('Bloodline Dominion') &&
-              grantsAccess(s, a) &&
-              grantsAccess(s, b) &&
-              (racialAccess(s, a) || racialAccess(s, b)),
-          ))
-  return { pool, names, stat, compatible }
+  const racialAccess = (s: CatalogueCard, u: CatalogueCard) =>
+    names(s).has('Bloodline Dominion') &&
+    (names(u).has('Shapeshift') ||
+      !!s.stats.racialSynergy?.some((r) => r.race === u.bloodline))
+  const lanes = summoners.flatMap((s) =>
+    (s.splinters.includes('Dragon')
+      ? ['Fire', 'Water', 'Earth', 'Life', 'Death']
+      : ['']
+    ).map((element) => ({
+      summoner: s,
+      elements: new Set([
+        ...s.splinters,
+        'Neutral',
+        ...(element ? [element] : []),
+      ]),
+    })),
+  )
+  const permits = (lane: (typeof lanes)[number], c: CatalogueCard) =>
+    c.kind === 'summoner'
+      ? c.id === lane.summoner.id
+      : (c.splinters.some((e) => lane.elements.has(e)) ||
+          racialAccess(lane.summoner, c)) &&
+        (!c.editions.includes(6) || names(lane.summoner).has('Conscript'))
+  const sameTeam = (a: CatalogueCard, b: CatalogueCard) =>
+    a.splinters.includes('Neutral') ||
+    b.splinters.includes('Neutral') ||
+    a.splinters.some((s) => b.splinters.includes(s))
+  const orderedLanes = [...lanes].sort(
+    (a, b) => stat(a.summoner, 'mana') - stat(b.summoner, 'mana'),
+  )
+  const masks = new Map<number, Uint32Array>()
+  const mask = (card: CatalogueCard) => {
+    let m = masks.get(card.id)
+    if (!m) {
+      m = new Uint32Array(Math.ceil(orderedLanes.length / 32))
+      orderedLanes.forEach((l, i) => {
+        if (permits(l, card)) m![i >>> 5] |= 1 << (i & 31)
+      })
+      masks.set(card.id, m)
+    }
+    return m
+  }
+  const compatible = (a: CatalogueCard, b: CatalogueCard) => {
+    if (a.editions.includes(6) && b.editions.includes(6)) return false
+    if (!lanes.length) return sameTeam(a, b)
+    const am = mask(a),
+      bm = mask(b)
+    for (let i = 0; i < am.length; i++) if (am[i] & bm[i]) return true
+    return false
+  }
+  const canField = (cards: CatalogueCard[], budget: number) => {
+    const units = cards.filter((c) => c.kind === 'unit')
+    if (
+      units.length > 6 ||
+      units.filter((c) => c.editions.includes(6)).length > 1
+    )
+      return false
+    const mana = units.reduce((s, c) => s + stat(c, 'mana'), 0)
+    if (!lanes.length)
+      return mana + 4 <= budget && cards.every((c) => sameTeam(cards[0], c))
+    const ms = cards.map(mask)
+    for (let i = 0; i < ms[0].length; i++) {
+      let bits = ms[0][i]
+      for (let j = 1; j < ms.length; j++) bits &= ms[j][i]
+      if (bits) {
+        const lane = orderedLanes[i * 32 + 31 - Math.clz32(bits & -bits)]
+        return mana + stat(lane.summoner, 'mana') <= budget
+      }
+    }
+    return false
+  }
+  const selectPartners = (
+    card: CatalogueCard,
+    candidates: CatalogueCard[],
+    count: number,
+    budget: number,
+  ) => {
+    const picked: CatalogueCard[] = []
+    for (const c of candidates) {
+      if (
+        c.id !== card.id &&
+        !picked.some((p) => p.id === c.id) &&
+        canField([card, ...picked, c], budget)
+      )
+        picked.push(c)
+      if (picked.length >= count) break
+    }
+    return picked
+  }
+  return { pool, names, stat, compatible, canField, selectPartners }
 }
 export type AbilityContext = ReturnType<typeof abilityContext>
 
@@ -126,15 +195,27 @@ export function contextualAbilityParts(
           : 0.35
         : source === 'Reckless'
           ? 0.65
-          : 0.25
+          : source === 'Resurgence'
+            ? 0.3
+            : 0.25
   const forgePower = (c: CatalogueCard) =>
     Math.min(
       1.5,
       ['attack', 'ranged', 'magic'].filter((s) => stat(c, s as StatKey) > 0)
-        .length * 0.75,
+        .length * 0.75 ||
+        (!names(c).has('Untrainable') &&
+        pool.some(
+          (t) =>
+            t.id !== c.id &&
+            names(t).has('Weapons Training') &&
+            compatible(c, t) &&
+            canDamage(t, 'Reckless'),
+        )
+          ? 0.4
+          : 0),
     ) * Math.min(1, stat(c, 'health') / 6)
   if (sources.length || own.has('Painforge')) {
-    const allies = unitPartners()
+    const allies = unitPartners().filter((c) => context.canField([card, c], 32))
     // Only Electrified and Incendiary reliably damage their own carrier. Reckless is adjacent; Stray Shot is random.
     const receiverValue = (source: string) => {
       const recipients = allies
@@ -173,11 +254,16 @@ export function contextualAbilityParts(
       parts.push({
         label: 'Painforge damage conversion',
         value,
-        note: 'Conditional allied-damage engine: attack types and health limit the payoff. Electrified is reliable, Reckless needs a hit and adjacency, Burning must spread, and Stray Shot is random. Uses the best source/receiver role, not their sum; friendly damage penalties remain. Weary is not a damage trigger.',
+        note: 'Conditional allied-damage engine: attack types and health limit the payoff. Electrified is reliable, Reckless needs a hit and adjacency, Burning must spread, Stray Shot is random, and resurrection damage is intermittent. Uses the best source/receiver role, not their sum; friendly damage penalties remain. Weary is not a damage trigger.',
       })
   }
   if (own.has('Shapeshift')) {
-    const allies = pool.filter((c) => c.id !== card.id && compatible(card, c))
+    const allies = pool.filter(
+      (c) =>
+        c.id !== card.id &&
+        compatible(card, c) &&
+        context.canField([card, c], 32),
+    )
     const grants = allies
       .filter((c) => c.kind === 'summoner')
       .map((c) =>

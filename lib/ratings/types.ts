@@ -100,6 +100,7 @@ export type CardRating = Rating & {
   league: League
   format: BattleFormat
   level: number
+  practical?: import('./practical-value').PracticalSummary
   parts: ScorePart[]
 }
 export type AbilityRating = Rating & {
@@ -126,7 +127,7 @@ export type CollectorStatus = {
     collected: number
   } | null
 }
-export const ENGINE_VERSION = 'daily-2.0'
+export const ENGINE_VERSION = 'practical-3.0'
 export const PARSER_VERSION = 3
 export const EVIDENCE_WINDOW_DAYS = 90
 export const EVIDENCE_HALF_LIFE_DAYS = 30

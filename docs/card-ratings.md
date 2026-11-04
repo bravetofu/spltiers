@@ -1,7 +1,7 @@
 # Card and ability ratings
 
 Ratings combine curated mechanic-based scores with daily ranked-battle evidence.
-The current engine is `daily-2.0`. Cards, abilities, admin previews, publication,
+The current engine is `practical-3.0`. Cards, abilities, admin previews, publication,
 tier references and public APIs all use the same engine and summary reads.
 
 ## Storage and collection
@@ -41,6 +41,12 @@ The hourly GitHub Actions job calls `/api/cron/collect-battles` using verified
 OIDC identity. Admin calls use the existing authenticated admin route.
 
 ## Scoring
+
+The practical baseline evaluates usable attacks, durability, support and affordable
+partners across ten bounded situations. See [scoring-methodology.md](scoring-methodology.md)
+for coefficients and [the score review](scoring-review-2026-11-04.md) for comparisons.
+Situation summaries live only in the current replaceable score JSON, not a growing
+history table. The daily evidence and collection model below is unchanged.
 
 Curated mechanics, ability weights, conditional team contributions and league
 caps remain configurable. The collector stores sufficient statistics to change

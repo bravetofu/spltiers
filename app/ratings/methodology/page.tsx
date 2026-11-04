@@ -23,9 +23,9 @@ export default async function Methodology() {
           <p className="catalogue-eyebrow">Ratings methodology · beta</p>
           <h1>Strength, with the reasoning attached.</h1>
           <p>
-            Every combat card and ability can receive a 0–10 rating. Curated
-            mechanics provide a starting point; ranked win results and observed
-            card use gradually refine it.
+            Every combat card and ability can receive a 0–10 rating. Practical
+            team contribution provides a starting point; ranked win results and
+            observed card use gradually refine it.
           </p>
           <div className="catalogue-header-links">
             <Link href="/cards">Card library ↗</Link>
@@ -46,95 +46,103 @@ export default async function Methodology() {
           Modern-eligible cards too. This differs from the catalogue’s
           Wild-exclusive filter, which only shows cards outside Modern.
         </p>
-        <h2>The curated model</h2>
+        <h2>Practical contribution to a team</h2>
         <p>
-          Each card uses the stats and abilities unlocked at the selected cap.
-          Mana has a cost; damage, speed and durability contribute value.
-          Summoner effects are evaluated as team buffs or debuffs, not as
-          personal combat stats. Tactical alternatives contribute the strongest
-          available option rather than all options at once. Bloodline grants are
-          discounted for their team restriction.
+          Each card uses only the stats and abilities unlocked at the selected
+          league cap. Those caps are retained, including restored archon caps.
+          The model estimates what a card can contribute in a useful role:
+          attacking, absorbing damage, supporting allies or enabling a team.
+          Editorial tiers remain an independent reference and are
+          never used as an automatic scoring input.
         </p>
         <p>
-          Ability priors combine Standard and non-standard strength, currently
-          weighted {Math.round((profile?.config.standardWeight ?? 0.2) * 100)}%
-          and {Math.round((1 - (profile?.config.standardWeight ?? 0.2)) * 100)}
-          %. Multipliers and separate league multipliers reflect context.
-          Synergies include positive and negative pairings, plus stat-dependent
-          bonuses. Overlapping synergy bonuses are capped to prevent explosive
-          totals.
+          Units are evaluated in frontline, backline and, when Reach is
+          available, second-position roles. Attacks depend on position and
+          accuracy. Survival limits useful attack time; Double Strike and
+          Armored Strike contribute through attack output. A mixed melee/ranged
+          card cannot automatically use both attacks from every position. A
+          small allowance for backline melee represents later movement to the
+          front.
         </p>
         <p>
-          Multiple attacks, no-attack utility, low-mana flexibility and splinter
-          versatility receive explicit contributions. A fixed smooth calibration
-          maps the raw total onto 0–10. Adding a new card does not automatically
-          change every existing card’s rating. Curator adjustments then apply
-          directly to the rating, with a combined limit of −2 to +2 per card and
-          scope and a required explanation.
+          Durability considers physical and magic pressure, armor absorbing a
+          whole hit, Shield and Void damage breakpoints, speed, evasion and
+          Forcefield. Heal scales with maximum health; Repair can sustain armor
+          and armor-based attacks. Damage and survival estimates are discounted
+          by curated ability priors and bounded to avoid idealized infinite
+          survival. These are practical estimates, not a full battle simulator.
+        </p>
+        <h2>Mana, matchups and team roles</h2>
+        <p>
+          The model averages ten situations: low mana (15%), mixed opposition
+          (25%), high mana (15%), armored opposition (10%), magic opposition
+          (10%), and Reverse Speed, Noxious Fumes, Melee Mayhem, Close Range and
+          Back to Basics (5% each). Low, mixed and high budgets use 22, 32 and
+          50 mana. These weights are explicit design assumptions, not measured
+          ruleset frequencies. Matchup estimates also use the selected format’s
+          cap-level catalogue to represent typical speed and attack pressure.
         </p>
         <p>
-          The initial profile is provisional, inspired by SplinterGuide’s
-          methodology. Historical card-specific fudge factors and extreme
-          constants were not copied. Current starting weights are open to review
-          in the publishing workflow.
+          Reverse Speed changes speed’s direction; Noxious Fumes adds poison
+          pressure; Melee Mayhem and Close Range enable attacks from additional
+          positions. Unit abilities are removed in the Back to Basics component.
+          Card pages show each situation’s effect on the card’s own
+          contribution. Multiple simultaneous modifiers and exact active-element
+          combinations are not simulated.
         </p>
-        <h2>How ability strength affects cards</h2>
+        <h2>Support and affordable partners</h2>
         <p>
-          Published curated ability weights feed both the ability ratings and
-          each card’s starting score. A unit’s ordinary beneficial ability adds
-          its prior divided by ten, multiplied by 1.3 and the league ability
-          multiplier. Drawbacks retain a negative contribution. The card model
-          then accounts for whether that unit can exploit the ability. We do not
-          feed battle-adjusted ability ratings back into cards, which would
-          count the same battle evidence twice.
-        </p>
-        <h2>Conditional abilities and team partners</h2>
-        <p>
-          Electrified, Incendiary, Reckless and Stray Shot can turn friendly
-          damage into Painforge power. Their harm penalties remain; a separate
-          contribution credits compatible Painforge attackers with enough
-          health. Reliable damage is worth more than random targeting or
-          uncertain Burning spread. Reckless needs a successful attack and
-          adjacent allies; Stray Shot needs ranged attack. Weary causes turn
-          loss, not damage, so it receives no Painforge bonus.
+          Healing, armor repair, team buffs and debuffs scale with relevant
+          recipients and available team space. Low-mana cards receive credit for
+          leaving room for allies. Weapons Training needs an eligible,
+          affordable trainer or trainee, with an allowance for adjacency and
+          setup cost. Available partners must share a legal archon and element
+          choice; Dragon is not permission to combine arbitrary elements.
+          Gladiator partners require Conscript in ordinary ranked packages.
         </p>
         <p>
-          Shapeshift carries a strong prior because it qualifies for every
-          bloodline. Available summoner grants, Bloodline Tribute and Bloodline
-          Pact add bounded partner value. Only the best summoner package counts;
-          alternative summoners are never treated as simultaneous team buffs.
+          Bloodlust scales with usable damage and survival. Painforge considers
+          poison and compatible friendly-damage sources, including intermittent
+          resurrection damage; friendly damage still carries a cost. Weary
+          reduces attack and active support availability unless Invigorate is
+          available. Shapeshift receives bounded credit for available bloodline
+          grants. Partner assumptions describe potential teams, not guaranteed
+          buffs in every battle.
         </p>
         <p>
-          Bloodline Tribute models up to three compatible beneficiaries, each
-          shared attack type, repeated deaths from Rebirth and a discounted
-          extra trigger if compatible Resurrect support exists. Taunt improves
-          trigger reliability and low mana leaves room for beneficiaries. The
-          ordinary Tribute contribution is subtracted from the interaction
-          estimate to avoid counting it twice. Final Rest and Dispel can counter
-          the engine; unlimited resurrection loops are never assumed.
+          Tribute evaluates up to three beneficiaries in a legal 32-mana
+          package, shared attack types and discounted repeat deaths. Its
+          interaction value has diminishing returns. Resurrect support must fit
+          alongside the beneficiaries before an extra repeat is credited. Dispel
+          can remove Tribute buffs; current Final Rest can block an enemy
+          resurrection, rather than suppressing every death-triggered effect.
+          Death Has No Power and other special modifiers may have different
+          behavior.
+        </p>
+        <h2>Archons and calibration</h2>
+        <p>
+          Archons receive credit for team access, including dual-element and
+          Dragon flexibility. Team stat effects account for relevant recipients
+          and have diminishing returns. Tactics use the strongest alternative,
+          recipient count and effect size; alternatives are not added together.
+          Bloodline grants and partnerships remain conditional.
         </p>
         <p>
-          Bloodlust is a strong snowball ability, but a weak attacker is less
-          likely to realize it. Its card contribution scales with damage output:
-          combined attacks receive more value than a small ranged attack. A
-          no-attack unit can receive conditional credit for compatible Weapons
-          Training, discounted for team cost and positioning. Untrainable units
-          receive no such credit. Double Strike and targeting synergy bonuses
-          stay separate rather than being applied twice.
+          Published ability priors remain editable. Their Standard/non-standard
+          blend is currently{' '}
+          {Math.round((profile?.config.standardWeight ?? 0.2) * 100)}% /
+          {Math.round((1 - (profile?.config.standardWeight ?? 0.2)) * 100)}%.
+          Quantitatively modeled effects replace their former flat bonuses.
+          Other abilities retain prior-based contributions. Overlapping pair and
+          stat bonuses are suppressed for modeled effects. Battle-adjusted
+          ability ratings are not fed back into card ratings.
         </p>
         <p>
-          Card breakdowns name these conditional contributions. They use the
-          selected format’s available cards and abilities unlocked at that cap;
-          actual elements, mana, rulesets and lineup restrictions still apply.
-          These are curated team-building estimates, not simulated battles or
-          measured causal effects. Grix and Dragonlord Mancer illustrate the
-          mechanics, but neither receives a special name-based score.
-        </p>
-        <p>
-          The November 2026 review records player feedback, official mechanics,
-          assumptions and counterexamples in the maintained scoring methodology.
-          Future reviews should replace outdated assumptions and check for
-          overlapping bonuses before publishing new weights.
+          A fixed smooth curve maps model points to 0–10, with a unit center of
+          four and an archon center of 2.5 by default. Explained curator
+          adjustments then apply directly, limited to −2 to +2 per card and
+          scope. Adding cards can change partner access and matchup estimates,
+          but does not force ratings into a percentile distribution.
         </p>
         <h2>How battle evidence changes a score</h2>
         <p>
@@ -160,7 +168,7 @@ export default async function Methodology() {
           rating point. Card influence is limited to 0.8 × effective /
           (effective + 75) × min(1, days / 3). Ability influence uses 0.65, a
           denominator offset of 150 and time breadth up to seven days. No usable
-          evidence leaves the curated baseline unchanged.
+          evidence leaves the practical baseline unchanged.
         </p>
         <h2>Use rate as a utility signal</h2>
         <p>
@@ -175,7 +183,7 @@ export default async function Methodology() {
           its ceiling at 20% weighted match share. Its weight is totalEffective
           / (totalEffective + 100) × cardEffective / (cardEffective + 30) ×
           min(1, days / 3). Unseen cards receive no popularity penalty. Final
-          scores combine the curated baseline, win-result adjustment and usage
+          scores combine the practical baseline, win-result adjustment and usage
           bonus, bounded to 0–10.
         </p>
         <h2>Card uses and win rates</h2>

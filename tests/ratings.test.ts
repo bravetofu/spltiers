@@ -263,7 +263,10 @@ test('repeatable tribute rewards mechanics and affordability, not card identity'
   const score = (card: CatalogueCard, pool = cards) =>
     curatedCard(card, 'diamond', 'modern', profile, pool)!.score
   const original = score(grix)
-  assert.ok(original > 9.8)
+  assert.ok(
+    original > 9,
+    'Repeatable, affordable Tribute remains exceptional without saturating the scale',
+  )
   const anonymous = { ...grix, id: 999999, name: 'Anonymous test unit' }
   assert.equal(
     score(

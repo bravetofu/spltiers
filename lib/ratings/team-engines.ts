@@ -16,7 +16,7 @@ export function teamEngineParts(
   profile: RatingProfile,
   context?: AbilityContext,
 ): ScorePart[] {
-  const { pool, names, compatible } =
+  const { pool, names, compatible, selectPartners, canField } =
     context ?? abilityContext(catalogue, league, format)
   const own = names(card)
   if (!own.has('Bloodline Tribute') && !own.has('Bloodline Dominion')) return []
@@ -24,13 +24,16 @@ export function teamEngineParts(
   const externalReviver = (unit: CatalogueCard) =>
     pool.find(
       (c) =>
-        c.id !== unit.id && compatible(unit, c) && names(c).has('Resurrect'),
+        c.id !== unit.id &&
+        compatible(unit, c) &&
+        canField([unit, c], 32) &&
+        names(c).has('Resurrect'),
     )
   const tributeValue = (unit: CatalogueCard, broaden: boolean) => {
     const abilities = names(unit),
       level = levelForLeague(unit, league)
     if (!abilities.has('Bloodline Tribute')) return 0
-    const recipients = pool.filter(
+    const candidates = pool.filter(
       (c) =>
         c.kind === 'unit' &&
         c.id !== unit.id &&
@@ -39,8 +42,17 @@ export function teamEngineParts(
           abilities.has('Shapeshift') ||
           names(c).has('Shapeshift')),
     )
-    // Model three beneficiaries, not an automatic perfect five-unit bloodline team.
-    const count = Math.min(3, recipients.length)
+    const recipients = selectPartners(
+      unit,
+      candidates.sort(
+        (a, b) =>
+          (statAt(a, 'mana', levelForLeague(a, league)) ?? 0) -
+          (statAt(b, 'mana', levelForLeague(b, league)) ?? 0),
+      ),
+      3,
+      32,
+    )
+    const count = recipients.length
     const offense = recipients.length
       ? recipients.reduce(
           (sum, recipient) =>
@@ -63,20 +75,32 @@ export function teamEngineParts(
       profile.statWeights.speed +
       profile.statWeights.armor +
       profile.statWeights.health
-    const triggers =
-      1 + (abilities.has('Rebirth') ? 1 : 0) + (externalReviver(unit) ? 0.5 : 0)
+    const reviver = externalReviver(unit)
+    const repeat =
+      reviver &&
+      canField(
+        [unit, ...recipients.filter((c) => c.id !== reviver.id), reviver],
+        32,
+      )
+        ? 0.35
+        : 0
+    const triggers = 1 + (abilities.has('Rebirth') ? 0.85 : 0) + repeat
     const reliability = abilities.has('Taunt') ? 0.9 : 0.55
     const affordability = Math.min(
       1.5,
       6 / (3 + (statAt(unit, 'mana', level) ?? 0)),
     )
     return (
-      count *
-      statGain *
-      triggers *
-      reliability *
-      affordability *
-      profile.leagueMultipliers[league].stats
+      4.5 *
+      Math.tanh(
+        (count *
+          statGain *
+          triggers *
+          reliability *
+          affordability *
+          profile.leagueMultipliers[league].stats) /
+          4.5,
+      )
     )
   }
   if (card.kind === 'unit' && own.has('Bloodline Tribute')) {
@@ -91,16 +115,17 @@ export function teamEngineParts(
     const baseline =
       (abilityPrior('Bloodline Tribute', profile) / 10) *
       1.3 *
+      0.35 *
       profile.leagueMultipliers[league].abilities
     parts.push({
       label: 'Repeatable bloodline team buffs',
       value: Math.max(0, value - baseline),
-      note: `Up to three matching-bloodline or Shapeshift beneficiaries; ${own.has('Rebirth') ? 'two death triggers via Rebirth' : 'one death trigger'}${externalReviver(card) ? ` plus half an expected repeat from compatible Resurrect support (${externalReviver(card)!.name})` : ''}. Taunt improves trigger reliability; low mana leaves room for beneficiaries. Each shared attack type contributes. Resurrect partners are alternatives, not an unlimited loop; Final Rest/Dispel can counter the engine. Conditional team-building value.`,
+      note: `Up to three matching-bloodline or Shapeshift beneficiaries in a legal 32-mana package; ${own.has('Rebirth') ? 'a discounted repeat death via Rebirth' : 'one death trigger'}${externalReviver(card) ? ` plus a discounted possible repeat from compatible Resurrect support (${externalReviver(card)!.name})` : ''}. Taunt improves trigger reliability; low mana leaves room for beneficiaries. Each shared attack type contributes. Resurrect partners are alternatives, not an unlimited loop; Dispel removes gained buffs; current Final Rest can block an enemy resurrection, not the initial Tribute. Conditional team-building value.`,
     })
     if (enablers.length)
       parts.push({
         label: 'Bloodline summoner partnership',
-        value: Math.min(1.5, value * 0.15),
+        value: Math.min(0.5, value * 0.1),
         note: `Compatible Bloodline Dominion support: ${enablers
           .map((c) => c.name)
           .slice(0, 3)
