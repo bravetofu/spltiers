@@ -198,6 +198,16 @@ export function contextualAbilityParts(
           : source === 'Resurgence'
             ? 0.3
             : 0.25
+  // A short-lived source cannot repeatedly hit adjacent allies. Discount both
+  // the source and receiver views using the same survivability assumption.
+  const sourceUptime = (c: CatalogueCard, source: string) =>
+    source === 'Reckless'
+      ? Math.min(
+          1,
+          (stat(c, 'health') + stat(c, 'armor') * 0.6) /
+            (names(c).has('Taunt') ? 18 : 12),
+        )
+      : 1
   const forgePower = (c: CatalogueCard) =>
     Math.min(
       1.5,
@@ -220,7 +230,12 @@ export function contextualAbilityParts(
     const receiverValue = (source: string) => {
       const recipients = allies
         .filter((c) => names(c).has('Painforge'))
-        .map((c) => forgePower(c) * reliability(source, false))
+        .map(
+          (c) =>
+            forgePower(c) *
+            reliability(source, false) *
+            sourceUptime(card, source),
+        )
       if (
         own.has('Painforge') &&
         ['Electrified', 'Incendiary'].includes(source)
@@ -241,7 +256,10 @@ export function contextualAbilityParts(
           ...allies.flatMap((c) =>
             PAINFORGE_SOURCES.filter(
               (s) => names(c).has(s) && canDamage(c, s),
-            ).map((s) => forgePower(card) * reliability(s, false)),
+            ).map(
+              (s) =>
+                forgePower(card) * reliability(s, false) * sourceUptime(c, s),
+            ),
           ),
         )
       : 0
@@ -254,7 +272,7 @@ export function contextualAbilityParts(
       parts.push({
         label: 'Painforge damage conversion',
         value,
-        note: 'Conditional allied-damage engine: attack types and health limit the payoff. Electrified is reliable, Reckless needs a hit and adjacency, Burning must spread, Stray Shot is random, and resurrection damage is intermittent. Uses the best source/receiver role, not their sum; friendly damage penalties remain. Weary is not a damage trigger.',
+        note: 'Conditional allied-damage engine: attack types and health limit the payoff. Electrified is reliable, Reckless needs a hit, adjacency and a source that survives to act, Burning must spread, Stray Shot is random, and resurrection damage is intermittent. Uses the best source/receiver role, not their sum; friendly damage penalties remain. Weary is not a damage trigger.',
       })
   }
   if (own.has('Shapeshift')) {

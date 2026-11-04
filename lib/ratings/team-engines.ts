@@ -42,9 +42,13 @@ export function teamEngineParts(
           abilities.has('Shapeshift') ||
           names(c).has('Shapeshift')),
     )
+    const affordable = candidates.filter((c) => canField([unit, c], 32))
+    // A legal best-case package is not the usual team. Narrow bloodlines and
+    // Shapeshift-dependent recipients require deliberate deck construction.
+    const breadth = 0.55 + 0.45 * Math.min(1, affordable.length / 12)
     const recipients = selectPartners(
       unit,
-      candidates.sort(
+      affordable.sort(
         (a, b) =>
           (statAt(a, 'mana', levelForLeague(a, league)) ?? 0) -
           (statAt(b, 'mana', levelForLeague(b, league)) ?? 0),
@@ -53,6 +57,16 @@ export function teamEngineParts(
       32,
     )
     const count = recipients.length
+    const fit = recipients.length
+      ? recipients.reduce(
+          (sum, c) =>
+            sum +
+            (abilities.has('Shapeshift') || c.bloodline === unit.bloodline
+              ? 0.9
+              : 0.55),
+          0,
+        ) / recipients.length
+      : 0
     const offense = recipients.length
       ? recipients.reduce(
           (sum, recipient) =>
@@ -97,6 +111,8 @@ export function teamEngineParts(
           statGain *
           triggers *
           reliability *
+          breadth *
+          fit *
           affordability *
           profile.leagueMultipliers[league].stats) /
           4.5,
@@ -120,7 +136,7 @@ export function teamEngineParts(
     parts.push({
       label: 'Repeatable bloodline team buffs',
       value: Math.max(0, value - baseline),
-      note: `Up to three matching-bloodline or Shapeshift beneficiaries in a legal 32-mana package; ${own.has('Rebirth') ? 'a discounted repeat death via Rebirth' : 'one death trigger'}${externalReviver(card) ? ` plus a discounted possible repeat from compatible Resurrect support (${externalReviver(card)!.name})` : ''}. Taunt improves trigger reliability; low mana leaves room for beneficiaries. Each shared attack type contributes. Resurrect partners are alternatives, not an unlimited loop; Dispel removes gained buffs; current Final Rest can block an enemy resurrection, not the initial Tribute. Conditional team-building value.`,
+      note: `Up to three matching-bloodline or Shapeshift beneficiaries in a legal 32-mana package, discounted for narrow partner pools and reliance on Shapeshift; ${own.has('Rebirth') ? 'a discounted repeat death via Rebirth' : 'one death trigger'}${externalReviver(card) ? ` plus a discounted possible repeat from compatible Resurrect support (${externalReviver(card)!.name})` : ''}. Taunt improves trigger reliability; low mana leaves room for beneficiaries. Each shared attack type contributes. Resurrect partners are alternatives, not an unlimited loop; Dispel removes gained buffs; current Final Rest can block an enemy resurrection, not the initial Tribute. Conditional team-building value.`,
     })
     if (enablers.length)
       parts.push({

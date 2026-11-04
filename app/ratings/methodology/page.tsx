@@ -90,13 +90,26 @@ export default async function Methodology() {
           contribution. Multiple simultaneous modifiers and exact active-element
           combinations are not simulated.
         </p>
+        <p>
+          Taunt attracts more incoming pressure, so high health alone does not
+          guarantee sustained attacks. Large physical hits lose overflow against
+          armor without Piercing. Deflect receives more credit for attacking or
+          covering second position than for sheltered support. Retaliate needs
+          melee attackers, and Enrage offers less without melee offense. Fast,
+          fragile attackers still receive an allowance for acting before dying.
+        </p>
         <h2>Support and affordable partners</h2>
         <p>
           Healing, armor repair, team buffs and debuffs scale with relevant
-          recipients and available team space. Low-mana cards receive credit for
+          recipients and available team space. Stacked support has diminishing
+          returns: several abilities cannot each assume ideal targets. Headwinds
+          counters ranged pressure; Demoralize counters melee pressure. A heal
+          targets one injured ally rather than multiplying with team size.
+          Low-mana cards receive credit for
           leaving room for allies. Weapons Training needs an eligible,
           affordable trainer or trainee, with an allowance for adjacency and
-          setup cost. Available partners must share a legal archon and element
+          setup cost, combined mana investment and recipient initiative.
+          Available partners must share a legal archon and element
           choice; Dragon is not permission to combine arbitrary elements.
           Gladiator partners require Conscript in ordinary ranked packages.
         </p>
@@ -112,7 +125,8 @@ export default async function Methodology() {
         <p>
           Tribute evaluates up to three beneficiaries in a legal 32-mana
           package, shared attack types and discounted repeat deaths. Its
-          interaction value has diminishing returns. Resurrect support must fit
+          interaction value has diminishing returns and is discounted for narrow
+          bloodlines and dependence on Shapeshift partners. Resurrect support must fit
           alongside the beneficiaries before an extra repeat is credited. Dispel
           can remove Tribute buffs; current Final Rest can block an enemy
           resurrection, rather than suppressing every death-triggered effect.

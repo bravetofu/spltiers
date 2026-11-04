@@ -8,7 +8,9 @@ import {
   healingAmount,
   hitChance,
   SCENARIOS,
+  armorDamageRetention,
 } from '../lib/ratings/practical-value'
+import { teamEngineParts } from '../lib/ratings/team-engines'
 import { checkedProfile } from '../lib/ratings/validation'
 import profileJson from '../data/rating-profile.json'
 import type { CatalogueCard } from '../lib/splinterlands/catalogue'
@@ -121,7 +123,10 @@ test('training is conditional on cap, format, affordability and eligibility', ()
   )
   const locked = {
     ...trainer,
-    stats: { ...trainer.stats, abilities: [[], [], [], ['Weapons Training']] },
+    stats: {
+      ...trainer.stats,
+      abilities: [[], [], [], ['Weapons Training']],
+    },
   }
   assert.equal(
     curatedCard(recipient, 'bronze', 'modern', profile, [locked])!.parts.find(
@@ -194,4 +199,117 @@ test('curator ability priors remain effective for quantitatively modeled defense
   p.abilities.Shield.standard = 0
   p.abilities.Shield.nonStandard = 0
   assert.ok(score(c) > curatedCard(c, 'diamond', 'modern', p)!.score)
+})
+
+test('armor wastes large physical hits, while small hits lose no overflow', () => {
+  assert.equal(armorDamageRetention(2, 2, 1), 1)
+  assert.ok(Math.abs(armorDamageRetention(6, 2, 1) - 1 / 3) < 1e-10)
+  assert.ok(armorDamageRetention(6, 2, 0.5) > armorDamageRetention(6, 2, 1))
+  const attacker = unit([], { attack: 6 })
+  assert.ok(
+    output({
+      ...attacker,
+      stats: { ...attacker.stats, abilities: [['Piercing']] },
+    }) > output(attacker),
+  )
+})
+test('Headwinds and Demoralize respond to different physical attack families', () => {
+  const support = unit(['Headwinds', 'Demoralize'])
+  const part = (pool: CatalogueCard[], name: string) =>
+    practical(support, pool).parts.find((p) => p.label === name)!.value
+  const melee = [unit([], { attack: 4 })],
+    ranged = [unit([], { attack: 0, ranged: 4 })]
+  assert.ok(part(ranged, 'Headwinds') > part(melee, 'Headwinds'))
+  assert.ok(part(melee, 'Demoralize') > part(ranged, 'Demoralize'))
+})
+test('support stacks have diminishing returns without discounting Reverse Speed penalties', () => {
+  const support = unit(['Strengthen', 'Protect', 'Swiftness', 'Inspire'])
+  const result = practical(support, [unit(), unit(), unit()])
+  assert.ok(result.parts.find((p) => p.label === 'Support overlap')!.value < 0)
+  const reverse = result.summary.scenarios.find(
+    (s) => s.name === 'Reverse Speed',
+  )!
+  assert.ok(
+    reverse.value <
+      result.summary.scenarios.find((s) => s.name === 'Mixed opposition')!
+        .value,
+  )
+})
+test('Triage does not multiply its healing with five healthy team slots', () => {
+  const support = unit(['Triage'], { attack: 0, magic: 1, health: 15 })
+  const result = practical(support, [unit(), unit()])
+  const without = practical(
+    { ...support, stats: { ...support.stats, abilities: [[]] } },
+    [unit(), unit()],
+  )
+  const contribution = (name: string) =>
+    result.summary.scenarios.find((s) => s.name === name)!.value -
+    without.summary.scenarios.find((s) => s.name === name)!.value
+  assert.ok(
+    Math.abs(contribution('High mana') - contribution('Mixed opposition')) <
+      1e-10,
+  )
+  assert.ok(contribution('Noxious Fumes') > contribution('Mixed opposition'))
+})
+test('training values recipient initiative and combined mana investment', () => {
+  const trainer = unit(['Weapons Training'], {
+    attack: 0,
+    magic: 3,
+    mana: 4,
+  })
+  const recipient = unit([], { attack: 0, speed: 1, health: 15 })
+  const trainedOutput = (c: CatalogueCard) =>
+    practical(c, [trainer]).parts.find(
+      (p) => p.label === 'Usable attack output',
+    )!.value
+  assert.ok(
+    trainedOutput({
+      ...recipient,
+      stats: { ...recipient.stats, speed: 4 },
+    }) > trainedOutput(recipient),
+  )
+  assert.ok(
+    trainedOutput({
+      ...recipient,
+      stats: { ...recipient.stats, mana: 2 },
+    }) > trainedOutput(recipient),
+  )
+})
+test('Protect and Strengthen also improve their own carriers durability', () => {
+  const fragile = unit([], { armor: 0, health: 4 })
+  const durability = (abilities: string[]) =>
+    practical({
+      ...fragile,
+      stats: { ...fragile.stats, abilities: [abilities] },
+    }).parts.find((p) => p.label === 'Effective durability')!.value
+  assert.ok(durability(['Protect']) > durability([]))
+  assert.ok(durability(['Strengthen']) > durability([]))
+})
+test('Deflect gains more value on attackers than on otherwise similar support bodies', () => {
+  const deflect = (magic: number) =>
+    practical(unit(['Deflect'], { attack: 0, magic })).parts.find(
+      (p) => p.label === 'Deflect',
+    )!.value
+  assert.ok(deflect(4) > deflect(1))
+})
+test('narrow Tribute packages and Shapeshift-only recipients receive less credit', () => {
+  const donor = unit(['Bloodline Tribute', 'Taunt'], {
+    magic: 2,
+    attack: 0,
+  })
+  const allies = Array.from({ length: 8 }, () =>
+    unit([], { mana: 2, magic: 2, attack: 0 }),
+  )
+  const value = (pool: CatalogueCard[]) =>
+    teamEngineParts(donor, 'diamond', 'modern', pool, profile).reduce(
+      (s, p) => s + p.value,
+      0,
+    )
+  assert.ok(value(allies) > value(allies.slice(0, 3)))
+  const shapes = allies.map((c) => ({
+    ...c,
+    bloodline: 'Other',
+    stats: { ...c.stats, abilities: [['Shapeshift']] },
+  }))
+  assert.ok(value(allies) > value(shapes))
 })

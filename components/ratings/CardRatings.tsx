@@ -199,7 +199,9 @@ export default function CardRatings({
               Usually evaluated as{' '}
               <strong>{rating.practical.role.toLowerCase()}</strong>. The
               baseline considers usable attacks, survival and support across
-              mana budgets and selected matchups. These are explicit model
+              mana budgets and selected matchups. Support has diminishing
+              returns; armor waste, incoming pressure and partner setup limit
+              theoretical value. These are explicit model
               assumptions; the best position still depends on your actual team.
             </p>
           )}

@@ -1,6 +1,6 @@
 # Scoring methodology
 
-Engine **practical-3.0** (2026-11-04). Collection, bounded daily storage and the
+Engine **practical-3.1** (2026-11-04). Collection, bounded daily storage and the
 unchanged evidence formulas are documented in [card-ratings.md](card-ratings.md).
 Public explanations live at `/ratings/methodology` and on each card page.
 
@@ -73,12 +73,48 @@ Support abilities scale with relevant recipients, team space, health, attack
 pressure or survival. Martyr accounts for adjacent recipients and Rebirth; Volley
 of Arrows accounts for available ranged allies. No-attack cards only gain attack
 output when an affordable unlocked Weapons Trainer exists; Untrainable blocks it.
-Training is capped at three power and discounted to 55% for setup/adjacency.
+Training is capped at three power and discounted to at most 55% for setup/adjacency, then reduced for combined recipient/trainer mana and recipient initiative (reversed under Reverse Speed).
 Trainers select at most two eligible trainees that jointly fit a legal package.
 
 Mana's raw cost is multiplied by 1.15 at low mana, 0.75 at high mana and 1 otherwise.
 Cards below six mana receive `(6 - mana) × 0.18` for preserved team budget;
 zero/one-mana flexibility remains. These are transparent calibration choices.
+
+## Support, exposure and conditional triggers (3.1 refinement)
+
+Team support receives diminishing returns: positive support total `s` keeps its
+first raw point, then becomes `1 + 2.5 × log(1 + (s - 1) / 2.5)`. The separate
+**Support overlap** line exposes the deduction. Negative effects, including
+speed buffs in Reverse Speed, are not discounted. This is a shared opportunity
+allowance, not a claim that these abilities cancel one another.
+
+Inspire/Focus scale by affordable melee/ranged recipient shares. Headwinds and
+Demoralize use the corresponding opposing attack share instead of both receiving
+credit for all physical pressure. Tank Heal/Triage target one injured ally per
+action; adding team slots cannot multiply the heal. Triage gains opportunity in
+Noxious Fumes. Protect, Strengthen and Swiftness also affect their own carrier.
+
+Incoming pressure uses 1.8 representative attacks, or 2.3 for Taunt, multiplied
+by exposure (front/Taunt 1, ordinary backline 0.4, Camouflage 0.25). Productive
+turns remain bounded at 0.5–3. Output availability is `0.35 + 0.65 × turns / 3`,
+plus up to `0.2 × (1 - turns / 3)` for initiative. This preserves some first-hit
+value for fast glass cannons without assuming sustained output. These are model
+assumptions rather than measured attack counts or survival rates.
+
+Physical attacks lose expected overflow against a representative armor plate:
+`1 - armorFrequency × max(0, power - armor) / power`. Armor presence and typical
+positive armor come from the cap/format pool, with a bounded ordinary frequency
+and an 85% armored-opposition probe. Piercing recovers overflow in proportion to
+its ability prior; Shatter receives partial recovery for later hits. Small hits
+do not lose fictitious overflow. Piercing's old flat bonus is removed.
+
+Deflect is worth more for active attackers and second-position coverage. Enrage
+gets less value without melee offense; Retaliate only responds to melee pressure;
+Trample needs usable killing pressure; Knock Out is discounted without Stun access.
+Return Fire/Magic Reflect/Thorns depend on the relevant incoming attack type and
+exposure. Reckless's damage penalty and possible Painforge payoff are both reduced
+when the source is unlikely to survive to act repeatedly. Full attack order and
+trigger chains remain outside this compact model.
 
 ## Abilities, overlap and partners
 
@@ -100,7 +136,7 @@ Bloodline Tribute selects up to three inexpensive eligible beneficiaries in a
 legal 32-mana package. Count every shared attack type. Rebirth adds 0.85 modeled
 repeat triggers. External Resurrect adds 0.35 only if the reviver fits with those
 beneficiaries; this is a timing discount, not a fractional game resurrection.
-The estimate uses `4.5 × tanh(value / 4.5)` to bound repeated team gains. Subtract
+Narrow eligible pools and dependence on Shapeshift recipients further discount the package; legal availability is not a guaranteed lineup. The estimate uses `4.5 × tanh(value / 4.5)` to bound repeated team gains. Subtract
 its already-credited ability baseline. Archon partnership contributions are
 bounded; additional partner combinations are not exhaustively optimized.
 
