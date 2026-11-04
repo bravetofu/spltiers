@@ -183,15 +183,15 @@ export default function CardRatings({
                 </strong>
               </div>
               <div>
-                <span>Win-sample players</span>
-                <strong>{rating.evidence.players}</strong>
+                <span>Sample days</span>
+                <strong>{rating.evidence.days}</strong>
               </div>
             </div>
           </div>
           <p className="rating-note">
             {rating.battleWeight || rating.usageWeight
-              ? 'Recent win results and selection frequency adjust the curated baseline separately, after sample-size, player-diversity and time limits. '
-              : 'The curated model determines this rating until enough independent battle evidence is available. '}
+              ? 'Recent win results and selection frequency adjust the curated baseline separately, after sample-size and time weighting. '
+              : 'The curated model determines this rating until enough battle evidence is available. '}
             Battle association is not proof that a card caused a win.
           </p>
           {rating.evidence.battles > 0 && (
@@ -208,7 +208,7 @@ export default function CardRatings({
           )}
           <p className="rating-note">
             {ratingUsage
-              ? `Use rate: ${(ratingUsage.rate * 100).toFixed(1)}% — used in ${ratingUsage.battles.toLocaleString('en-US')} of ${ratingUsage.totalBattles.toLocaleString('en-US')} recorded matches in this format and cap over the last 90 days, by ${ratingUsage.players} players across ${ratingUsage.days} days. After time decay and account-volume limits: ${(ratingUsage.weightedRate * 100).toFixed(1)}% (${ratingUsage.effective.toFixed(1)} effective card matches). `
+              ? `Use rate: ${(ratingUsage.rate * 100).toFixed(1)}% — used in ${ratingUsage.battles.toLocaleString('en-US')} of ${ratingUsage.totalBattles.toLocaleString('en-US')} recorded matches in this format and cap over the last 90 days, across ${ratingUsage.days} days. After daily time decay: ${(ratingUsage.weightedRate * 100).toFixed(1)}% (${ratingUsage.effective.toFixed(1)} effective card matches). `
               : 'No recent qualifying usage sample for this card and scope. '}
             A mirror counts as one match for use rate. Selection frequency
             includes underlevelled appearances; win-rate strength evidence
@@ -247,7 +247,7 @@ export default function CardRatings({
                     <td>
                       {rating.battleWeight
                         ? `${(rating.evidence.adjustedWinRate * 100).toFixed(1)}% player-adjusted outcome rate; ${(rating.battleWeight * 100).toFixed(1)}% of the estimated score change applied.`
-                        : 'Needs 20 non-mirrored cap-level appearances, 5 players and 15 effective samples. No win-rate adjustment yet.'}
+                        : 'Needs 20 non-mirrored cap-level appearances, two days and 15 effective samples. No win-rate adjustment yet.'}
                     </td>
                   </tr>
                   <tr>
@@ -256,7 +256,7 @@ export default function CardRatings({
                     <td>
                       {rating.usageWeight
                         ? `${((ratingUsage?.weightedRate ?? 0) * 100).toFixed(1)}% weighted match share; ${(rating.usageWeight * 100).toFixed(1)}% confidence weight. At most +1 point before confidence limits; reaches that cap at 20% match share.`
-                        : 'Needs use in 20 matches, 5 players, 15 effective card matches and 50 effective matches in this scope. Unseen or rare cards receive no penalty.'}
+                        : 'Needs use in 20 matches, two days, 15 effective card matches and 50 effective matches in this scope. Unseen or rare cards receive no penalty.'}
                     </td>
                   </tr>
                   <tr>

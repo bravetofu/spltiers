@@ -62,7 +62,6 @@ export type RatingProfile = {
 export type UsageEvidence = {
   battles: number
   totalBattles: number
-  players: number
   days: number
   effective: number
   totalEffective: number
@@ -72,7 +71,6 @@ export type UsageEvidence = {
 export type Evidence = {
   usage?: UsageEvidence
   battles: number
-  players: number
   days: number
   wins: number
   draws: number
@@ -128,13 +126,12 @@ export type CollectorStatus = {
     collected: number
   } | null
 }
-export const ENGINE_VERSION = 'hybrid-1.3'
+export const ENGINE_VERSION = 'daily-2.0'
 export const PARSER_VERSION = 3
 export const EVIDENCE_WINDOW_DAYS = 90
 export const EVIDENCE_HALF_LIFE_DAYS = 30
 export const EMPTY_EVIDENCE: Evidence = {
   battles: 0,
-  players: 0,
   days: 0,
   wins: 0,
   draws: 0,

@@ -1,232 +1,109 @@
-# Combat card and ability ratings
+# Card and ability ratings
 
-The public catalogue has 0–10 ratings for units and summoners. `/abilities`
-lists ability strength, `/ability/[slug]` explains each mechanic and pairing,
-and `/ratings/methodology` describes the published model and collection status.
-Land has no combat rating. Tier lists remain separately curated.
+Ratings combine curated mechanic-based scores with daily ranked-battle evidence.
+The current engine is `daily-2.0`. Cards, abilities, admin previews, publication,
+tier references and public APIs all use the same engine and summary reads.
 
-## Context and model
+## Storage and collection
 
-[Scoring methodology](scoring-methodology.md) is the maintained reference for
-ability/card interactions, coefficients, feedback, counterexamples and review
-process. This document covers evidence, storage and collection operations.
+The hourly collector parses ranked history and public queue replays in memory.
+Only eligible, mapped matches enter storage. Shared/manual research captures are
+ignored and no longer fetched. No raw replay or per-battle feature/usage rows are
+retained. Parser changes apply to future samples, not already accepted battles.
 
-Scores are separate for ranked Modern and Wild, at Bronze, Silver, Gold and
-Diamond/Champion rarity caps. Wild battle ratings include Modern cards; the
-catalogue's Wild filter still means Wild-exclusive cards.
+Each accepted battle updates these tables in one SQL statement:
 
-`data/rating-profile.json` is the initial provisional profile, not a continuing
-source of truth after publication. The pure engine in `lib/ratings/engine.ts`
-uses cap-level stats, unlocked abilities, positive/negative pairings, stat and
-ability interactions, attack flexibility and splinter versatility. Summoners
-have separate team-effect weights and calibration; tactics use the strongest
-alternative instead of adding mutually exclusive options. Initial weights are
-inspired by the supplied SplinterGuide reference, without copying historical
-card fudge factors. These starting numbers require player review and eventual
-out-of-sample evaluation.
+- `rating_seen`: hashed canonical battle ID, UTC day and queue IDs for deduplication.
+- `rating_daily_evidence`: non-mirrored feature appearances, wins, draws, expected
+  outcomes and standard-ruleset counts per UTC day/kind/subject/league/format.
+- `rating_daily_usage`: distinct matches containing each card per day and scope.
+- `rating_daily_totals`: qualifying matches per day and scope.
+- `rating_lifetime_usage`: lifetime uses/wins/losses/draws per card and scope.
+- `rating_totals`: lifetime accepted count, latest match and maintenance date.
 
-The raw subtotal uses a smooth fixed sigmoid calibration (unit center 5,
-summoner center 2.5, scale 2). Curator adjustments apply in rating points after
-calibration, with a combined ±2 limit for each card/scope. Notes are required.
+All increments depend on the deduplication insert returning a row. Duplicate or
+concurrent submissions therefore cannot inflate evidence or counters. Mirrored
+cards count once for match share, twice for lifetime team appearances and never
+for strength evidence. Underlevelled cards count for usage but not cap-level strength.
 
-Battle evidence estimates performance above/below a pre-battle Elo expectation
-(400-point scale). Five percentage points of residual performance estimate one
-rating point of adjustment around the curated baseline. Results at expectation
-preserve that baseline. The current engine retains the separate win and usage contributions introduced in 1.2:
+Daily evidence, usage, scope totals and deduplication IDs retain today plus the
+previous 89 UTC days. The same boundary gates ingestion and reads, so an expired
+ID cannot be reinserted with an old battle timestamp. Pending work expires after
+two days or 12 attempts. Job logs retain 30 days. Maintenance runs once daily.
+Lifetime counters remain when daily detail expires. Counter updates are atomic,
+but historical corrections requiring replay detail need a new collection epoch
+or separately supplied evidence; there is no replay archive to rebuild from.
 
-```
-winWeight = 0.8 × effective / (effective + 75)
-            × min(players / 15, 1) × min(days / 3, 1)
-winAdjustment = winWeight × (clamp(curated + 20 × (adjustedRate - 0.5), 0, 10) - curated)
-useWeight = totalEffective / (totalEffective + 100)
-            × cardEffective / (cardEffective + 30)
-            × min(cardPlayers / 15, 1) × min(cardDays / 3, 1)
-useBonus = useWeight × min(weightedUseRate / 0.2, 1)
-score = clamp(curated + winAdjustment + useBonus, 0, 10)
-```
+Collection rotates account/format targets and favors scopes with less evidence.
+A lease prevents overlapping scheduled runs. Optional authenticated history uses
+server-only game credentials. Public queues remain usable without game login.
+The hourly GitHub Actions job calls `/api/cron/collect-battles` using verified
+OIDC identity. Admin calls use the existing authenticated admin route.
 
-Card win adjustments require 20 non-mirrored cap-level appearances, five players
-and 15 effective samples. Only the last 90 days count, with a 30-day half-life
-and at most ten appearances per player, feature, scope and UTC day. Effective
-sample mass is the sum of decayed weights. Underlevelled appearances and mirrors
-cannot establish cap-level performance. Ability ratings retain the previous
-30/5/20 gates, 0.65 × effective/(effective+150) × min(players/20,1) × min(days/7,1)
-weight, and no usage bonus.
+## Scoring
 
-Use rate is distinct matches containing the card on either team divided by all
-eligible matches in that format/cap in the last 90 days. A mirror counts once.
-Underlevelled appearances count as selection evidence only. Both numerator and
-denominator use identical match weights: time decay × min(1, 10 / maximum of
-the two players’ daily match counts in this scope). Thus prolific accounts cannot
-contribute more than ten effective matches per day. The UI shows the raw match
-share, counts and weighted share. A bonus needs 20 card matches, five card users,
-15 effective card matches and 50 effective scope matches. It is capped at one
-point before confidence weighting, saturates at 20% match share and never
-penalizes unobserved cards. Sampling, ownership and affordability confound usage.
-The final breakdown separates baseline, win adjustment, usage bonus and bounds.
+Curated mechanics, ability weights, conditional team contributions and league
+caps remain configurable. The collector stores sufficient statistics to change
+weights, decay and confidence thresholds without retaining individual matches.
 
-Moderate confidence requires 150 effective win samples, 15 players and seven
-days; strong requires 500, 30 and 14. Usage alone can establish early confidence.
-Both signals use the selected format and level cap; there is no cross-scope
-borrowing. All daily refresh, admin preview/publication and deploy-init paths
-read both evidence streams together. The engine version triggers a deployment
-refresh without replacing published curation.
+For each daily bucket, weight = `0.5 ** (UTC day age / 30)` over the retained
+90 calendar days. Effective samples sum `appearances * weight`. Adjusted result
+rate is `clamp(0.5 + sum(weight * (wins + 0.5*draws - expected)) / effective, 0, 1)`.
+Expected outcomes use the parser's pre-battle player-rating baseline, never
+current account ratings. Raw rate counts draws as half wins.
 
-These are associations, not causal estimates. Teammates, bots, ownership,
-rulesets and selection of leaderboard accounts remain confounders. Shared and
-manual replays are research-only to avoid selective sharing contaminating
-strength estimates. Battle data does not automatically rewrite curated weights.
-Raw replays and versioned snapshots allow future parser and model improvements.
+Card strength needs 20 appearances, 15 effective samples and two days. Ability
+strength needs 30 appearances, 20 effective samples and two days. Card weight is
+`0.8 * effective/(effective+75) * min(1,days/3)`; abilities use `0.65`, `150` and
+seven days. Five percentage points above/below expectation imply one potential
+rating point before that confidence weighting. No usable evidence preserves the prior.
 
-## Collection and API findings
+Card usage adds at most one point before confidence weighting, saturating at
+20% decayed match share. It needs 20 card matches, 15 effective card matches,
+50 effective scope matches and two days. Weight is
+`totalEffective/(totalEffective+100) * effective/(effective+30) * min(1,days/3)`.
+Cards never receive a penalty for being unobserved. Abilities have no usage bonus.
+Final scores are bounded to 0–10.
 
-### Public card battle results
+Confidence is curated, early, moderate (150 effective strength samples and seven
+days) or strong (500 and 14 days). Distinct-player counts and account-volume caps
+are deliberately omitted. Repeated accounts, bots, ownership and correlated
+lineups can bias estimates. Confidence measures sample size/time coverage, not
+causal certainty or player diversity.
 
-Unit and summoner tables and detail pages show lifetime collected ranked uses,
-wins, losses and win rate for the selected format and league cap. Details also
-show draws. These are the collected sample, not global game totals. One card
-appearance per team counts as a use, including underlevelled cards. A mirror
-match contributes two uses (a win and a loss, or two draws). Win rate is
-`wins / uses`; draws remain in the denominator, and an empty sample has no rate.
-Shared/manual research replays, surrenders, incomplete/unresolved matches and
-unmapped caps are excluded using the existing battle eligibility checks.
+## Reads, publication and retention
 
-`rating_card_usage` records descriptive appearances separately from strength
-observations. It has no 90-day cutoff, player-volume cap or time weighting.
-Collector transactions deduplicate replays and replace derived rows atomically
-when reprocessing. Deploy initialization backfills archived replays with parser
-version 3. Cached public totals invalidate after collection, independently of
-the daily rating snapshots. Rating evidence retains its stricter filters.
+Public lifetime statistics read the small counter table. Rating refreshes read
+SQL-aggregated daily summaries. Public score APIs and card pages retain their
+score shapes except removal of `evidence.players` and `evidence.usage.players`.
+The UI reports sample days and no longer claims player-diversity protection.
 
-Format-filtered history responses supply context for legacy rows whose `format`
-is null. Explicit replay formats and allowed-card settings take precedence.
-Standalone unlabelled replay responses remain unmapped. The original raw format
-is preserved and history context is restored from the stored format on reparse.
-Non-ranked history rows are skipped before they can exhaust the ingestion cap.
-Account/format selection balances scarce observed caps with exploration of
-previously unchecked accounts. Unsupported-format pending replays stop
-retrying, and fresh pending IDs precede repeated failures.
+Only the active score snapshot is retained. Publication swaps it atomically,
+prunes previous scores and invalidates caches. Published profile configurations
+remain for audit and draft restoration. Restoring a profile restores weights;
+it does not restore historical scores. Collection refreshes at most daily unless
+an admin requests a refresh. Deploying a new engine refreshes once.
 
-The default maxed table rechecks the public API after hydration, just like the
-other level filters. A coverage message states how many matching cards have uses
-and defaults to uses descending (name ascending breaks ties); an empty sample is identified explicitly.
+Migrations 009–010 aggregate existing production detail before dropping the raw,
+observation and usage tables. Existing lifetime counts are retained. The score
+table is rebuilt once to reclaim obsolete snapshot storage. Old application
+versions are incompatible with this schema: deploy the new app with the migration.
 
-### Collection schedule
-
-GitHub Actions calls `/api/cron/collect-battles` every hour at minute 7 (24 scheduled runs per day); scheduled Actions can be delayed. The public repository uses a minimal runner without checkout. The GitHub job authenticates with a short-lived OIDC identity verified against the issuer, audience, repository and owner IDs, main branch, exact workflow path, and allowed event. No shared GitHub secret is needed. Manual server triggers can also use `Authorization: Bearer <CRON_SECRET>`; invalid identities fail closed. A database
-lease prevents overlapping runs. Each run has request, time and replay limits;
-pending IDs and a rotating player roster persist between runs. Migration 006
-tracks last check per account/format and the most recent observed cap, seeded
-from existing eligible battles. Recent (90-day) scope counts prioritize known
-underrepresented caps; unknown accounts use their format’s average coverage.
-Every fifth planned history request explores the longest-unchecked target.
-Planning adds 20 estimated matches per allocated scope slot to spread the
-budget. Cap observations older than 30 days become unknown. Leaderboard labels
-are discovery hints, never a substitute for replay eligibility. API availability
-and actual match activity determine whether missing scopes can be filled. The admin can
-seed accounts, submit research replay IDs, run collection and refresh scores.
-
-Verified against live APIs on 2026-10-31:
-
-| Endpoint                                          | Use / access                                                      |
-| ------------------------------------------------- | ----------------------------------------------------------------- |
-| `/settings`                                       | Public previous-season ID and game settings                       |
-| `/players/leaderboard?format=...&leaderboard=...` | Public player discovery; previous-season fallback during rollover |
-| `/battle/battle_queue?username=...`               | Public active ranked queue IDs and opponent IDs                   |
-| `/battle/result?id=...`                           | Public full replay resolution, no access token needed             |
-| `/battle/history2?player=...&format=...`          | HTTP 401 anonymously; optional authenticated bulk history         |
-| Hive `bridge.get_ranked_posts`                    | Public shared replay research, maximum 20 posts/request           |
-
-The collector has ingested real ranked queue replays without game credentials.
-Some live queues are unfinished and are retried later. HTTP 200 error strings
-are not treated as battle objects. Public sampling is neither complete nor
-random. Current profile ratings are never substituted for historical ratings.
-Explicit match level caps are preferred; otherwise conservative lineup
-inference is required. Unmappable or incomplete matches remain archived.
-
-Sources: [official API directory](https://support.splinterlands.com/hc/en-us/articles/10038260640916-Available-APIs),
-[game Swagger](https://api2.splinterlands.com/doc/),
-[VAPI Swagger](https://vapi.splinterlands.com/swagger/).
-The live game Swagger and official JavaScript SDK were reviewed. Direct VAPI
-schema access was unavailable in the development network; its route inventory
-was checked against the public `Silverkazimi/splinterlands-mcp` Swagger drift
-baseline dated October 30. That inventory exposes market/land/collector routes,
-and no battle history alternative. Live endpoint behavior takes precedence
-over historical documentation about authentication.
-
-## Curation and persistence
-
-`/admin/ratings` uses the existing Hive admin session. Edit a draft, save it,
-preview, then publish with a version label and reason. Saving and publication
-use optimistic revisions; concurrent publication returns 409 to the stale
-writer. Restoring a prior version creates a draft and requires publication.
-Collection always scores against the published profile, never the draft.
-
-Neon migrations 002–006 add profiles, score snapshots, a singleton workspace,
-raw battles, normalized observations, descriptive usage, account/format targets,
-player/pending queues, job runs and a lease. Canonical IDs join the two sorted queue IDs. Ingestion is idempotent;
-parser upgrades replace observations atomically, guarded against older writers.
-Research-only captures can be promoted if later independently discovered from
-a ranked queue/history source. Publishing atomically swaps the active snapshot;
-the previous snapshots and profile history remain available.
-
-Public reads use five-minute tagged caches and static pages, with compact card
-score tuples for client filters. Publication/collection invalidates the rating
-tag. Individual card and ability pages read all eight scopes in one query.
-
-## Setup and verification
-
-Required: existing `DATABASE_URL`, `JWT_SECRET`, admin account, and server-only
-`CRON_SECRET` for hosted scheduling. Optional authenticated history credentials:
-`SPLINTERLANDS_API_USERNAME`, `SPLINTERLANDS_ACCESS_TOKEN`, and
-`SPLINTERLANDS_JWT_TOKEN`. No game credentials are needed for public sampling.
-Never put these credentials in public variables or logs.
+## Verification
 
 ```
-npm run db:migrate
-npm run ratings:init
-npm run ratings:collect
 npm test
 npm run typecheck
 npm run lint
 npm run build
-# With the local app running, development database only:
+npm run db:migrate
+npm run ratings:init
+# Disposable migrated database only; resets rating evidence:
+ALLOW_LEAN_DB_TEST=1 npm run test:lean-db
+# Local app connected to a development database:
 npm run test:ratings-db
-ALLOW_USAGE_DB_TEST=1 node --import tsx scripts/test-rating-signals.mts
 ```
 
-The Vercel build command applies additive migrations and initializes an
-empty ratings workspace. The versioned November 3 ability review upgrades only
-untouched provisional weights, preserving custom curation and private draft edits.
-Later deployments do not repeat that review.
-The first production deployment starts one bounded collection run. Subsequent
-collection is scheduled or initiated by an admin. To increase collection
-frequency, adjust the cron schedule to the hosting plan's supported interval.
-
-The database integration test checks authorization, validation, private drafts,
-preview, publication/cache invalidation, concurrent publication, restore,
-source bias, idempotent ingestion and parser upgrades; it restores test changes.
-The unit fixture is a real ranked replay with the large round log omitted.
-
-## Snapshot refresh and retention
-
-Collection recomputes ratings only when the active snapshot is at least 24 hours
-old (or explicitly forced). Admin publication/refresh remains immediate. Each
-profile retains its first snapshot and two most recent snapshots; redundant
-automatic snapshots are pruned transactionally. Raw replay archives and published
-curation history are preserved. A scoring-engine deployment refreshes the
-published profile once without overwriting the draft or its curation.
-
-## Admin tier reference
-
-The tier editor shows unit ratings from the active published snapshot in one
-batched query, cached for five minutes and invalidated on publishing. Hover or
-focus a unit to see its equal-weight average and the Modern/Wild score at each
-league cap. Only available scores contribute; missing scopes are not zeroes.
-
-Bands are S ≥9, A ≥8 and <9, B ≥6.5 and <8, C ≥5 and <6.5, D <5.
-An exclamation mark identifies a placed unit outside its average score band
-and updates immediately during editing. Distance is grey for one tier, yellow
-for two tiers, and red for three or four tiers. Unranked units and units without
-published scores have no warning. These references never alter saved tiers,
-apply to summoners/land, or appear on public tier lists.
+The lean database suite checks concurrent deduplication, transaction rollback,
+mirror semantics, scope isolation, expected outcomes, retention boundaries,
+current-only snapshots, stale publication and sparse price observations.

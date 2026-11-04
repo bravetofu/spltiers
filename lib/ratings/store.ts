@@ -16,16 +16,10 @@ export async function readCardBattleStats(
   cachedRead = false,
 ): Promise<CardBattleStats[]> {
   const sql = ratingDatabase(cachedRead)
-  // Lifetime collected sample, without strength-model time/volume weighting.
   const rows = await sql`
-    SELECT u.card_id, b.league, b.format, count(*)::int AS uses,
-      count(*) FILTER (WHERE u.outcome = 1)::int AS wins,
-      count(*) FILTER (WHERE u.outcome = 0)::int AS losses,
-      count(*) FILTER (WHERE u.outcome = 0.5)::int AS draws
-    FROM rating_card_usage u JOIN rating_battles b ON b.id = u.battle_id
-    WHERE b.eligible AND b.league IS NOT NULL
-    GROUP BY u.card_id, b.league, b.format
-    ORDER BY u.card_id, b.league, b.format
+    SELECT card_id,league,format,uses::float AS uses,wins::float AS wins,
+      losses::float AS losses,draws::float AS draws FROM rating_lifetime_usage
+    ORDER BY card_id,league,format
   `
   return rows.map((r) => ({
     cardId: r.card_id,
@@ -52,7 +46,7 @@ export async function readWorkspace() {
     sql`SELECT draft, revision, active_profile_id::text, active_snapshot_id::text FROM rating_workspace WHERE singleton`,
     sql`SELECT id::text, label, notes, author, published_at::text FROM rating_profiles ORDER BY published_at DESC LIMIT 30`,
     sql`SELECT id::text, started_at::text, finished_at::text, status, message, collected, requests, players FROM rating_job_runs ORDER BY started_at DESC LIMIT 12`,
-    sql`SELECT count(*)::int AS battles, count(*) FILTER (WHERE eligible)::int AS eligible, max(played_at)::text AS latest FROM rating_battles`,
+    sql`SELECT battles::float AS battles,battles::float AS eligible,latest::text AS latest FROM rating_totals WHERE singleton`,
   ])
   return {
     workspace: workspace[0] ?? null,
@@ -108,7 +102,7 @@ export async function collectorStatus(
 ): Promise<CollectorStatus> {
   const sql = ratingDatabase(cachedRead)
   const [counts, runs] = await Promise.all([
-    sql`SELECT count(*)::int AS battles, count(*) FILTER (WHERE match_type = 'Ranked')::int AS ranked_battles, count(*) FILTER (WHERE eligible)::int AS eligible_battles, max(played_at)::text AS last_battle FROM rating_battles`,
+    sql`SELECT battles::float AS battles,battles::float AS ranked_battles,battles::float AS eligible_battles,latest::text AS last_battle FROM rating_totals WHERE singleton`,
     sql`SELECT status, message, collected, finished_at::text FROM rating_job_runs ORDER BY started_at DESC LIMIT 1`,
   ])
   return {
@@ -129,74 +123,32 @@ export async function collectorStatus(
 
 export async function readEvidence(): Promise<Record<string, Evidence>> {
   const sql = ratingDatabase()
-  // Limit dominance by prolific accounts before time decay, and exclude mirrored
-  // features. Two sides of one match are not independent card-strength evidence.
   const [rows, usageRows] = await Promise.all([
-    sql`
-    WITH recent AS (
-      SELECT o.*, b.format, b.league, b.played_at, b.rulesets,
-        row_number() OVER (PARTITION BY o.kind, o.subject, b.format, b.league, o.player, (b.played_at AT TIME ZONE 'UTC')::date ORDER BY b.played_at DESC) AS daily_rank
-      FROM rating_observations o JOIN rating_battles b ON b.id = o.battle_id
-      WHERE b.eligible AND NOT o.mirrored AND b.league IS NOT NULL AND b.played_at >= now() - interval '90 days'
-    ), weighted AS (
-      SELECT *, power(0.5, greatest(0, extract(epoch FROM (now() - played_at)) / 86400) / 30) AS weight
-      FROM recent WHERE daily_rank <= 10
-    )
-    SELECT kind, subject, league, format, count(*)::int AS battles, count(DISTINCT player)::int AS players,
-      count(DISTINCT (played_at AT TIME ZONE 'UTC')::date)::int AS days,
-      count(*) FILTER (WHERE outcome = 1)::int AS wins, count(*) FILTER (WHERE outcome = 0.5)::int AS draws,
-      sum(weight)::float AS effective,
-      greatest(0, least(1, 0.5 + sum(weight * (outcome - expected)) / nullif(sum(weight), 0)))::float AS adjusted,
-      avg(outcome)::float AS raw_rate, max(played_at)::text AS latest,
-      count(*) FILTER (WHERE cardinality(rulesets) = 0 OR rulesets = ARRAY['Standard'])::int AS standard_battles
-    FROM weighted GROUP BY kind, subject, league, format
-  `,
-    sql`
-    WITH recent AS (
-      SELECT id, league, format, played_at,
-        raw->>'player_1' AS player1, raw->>'player_2' AS player2
-      FROM rating_battles
-      WHERE eligible AND league IS NOT NULL AND played_at >= now() - interval '90 days'
-    ), sides AS (
-      SELECT id, league, format, played_at, player1 AS player, 1 AS side FROM recent
-      UNION ALL
-      SELECT id, league, format, played_at, player2, 2 FROM recent
-    ), volumes AS (
-      SELECT *, count(*) OVER (PARTITION BY league, format, player, (played_at AT TIME ZONE 'UTC')::date) AS volume
-      FROM sides
-    ), weighted AS (
-      SELECT id, league, format, played_at,
-        power(0.5, greatest(0, extract(epoch FROM (now() - played_at)) / 86400) / 30)
-          * least(1.0, 10.0 / max(volume)) AS weight
-      FROM volumes GROUP BY id, league, format, played_at
-    ), totals AS (
-      SELECT league, format, count(*)::int AS total, sum(weight)::float AS mass
-      FROM weighted GROUP BY league, format
-    ), appearances AS (
-      SELECT w.*, u.card_id, v.player
-      FROM weighted w JOIN rating_card_usage u ON u.battle_id = w.id
-      JOIN volumes v ON v.id = u.battle_id AND v.side = u.side
-    ), card_matches AS (
-      SELECT DISTINCT id, league, format, played_at, weight, card_id FROM appearances
-    ), breadth AS (
-      SELECT card_id, league, format, count(DISTINCT player)::int AS players
-      FROM appearances GROUP BY card_id, league, format
-    )
-    SELECT c.card_id, c.league, c.format, count(*)::int AS battles, t.total,
-      b.players, count(DISTINCT (c.played_at AT TIME ZONE 'UTC')::date)::int AS days,
-      sum(c.weight)::float AS effective, t.mass,
-      count(*)::float / t.total AS rate, sum(c.weight)::float / t.mass AS weighted_rate
-    FROM card_matches c JOIN totals t USING (league, format)
-    JOIN breadth b USING (card_id, league, format)
-    GROUP BY c.card_id, c.league, c.format, t.total, t.mass, b.players
-  `,
+    sql`WITH weighted AS (
+      SELECT *,power(0.5,greatest(0,(now() AT TIME ZONE 'UTC')::date-day)::float/30) AS weight
+      FROM rating_daily_evidence WHERE day >= (now() AT TIME ZONE 'UTC')::date-89
+    ) SELECT kind,subject,league,format,sum(battles)::int AS battles,count(*)::int AS days,
+      sum(wins)::int AS wins,sum(draws)::int AS draws,sum(battles*weight)::float AS effective,
+      greatest(0,least(1,0.5+sum(weight*(wins+draws*0.5-expected))/nullif(sum(battles*weight),0)))::float AS adjusted,
+      (sum(wins+draws*0.5)/nullif(sum(battles),0))::float AS raw_rate,
+      (max(day)::timestamp AT TIME ZONE 'UTC')::text AS latest,sum(standard_battles)::int AS standard_battles
+      FROM weighted GROUP BY kind,subject,league,format`,
+    sql`WITH totals AS (
+      SELECT league,format,sum(battles)::int AS total,
+        sum(battles*power(0.5,greatest(0,(now() AT TIME ZONE 'UTC')::date-day)::float/30))::float AS mass
+      FROM rating_daily_totals WHERE day >= (now() AT TIME ZONE 'UTC')::date-89 GROUP BY league,format
+    ), cards AS (
+      SELECT card_id,league,format,sum(matches)::int AS battles,count(*)::int AS days,
+        sum(matches*power(0.5,greatest(0,(now() AT TIME ZONE 'UTC')::date-day)::float/30))::float AS effective
+      FROM rating_daily_usage WHERE day >= (now() AT TIME ZONE 'UTC')::date-89 GROUP BY card_id,league,format
+    ) SELECT c.*,t.total,t.mass,c.battles::float/nullif(t.total,0) AS rate,
+      c.effective/nullif(t.mass,0) AS weighted_rate FROM cards c JOIN totals t USING(league,format)`,
   ])
   const evidence: Record<string, Evidence> = Object.fromEntries(
     rows.map((r) => [
       `${r.kind}:${r.subject}:${r.league}:${r.format}`,
       {
         battles: r.battles,
-        players: r.players,
         days: r.days,
         wins: r.wins,
         draws: r.draws,
@@ -216,7 +168,6 @@ export async function readEvidence(): Promise<Record<string, Evidence>> {
       usage: {
         battles: r.battles,
         totalBattles: r.total,
-        players: r.players,
         days: r.days,
         effective: r.effective,
         totalEffective: r.mass,
@@ -271,11 +222,11 @@ export async function writeSnapshot(
     publication
       ? sql`
     INSERT INTO rating_snapshots (id, profile_id, engine_version, battle_count)
-    SELECT ${snapshotId}::uuid, id, ${ENGINE_VERSION}, (SELECT count(*) FROM rating_battles WHERE eligible) FROM rating_profiles WHERE id = ${profileId}::uuid
+    SELECT ${snapshotId}::uuid, id, ${ENGINE_VERSION}, (SELECT battles FROM rating_totals WHERE singleton) FROM rating_profiles WHERE id = ${profileId}::uuid
   `
       : sql`
     INSERT INTO rating_snapshots (id, profile_id, engine_version, battle_count)
-    SELECT ${snapshotId}::uuid, active_profile_id, ${ENGINE_VERSION}, (SELECT count(*) FROM rating_battles WHERE eligible)
+    SELECT ${snapshotId}::uuid, active_profile_id, ${ENGINE_VERSION}, (SELECT battles FROM rating_totals WHERE singleton)
     FROM rating_workspace WHERE singleton AND active_profile_id = ${profileId}::uuid
   `,
   )
@@ -297,16 +248,10 @@ export async function writeSnapshot(
     WHERE singleton AND active_profile_id = ${profileId}::uuid AND EXISTS (SELECT 1 FROM rating_snapshots WHERE id = ${snapshotId}::uuid) RETURNING revision
   `,
   )
-  // Preserve each publication's first snapshot and its two newest snapshots.
-  // Raw battles and curated profile history are retained independently.
-  queries.push(sql`DELETE FROM rating_snapshots WHERE id IN (
-    SELECT id FROM (
-      SELECT id, row_number() OVER (ORDER BY created_at, id) AS first_rank,
-        row_number() OVER (ORDER BY created_at DESC, id DESC) AS newest_rank
-      FROM rating_snapshots WHERE profile_id = ${profileId}::uuid
-    ) ranked WHERE first_rank > 1 AND newest_rank > 2
-  ) AND id <> (SELECT active_snapshot_id FROM rating_workspace WHERE singleton)
-    AND EXISTS (SELECT 1 FROM rating_snapshots WHERE id = ${snapshotId}::uuid)`)
+  // Keep only the active score snapshot. Profile configurations retain curation history.
+  queries.push(sql`DELETE FROM rating_snapshots
+    WHERE id <> (SELECT active_snapshot_id FROM rating_workspace WHERE singleton)
+      AND EXISTS (SELECT 1 FROM rating_snapshots WHERE id=${snapshotId}::uuid)`)
   const results = await sql.transaction(queries)
   return results.at(-2)?.[0]?.revision as number | undefined
 }

@@ -15,7 +15,8 @@
     "sync:cards": "node --import tsx scripts/sync-card-assets.mts",
     "ratings:init": "node --import tsx scripts/bootstrap-ratings.mts",
     "ratings:collect": "node --import tsx scripts/collect-battles.mts",
-    "test:ratings-db": "node --import tsx scripts/test-ratings.mts"
+    "test:ratings-db": "node --import tsx scripts/test-ratings.mts",
+    "test:lean-db": "node --import tsx scripts/test-lean-storage.mts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

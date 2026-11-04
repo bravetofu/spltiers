@@ -51,7 +51,7 @@ test('no or sparse battle data keeps a valid curated rating rather than inventin
   const sparse: Evidence = {
     ...EMPTY_EVIDENCE,
     battles: 29,
-    players: 20,
+
     days: 10,
     effective: 29,
     adjustedWinRate: 1,
@@ -62,7 +62,7 @@ test('no or sparse battle data keeps a valid curated rating rather than inventin
       ...sparse,
       battles: 10000,
       effective: 10000,
-      players: 1,
+      days: 1,
     }).score,
     7.2,
   )
@@ -71,7 +71,7 @@ test('broad evidence blends gradually with a hard 65% maximum and can lower an o
   const evidence: Evidence = {
     ...EMPTY_EVIDENCE,
     battles: 10000,
-    players: 100,
+
     days: 30,
     effective: 9000,
     adjustedWinRate: 0.4,
@@ -87,7 +87,7 @@ test('well-sampled results at expectation preserve the curated strength scale', 
   const evidence: Evidence = {
     ...EMPTY_EVIDENCE,
     battles: 10000,
-    players: 100,
+
     days: 30,
     effective: 9000,
     adjustedWinRate: 0.5,

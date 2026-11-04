@@ -4,8 +4,7 @@ import { readFile } from 'node:fs/promises'
 import nextEnv from '@next/env'
 import { SignJWT } from 'jose'
 import { ratingDatabase, readWorkspace } from '../lib/ratings/store'
-import { saveCollectedBattle, runCollector } from '../lib/ratings/collector'
-import { parseBattle } from '../lib/ratings/battles'
+import { runCollector } from '../lib/ratings/collector'
 import type { CatalogueCard } from '../lib/splinterlands/catalogue'
 nextEnv.loadEnvConfig(process.cwd())
 const base = process.env.TEST_BASE_URL ?? 'http://localhost:3000'
@@ -149,20 +148,15 @@ try {
     count[0].n > 6000,
     'Publication must include the whole score snapshot',
   )
-  const firstSnapshot = (
-    await sql`SELECT id::text FROM rating_snapshots WHERE profile_id=${versions[0].id}::uuid ORDER BY created_at,id LIMIT 1`
-  )[0].id
   for (let i = 0; i < 4; i++)
     assert.equal(
       (await request('/api/admin/ratings', { action: 'refresh' })).status,
       200,
     )
-  const retained =
-    await sql`SELECT id::text FROM rating_snapshots WHERE profile_id=${versions[0].id}::uuid`
-  assert.equal(retained.length, 3, 'Automatic snapshot history must be bounded')
-  assert.ok(
-    retained.some((row) => row.id === firstSnapshot),
-    'Publication snapshot must be preserved',
+  assert.equal(
+    (await sql`SELECT id FROM rating_snapshots`).length,
+    1,
+    'Only the current snapshot is retained',
   )
   const restored = await request('/api/admin/ratings', {
     action: 'restore',
@@ -200,78 +194,6 @@ try {
     snapshotBefore,
     'Frequent collection must reuse a fresh score snapshot',
   )
-  const raw = JSON.parse(
-    await readFile(
-      new URL('../tests/fixtures/modern-ranked-battle.json', import.meta.url),
-      'utf8',
-    ),
-  )
-  raw.battle_queue_id_1 = `test_${randomUUID().replaceAll('-', '')}`
-  raw.battle_queue_id_2 = `test_${randomUUID().replaceAll('-', '')}`
-  const battle = parseBattle(raw, cards, Date.parse(raw.created_date) + 1000)!
-  assert.ok(battle.eligible)
-  testBattles.push(battle.id)
-  assert.equal(
-    (await saveCollectedBattle(battle, 'manual-replay')).inserted,
-    true,
-  )
-  assert.equal(
-    (await sql`SELECT eligible FROM rating_battles WHERE id = ${battle.id}`)[0]
-      .eligible,
-    false,
-    'Selected research replays must not enter strength evidence',
-  )
-  const observations =
-    await sql`SELECT count(*)::int AS n FROM rating_observations WHERE battle_id = ${battle.id}`
-  assert.ok(observations[0].n > 0)
-  assert.equal(
-    (await saveCollectedBattle(battle, 'manual-replay')).inserted,
-    false,
-  )
-  assert.equal(
-    (
-      await sql`SELECT count(*)::int AS n FROM rating_observations WHERE battle_id=${battle.id}`
-    )[0].n,
-    observations[0].n,
-  )
-  assert.equal(
-    (await saveCollectedBattle(battle, 'history')).changedEvidence,
-    true,
-  )
-  assert.equal(
-    (await sql`SELECT eligible FROM rating_battles WHERE id=${battle.id}`)[0]
-      .eligible,
-    true,
-  )
-  const reparsed = {
-    ...battle,
-    parserVersion: battle.parserVersion + 1,
-    league: 'gold' as const,
-    observations: battle.observations.slice(0, 1),
-  }
-  await saveCollectedBattle(reparsed, 'history')
-  assert.equal(
-    (
-      await sql`SELECT count(*)::int AS n FROM rating_observations WHERE battle_id=${battle.id}`
-    )[0].n,
-    1,
-    'Reprocessing must replace stale feature rows atomically',
-  )
-  assert.equal(
-    (await sql`SELECT league FROM rating_battles WHERE id=${battle.id}`)[0]
-      .league,
-    'gold',
-    'Reprocessing must update derived scope fields',
-  )
-  await saveCollectedBattle(battle, 'history')
-  assert.equal(
-    (
-      await sql`SELECT count(*)::int AS n FROM rating_observations WHERE battle_id=${battle.id}`
-    )[0].n,
-    1,
-    'An older parser must not overwrite newer observations',
-  )
-
   const lease = randomUUID()
   const claimed =
     await sql`UPDATE rating_job_lease SET owner=${lease}::uuid,expires_at=now()+interval '1 minute' WHERE singleton AND (expires_at IS NULL OR expires_at<now()) RETURNING owner`
@@ -296,12 +218,10 @@ try {
   else if (claimed.length)
     await sql`UPDATE rating_job_lease SET owner=NULL,expires_at=NULL WHERE singleton AND owner=${lease}::uuid`
   console.log(
-    'PASS: authorization, validation, private drafts, preview, optimistic concurrency, atomic publication, cache invalidation, history, source bias, idempotence, reprocessing and cron lease/auth',
+    'PASS: authorization, validation, private drafts, preview, optimistic concurrency, atomic publication, cache invalidation, curation history, bounded snapshots and cron lease/auth',
   )
 } finally {
-  for (const id of testBattles)
-    await sql`DELETE FROM rating_battles WHERE id=${id}`
-  await sql`UPDATE rating_workspace SET draft=${JSON.stringify(original.workspace!.draft)}::jsonb,revision=${original.workspace!.revision},active_profile_id=${original.workspace!.active_profile_id}::uuid,active_snapshot_id=${original.workspace!.active_snapshot_id}::uuid WHERE singleton`
+  await sql`UPDATE rating_workspace SET draft=${JSON.stringify(original.workspace!.draft)}::jsonb,revision=${original.workspace!.revision},active_profile_id=${original.workspace!.active_profile_id}::uuid,active_snapshot_id=NULL WHERE singleton`
   const cleanupProfiles =
     await sql`SELECT id::text FROM rating_profiles WHERE label=${marker}`
   for (const { id } of cleanupProfiles) {

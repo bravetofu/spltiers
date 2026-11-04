@@ -40,11 +40,10 @@ export function blendRating(
   const card = model === 'card'
   const usable =
     evidence.battles >= (card ? 20 : 30) &&
-    evidence.players >= 5 &&
-    evidence.effective >= (card ? 15 : 20)
+    evidence.effective >= (card ? 15 : 20) &&
+    evidence.days >= 2
   const reliability =
     (evidence.effective / (evidence.effective + (card ? 75 : 150))) *
-    Math.min(1, evidence.players / (card ? 15 : 20)) *
     Math.min(1, evidence.days / (card ? 3 : 7))
   const battleWeight = usable ? (card ? 0.8 : 0.65) * reliability : 0
   // The 0–10 strength scale is not a win-probability scale. Center evidence on
@@ -57,13 +56,12 @@ export function blendRating(
   const usageUsable =
     !!usage &&
     usage.battles >= 20 &&
-    usage.players >= 5 &&
     usage.effective >= 15 &&
-    usage.totalEffective >= 50
+    usage.totalEffective >= 50 &&
+    usage.days >= 2
   const usageWeight = usageUsable
     ? (usage.totalEffective / (usage.totalEffective + 100)) *
       (usage.effective / (usage.effective + 30)) *
-      Math.min(1, usage.players / 15) *
       Math.min(1, usage.days / 3)
     : 0
   // Popularity is a limited utility signal, never a penalty for an unseen card.
@@ -80,11 +78,9 @@ export function blendRating(
     ? usageUsable
       ? 'early'
       : 'curated'
-    : evidence.effective >= 500 && evidence.players >= 30 && evidence.days >= 14
+    : evidence.effective >= 500 && evidence.days >= 14
       ? 'strong'
-      : evidence.effective >= 150 &&
-          evidence.players >= 15 &&
-          evidence.days >= 7
+      : evidence.effective >= 150 && evidence.days >= 7
         ? 'moderate'
         : 'early'
   return {

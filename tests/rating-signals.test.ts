@@ -11,13 +11,13 @@ const broad: Evidence = {
   ...EMPTY_EVIDENCE,
   battles: 500,
   effective: 450,
-  players: 30,
+
   days: 14,
   adjustedWinRate: 0.6,
   usage: {
     battles: 100,
     totalBattles: 1000,
-    players: 20,
+
     days: 7,
     effective: 90,
     totalEffective: 900,
@@ -75,9 +75,9 @@ test('match share uses a same-scope denominator and popularity never penalizes a
   )
   assert.equal(popular.usageAdjustment, capped.usageAdjustment)
 })
-test('one player, sparse or stale usage cannot move scores; usage alone is early evidence', () => {
+test('one day, sparse or stale usage cannot move scores; usage alone is early evidence', () => {
   for (const overrides of [
-    { players: 1 },
+    { days: 1 },
     { battles: 19 },
     { effective: 14 },
     { totalEffective: 49 },
@@ -103,7 +103,7 @@ test('one player, sparse or stale usage cannot move scores; usage alone is early
     6,
   )
   assert.equal(
-    blendRating(6, { ...broad, players: 1, usage: undefined }, 'card').score,
+    blendRating(6, { ...broad, days: 1, usage: undefined }, 'card').score,
     6,
   )
 })

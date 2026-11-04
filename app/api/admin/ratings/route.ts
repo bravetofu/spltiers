@@ -14,7 +14,7 @@ import {
   publishedConfig,
 } from '@/lib/ratings/store'
 import { runCollector } from '@/lib/ratings/collector'
-import { validAccount, validQueueId } from '@/lib/ratings/battles'
+import { validAccount } from '@/lib/ratings/battles'
 export const maxDuration = 300
 function refresh() {
   revalidateTag('ratings')
@@ -174,16 +174,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true })
     }
     if (body.action === 'collect') {
-      if (
-        body.replayIds !== undefined &&
-        (!Array.isArray(body.replayIds) ||
-          body.replayIds.length > 100 ||
-          !body.replayIds.every(validQueueId))
-      )
-        return NextResponse.json(
-          { error: 'Provide at most 100 valid replay IDs' },
-          { status: 400 },
-        )
       if (body.players !== undefined) {
         if (
           !Array.isArray(body.players) ||
@@ -197,9 +187,7 @@ export async function POST(request: NextRequest) {
         const sql = ratingDatabase()
         await sql`INSERT INTO rating_collection_accounts (player, discovered_from) SELECT player, 'curator seed' FROM unnest(${body.players}::text[]) AS player ON CONFLICT (player) DO NOTHING`
       }
-      const result = await runCollector(cards, {
-        replayIds: body.replayIds as string[] | undefined,
-      })
+      const result = await runCollector(cards)
       refresh()
       return NextResponse.json(result)
     }

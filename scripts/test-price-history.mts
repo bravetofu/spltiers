@@ -80,6 +80,7 @@ try {
   assert.equal(calls, 4, 'Completed daily jobs do not fetch again')
   const other = cardId - 2
   await sql`INSERT INTO card_price_targets(day,card_id,edition) VALUES(${day}::date,${other},${edition})`
+  await sql`UPDATE card_price_days SET completed_at=NULL WHERE day=${day}::date`
   const failed = (async () => new Response('', { status: 503 })) as typeof fetch
   for (let i = 0; i < 3; i++)
     result = await collectDailyPrices(cards, { fetcher: failed })
@@ -93,6 +94,7 @@ try {
   assert.equal(result.status, 'completed')
   assert.equal((await readPriceHistory(other, edition)).points.length, 5)
   await sql`INSERT INTO card_price_targets(day,card_id,edition) VALUES(${day}::date,${cardId - 3},${edition})`
+  await sql`UPDATE card_price_days SET completed_at=NULL WHERE day=${day}::date`
   result = await collectDailyPrices(cards, {
     fetcher: (async () =>
       new Response('', {

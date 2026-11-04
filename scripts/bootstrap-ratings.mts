@@ -16,7 +16,7 @@ import {
 } from '../lib/ratings/curation-review'
 import { ENGINE_VERSION } from '../lib/ratings/types'
 import type { CatalogueCard } from '../lib/splinterlands/catalogue'
-import { backfillBattleUsage } from '../lib/ratings/backfill'
+import { maintainRatingHistory } from '../lib/ratings/ingest'
 nextEnv.loadEnvConfig(process.cwd())
 const config = checkedProfile(
   JSON.parse(
@@ -33,9 +33,7 @@ const cards = JSON.parse(
   ),
 ) as CatalogueCard[]
 const sql = ratingDatabase()
-console.log(
-  `Reprocessed ${await backfillBattleUsage(cards)} stored battles for usage statistics.`,
-)
+await maintainRatingHistory()
 await sql`INSERT INTO rating_workspace (singleton, draft) VALUES (true, ${JSON.stringify(config)}::jsonb) ON CONFLICT (singleton) DO NOTHING`
 const { workspace } = await readWorkspace()
 if (!workspace?.active_profile_id) {

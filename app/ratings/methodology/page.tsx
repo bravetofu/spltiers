@@ -138,119 +138,71 @@ export default async function Methodology() {
         </p>
         <h2>How battle evidence changes a score</h2>
         <p>
-          The collector retains replay data, source, time, format and parser
-          version so matches can be reprocessed as the methodology improves.
-          Only completed, non-surrender ranked matches with usable lineups,
-          context and pre-battle player ratings contribute to strength evidence.
-          Practice and tournament data may be archived, but do not affect ranked
-          ratings.
+          Completed, non-surrender ranked matches with usable lineups and
+          pre-battle player ratings contribute daily statistics. Shared or
+          manually selected replays are excluded. Level caps come from explicit
+          match settings or conservative lineup inference. Underlevelled cards
+          do not supply cap-level strength evidence. Features appearing on both
+          teams are excluded from strength evidence.
         </p>
         <p>
-          The level cap comes from explicit match settings where available.
-          Otherwise a conservative lineup-based inference requires complete
-          teams, no cards above the cap and at least two cards reaching it.
-          Unmapped matches remain archived. Underlevelled card appearances do
-          not stand in for cap-level strength. Identical cards or abilities on
-          both teams are excluded from the respective strength estimate; one
-          shared card cannot explain which team won.
+          A draw counts as half a win. Results are compared with an Elo-style
+          expectation based on pre-battle player ratings. We retain today and
+          the previous 89 UTC days, applying a 30-day half-life by day. Detailed
+          replays and player identities are not retained as scoring evidence. We
+          do not measure distinct players or apply per-player volume caps;
+          repeated sampling of the same accounts can bias results.
         </p>
         <p>
-          Results are adjusted against a pre-battle player-rating baseline using
-          an Elo-style 400-point scale. Current player profiles are never used
-          as historical pre-battle ratings. A draw counts as half a win. Only
-          the last 90 days contribute, with a 30-day half-life; older raw
-          matches remain available for research. A player contributes at most
-          ten recent appearances per feature, scope and day.
-        </p>
-        <p>
-          For cards, a minimum of 20 qualifying appearances, five distinct
-          players and 15 effective samples is required before win results change
-          a rating. Results above or below the player-rating expectation
-          estimate an adjustment to the curated baseline: five percentage points
-          correspond to one rating point before confidence limits. Results at
-          expectation leave the baseline unchanged. The fraction of that
-          adjustment applied grows with effective sample size, player diversity
-          and days covered, up to 80% for cards. The weight is 0.8 × effective /
-          (effective + 75), multiplied by player breadth (up to 15 players) and
-          time breadth (up to three distinct days). Ability ratings retain the
-          more conservative 30-appearance, five-player, 20-effective-sample gate
-          and 65% maximum; abilities receive no popularity bonus. Scores remain
-          bounded at 0–10. No data, unavailable data or weak evidence does not
-          mean a zero rating.
+          Cards need 20 appearances, 15 effective samples and two sampled days.
+          Abilities need 30 appearances, 20 effective samples and two days. Five
+          percentage points above or below expected results imply one potential
+          rating point. Card influence is limited to 0.8 × effective /
+          (effective + 75) × min(1, days / 3). Ability influence uses 0.65, a
+          denominator offset of 150 and time breadth up to seven days. No usable
+          evidence leaves the curated baseline unchanged.
         </p>
         <h2>Use rate as a utility signal</h2>
         <p>
-          A card selected repeatedly across different players can offer
-          practical utility beyond its isolated stats. Use rate is the fraction
-          of recorded qualifying matches in the same format and card-level cap
-          containing that card on either team. A mirror counts once, so the rate
-          cannot exceed 100%. It includes underlevelled appearances as evidence
-          of selection, without treating them as evidence of maxed performance.
+          Use rate is the fraction of qualifying matches in the same format and
+          cap containing a card. Mirrors count once. Underlevelled appearances
+          count for selection frequency. Both numerator and denominator use the
+          same daily time decay. A bonus needs 20 card matches, 15 effective
+          card matches, 50 effective scope matches and two sampled days.
         </p>
         <p>
-          The rating uses the last 90 days. Both the numerator and denominator
-          receive the same 30-day time decay and account-volume weighting. A
-          match is downweighted when either player has more than ten recorded
-          matches in that format and cap on the same UTC day. This limits the
-          influence of prolific accounts while retaining their matches.
-        </p>
-        <p>
-          Use rate adds a utility bonus of up to one rating point before
-          confidence limits, reaching that ceiling at 20% weighted match share.
-          It requires use in at least 20 matches by five players, 15 effective
-          card matches and 50 effective matches in the scope. The bonus is
-          multiplied by totalEffective / (totalEffective + 100), cardEffective /
-          (cardEffective + 30), player breadth up to 15 players, and time
-          breadth up to three days. Unseen or rarely used cards receive no
-          popularity penalty. Ownership, cost and availability also affect
-          usage, so this bonus is deliberately smaller than the possible
-          win-rate adjustment.
-        </p>
-        <p>
-          Final score = curated baseline + confidence-limited win-rate
-          adjustment + confidence-limited use-rate bonus, bounded to 0–10. Card
-          breakdowns show both effects in rating points, the use-rate numerator
-          and denominator, and any adjustment needed to stay within the bounds.
+          The bonus is at most one point before confidence weighting, reaching
+          its ceiling at 20% weighted match share. Its weight is totalEffective
+          / (totalEffective + 100) × cardEffective / (cardEffective + 30) ×
+          min(1, days / 3). Unseen cards receive no popularity penalty. Final
+          scores combine the curated baseline, win-result adjustment and usage
+          bonus, bounded to 0–10.
         </p>
         <h2>Card uses and win rates</h2>
         <p>
-          Tables and card pages show uses, wins, losses and win rate from our
-          lifetime collected ranked sample, scoped to the selected format and
-          league cap. These are not global game totals. Each team using a card
-          contributes one use, including underlevelled cards. A mirror match
-          contributes two uses: one win and one loss, or two draws. These
-          buckets describe card-level caps, not a player’s ladder rank:
-          unrestricted matches use the Diamond/Champion cap bucket.
-        </p>
-        <p>
-          Win rate is wins divided by uses. Draws remain in the denominator and
-          are shown separately on card pages; an empty sample displays no rate.
-          Shared research replays and matches failing the eligibility checks
-          above are excluded. Usage totals update after collection and do not
-          use the rating model’s 90-day window, daily account limits or mirror
-          exclusions. Ratings still refresh daily using their filtered evidence.
+          Lifetime counters preserve collected ranked uses, wins, losses and
+          draws per card, format and cap. Each team contributes a use, including
+          underlevelled cards. Mirrors contribute two uses. Win rate is wins /
+          uses, with draws in the denominator. These totals describe our sample,
+          not all game battles, and survive expiry of daily rating evidence.
         </p>
         <h2>Confidence and limitations</h2>
         <p>
-          “Curated only” means neither card evidence threshold has been met.
-          Usage evidence alone can establish “Early” confidence; higher levels
-          require win-result evidence. “Early,” “Moderate” and “Strong” describe
-          increasing sample breadth, not certainty. Moderate requires at least
-          150 effective samples, 15 players and seven days; strong requires 500
-          effective samples, 30 players and 14 days.
+          “Curated only” means neither evidence threshold is met. Usage alone
+          can establish “Early” confidence. “Moderate” requires 150 effective
+          strength samples and seven days; “Strong” requires 500 and 14 days.
+          These labels measure sample size and time coverage, not causal
+          certainty or player diversity. Bots, ownership, teammates and
+          collection bias can affect both win results and popularity.
         </p>
         <p>
-          These are observational associations. Player ratings, mirrored-feature
-          exclusions and sampling limits reduce some bias; they do not fully
-          isolate an individual card or ability from teammates, ownership, bots,
-          player preference or favorable rulesets. The bounded use-rate bonus
-          measures observed selection, not universal strength. Sparse or highly
-          correlated samples retain limited influence. Standard/non-standard
-          match counts are available to audit context coverage.
+          Summaries allow changes to weights, decay and confidence thresholds.
+          Changes requiring discarded replay details apply to newly collected
+          matches. Historical replays cannot be reprocessed.
         </p>
         <h2>Collection status</h2>
         <p>
-          {status.battles.toLocaleString('en-US')} archived battles ·{' '}
+          {status.battles.toLocaleString('en-US')} summarized ranked battles ·{' '}
           {status.rankedBattles.toLocaleString('en-US')} ranked battles ·{' '}
           {status.eligibleBattles.toLocaleString('en-US')} eligible for strength
           {status.lastBattle
@@ -260,7 +212,7 @@ export default async function Methodology() {
         </p>
         <p>
           {status.lastRun
-            ? `Latest run: ${status.lastRun.finishedAt?.slice(0, 10) ?? 'in progress'} · ${status.lastRun.collected} new battles archived. ${status.lastRun.status === 'completed' ? 'Completed.' : status.lastRun.status === 'running' ? 'Collection is running.' : 'Some upstream requests were unavailable; completed ingestions are retained for the next run.'}`
+            ? `Latest run: ${status.lastRun.finishedAt?.slice(0, 10) ?? 'in progress'} · ${status.lastRun.collected} new battles summarized. ${status.lastRun.status === 'completed' ? 'Completed.' : status.lastRun.status === 'running' ? 'Collection is running.' : 'Some upstream requests were unavailable; completed ingestions are retained for the next run.'}`
             : 'The collection job has not completed a run yet.'}
         </p>
         <p>
@@ -273,12 +225,12 @@ export default async function Methodology() {
           account/format so existing coverage does not prevent discovering new
           scopes. API leaderboard labels do not prove cap coverage, and missing
           scopes cannot be guaranteed each run. Ratings refresh daily;
-          collection runs retain new replays between refreshes. Scheduled runs
-          may be delayed by the hosting provider. Shared or manually submitted
-          replays are archived for research only, because players selectively
-          share their results. Bulk history access depends on the upstream API’s
-          current access rules. Publicly discoverable matches are a sample, not
-          a complete or random game-wide archive.
+          collection runs update daily summaries between refreshes. Scheduled
+          runs may be delayed by the hosting provider. Shared or manually
+          submitted replays are ignored, because players selectively share their
+          results. Bulk history access depends on the upstream API’s current
+          access rules. Publicly discoverable matches are a sample, not a
+          complete or random game-wide archive.
         </p>
         <h2>Publishing and accountability</h2>
         <p>

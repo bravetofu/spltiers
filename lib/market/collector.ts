@@ -35,16 +35,40 @@ export async function collectDailyPrices(
   try {
     const [{ day }] =
       await sql`SELECT (now() AT TIME ZONE 'UTC')::date::text AS day`
-    const targets = cards
-      .filter((c) => c.id !== 505)
-      .flatMap((c) => c.editions.map((edition) => ({ card_id: c.id, edition })))
-    await sql.transaction([
-      sql`INSERT INTO card_price_days(day,initialized_by) VALUES (${day}::date,${owner}::uuid) ON CONFLICT DO NOTHING`,
-      sql`INSERT INTO card_price_targets(day,card_id,edition)
+    const existing =
+      await sql`SELECT completed_at FROM card_price_days WHERE day=${day}::date`
+    if (existing[0]?.completed_at) {
+      const [{ total }] =
+        await sql`SELECT count(*)::int AS total FROM card_price_targets WHERE day=${day}::date`
+      return {
+        status: 'completed',
+        day,
+        collected: 0,
+        total,
+        completed: total,
+        failed: 0,
+      }
+    }
+    if (!existing.length) {
+      // Keep exactly the one-year chart window, pruning children before their parents.
+      await sql.transaction([
+        sql`DELETE FROM card_price_history WHERE day<(now() AT TIME ZONE 'UTC')::date-364`,
+        sql`DELETE FROM card_price_targets WHERE day<(now() AT TIME ZONE 'UTC')::date-364`,
+        sql`DELETE FROM card_price_days WHERE day<(now() AT TIME ZONE 'UTC')::date-364`,
+      ])
+      const targets = cards
+        .filter((c) => c.id !== 505)
+        .flatMap((c) =>
+          c.editions.map((edition) => ({ card_id: c.id, edition })),
+        )
+      await sql.transaction([
+        sql`INSERT INTO card_price_days(day,initialized_by) VALUES (${day}::date,${owner}::uuid) ON CONFLICT DO NOTHING`,
+        sql`INSERT INTO card_price_targets(day,card_id,edition)
         SELECT ${day}::date, card_id, edition FROM jsonb_to_recordset(${JSON.stringify(targets)}::jsonb) AS t(card_id integer,edition integer)
         WHERE EXISTS(SELECT 1 FROM card_price_days WHERE day=${day}::date AND initialized_by=${owner}::uuid)
         ON CONFLICT DO NOTHING`,
-    ])
+      ])
+    }
     if (options.retryFailed)
       await sql`UPDATE card_price_targets SET attempts=0,last_error=NULL
         WHERE day=${day}::date AND completed_at IS NULL AND attempts>=3`

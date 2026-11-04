@@ -1,16 +1,12 @@
 import { randomUUID } from 'node:crypto'
+import { saveCollectedBattle, maintainRatingHistory } from './ingest'
 import {
   ratingDatabase,
   publishedConfig,
   readEvidence,
   writeSnapshot,
 } from './store'
-import {
-  parseBattle,
-  validAccount,
-  validQueueId,
-  type ParsedBattle,
-} from './battles'
+import { parseBattle, validAccount, validQueueId } from './battles'
 import { allRatings } from './engine'
 import type { CatalogueCard } from '../splinterlands/catalogue'
 import {
@@ -48,70 +44,11 @@ export function sharedReplayIds(posts: { body?: string }[]): string[] {
   return Array.from(ids).slice(0, 100)
 }
 
-export async function saveCollectedBattle(
-  battle: ParsedBattle,
-  source: string,
-) {
-  const sql = ratingDatabase()
-  const research = RESEARCH_SOURCES.has(source)
-  const eligible = battle.eligible && !research
-  const exclusion =
-    research && battle.eligible
-      ? 'Shared replay selection bias: research only'
-      : battle.exclusion
-  const processingToken = randomUUID()
-  const raw = JSON.stringify(battle.raw)
-  const observations = JSON.stringify(battle.observations)
-  const usage = JSON.stringify(battle.cardUsage)
-  const [saved] = await sql.transaction([
-    sql`
-      INSERT INTO rating_battles (id, queue_ids, played_at, format, match_type, league, league_method, mana, rulesets, winner, eligible, exclusion, parser_version, source, raw, processing_token)
-      VALUES (${battle.id}, ${battle.queueIds}, ${battle.playedAt}::timestamptz, ${battle.format}, ${battle.matchType}, ${battle.league}, ${battle.leagueMethod}, ${battle.mana}, ${battle.rulesets}, ${battle.winner}, ${eligible}, ${exclusion}, ${battle.parserVersion}, ${source}, ${raw}::jsonb, ${processingToken}::uuid)
-      ON CONFLICT (id) DO UPDATE SET played_at = EXCLUDED.played_at, format = EXCLUDED.format, match_type = EXCLUDED.match_type,
-        league = EXCLUDED.league, league_method = EXCLUDED.league_method, mana = EXCLUDED.mana, rulesets = EXCLUDED.rulesets,
-        winner = EXCLUDED.winner, eligible = EXCLUDED.eligible, exclusion = EXCLUDED.exclusion, source = EXCLUDED.source,
-        parser_version = EXCLUDED.parser_version, raw = EXCLUDED.raw, processing_token = EXCLUDED.processing_token
-      WHERE rating_battles.parser_version <= EXCLUDED.parser_version
-        AND ((NOT rating_battles.eligible AND EXCLUDED.eligible) OR rating_battles.parser_version < EXCLUDED.parser_version)
-      RETURNING (xmax = 0) AS inserted, eligible
-    `,
-    sql`DELETE FROM rating_observations WHERE battle_id = ${battle.id} AND EXISTS (SELECT 1 FROM rating_battles WHERE id = ${battle.id} AND processing_token = ${processingToken}::uuid)`,
-    sql`
-      INSERT INTO rating_observations (battle_id, side, kind, subject, level, player, outcome, expected, mirrored)
-      SELECT ${battle.id}, side, kind, subject, level, player, outcome, expected, mirrored
-      FROM jsonb_to_recordset(${observations}::jsonb) AS o(side smallint, kind text, subject text, level smallint, player text, outcome real, expected real, mirrored boolean)
-      WHERE EXISTS (SELECT 1 FROM rating_battles WHERE id = ${battle.id} AND processing_token = ${processingToken}::uuid)
-      ON CONFLICT (battle_id, side, kind, subject) DO NOTHING
-    `,
-    sql`DELETE FROM rating_card_usage WHERE battle_id = ${battle.id} AND EXISTS (SELECT 1 FROM rating_battles WHERE id = ${battle.id} AND processing_token = ${processingToken}::uuid)`,
-    sql`
-      INSERT INTO rating_card_usage (battle_id, side, card_id, level, outcome)
-      SELECT ${battle.id}, side, "cardId", level, outcome
-      FROM jsonb_to_recordset(${usage}::jsonb) AS u(side smallint, "cardId" integer, level smallint, outcome real)
-      WHERE EXISTS (SELECT 1 FROM rating_battles WHERE id = ${battle.id} AND processing_token = ${processingToken}::uuid)
-      ON CONFLICT (battle_id, side, card_id) DO NOTHING
-    `,
-    sql`DELETE FROM rating_pending_battles WHERE queue_id = ANY(${battle.queueIds}::text[])`,
-    sql`INSERT INTO rating_collection_accounts (player, discovered_from) SELECT player, 'opponent' FROM unnest(${battle.players}::text[]) AS player ON CONFLICT (player) DO NOTHING`,
-    sql`
-      INSERT INTO rating_collection_targets (player, format, league, last_seen)
-      SELECT player, b.format, b.league, b.played_at
-      FROM unnest(${battle.players}::text[]) AS player CROSS JOIN rating_battles b
-      WHERE b.id = ${battle.id} AND b.eligible AND b.league IS NOT NULL
-      ON CONFLICT (player, format) DO UPDATE SET league = EXCLUDED.league, last_seen = EXCLUDED.last_seen
-      WHERE rating_collection_targets.last_seen IS NULL OR rating_collection_targets.last_seen < EXCLUDED.last_seen
-    `,
-  ])
-  return {
-    inserted: !!saved[0]?.inserted,
-    changedEvidence: !!saved[0]?.eligible,
-  }
-}
+export { saveCollectedBattle } from './ingest'
 
 export type CollectionOptions = {
   maxRequests?: number
   durationMs?: number
-  replayIds?: string[]
   refreshRatings?: boolean
 }
 export async function runCollector(
@@ -205,12 +142,13 @@ export async function runCollector(
     }
   }
   async function pending(ids: string[], source: string) {
+    if (RESEARCH_SOURCES.has(source)) return
     const clean = ids.filter(validQueueId)
     if (!clean.length) return
     await sql`
       INSERT INTO rating_pending_battles (queue_id, source)
       SELECT id, ${source} FROM unnest(${clean}::text[]) AS id
-      WHERE NOT EXISTS (SELECT 1 FROM rating_battles b WHERE b.queue_ids @> ARRAY[id] AND (b.eligible OR ${source} IN ('shared-replay', 'manual-replay')))
+      WHERE NOT EXISTS (SELECT 1 FROM rating_seen b WHERE b.queue_ids @> ARRAY[id])
       ON CONFLICT (queue_id) DO UPDATE SET source = CASE WHEN EXCLUDED.source = 'public-queue' THEN EXCLUDED.source ELSE rating_pending_battles.source END
     `
   }
@@ -326,18 +264,12 @@ export async function runCollector(
     }
   }
   try {
-    // Catch replays written by the previous deployment during the rollout.
-    // Keep the scheduled maintenance batch small enough for the collection budget.
-    if (available()) {
-      const { backfillBattleUsage } = await import('./backfill')
-      await backfillBattleUsage(catalogue, 10)
-    }
-    if (options.replayIds?.length)
-      await pending(options.replayIds, 'manual-replay')
+    // Retention is gated to one pass per UTC day.
+    await maintainRatingHistory()
     const admin = process.env.NEXT_PUBLIC_HIVE_ADMIN_ACCOUNT ?? 'brave.sps'
     coverage = (await sql`
-      SELECT format, league, count(*)::int AS battles FROM rating_battles
-      WHERE eligible AND league IS NOT NULL AND played_at >= now() - interval '90 days'
+      SELECT format, league, sum(battles)::int AS battles FROM rating_daily_totals
+      WHERE day >= (now() AT TIME ZONE 'UTC')::date - 89
       GROUP BY format, league
     `) as Coverage[]
     const formats = (['modern', 'wild'] as BattleFormat[]).sort(
@@ -399,27 +331,6 @@ export async function runCollector(
           failures++
         }
       }
-    // Shared examples are retained for replay research, never as an unbiased
-    // estimate of strength. Only IDs on official game URLs are accepted.
-    for (const sort of ['created', 'trending', 'hot'])
-      if (available())
-        try {
-          const data = (await request('https://api.hive.blog', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              jsonrpc: '2.0',
-              id: 1,
-              method: 'bridge.get_ranked_posts',
-              params: { sort, tag: 'splinterlands', limit: 20 },
-            }),
-          })) as { result?: { body?: string }[]; error?: unknown }
-          if (data.error || !Array.isArray(data.result))
-            throw new Error('Invalid public replay feed response')
-          await pending(sharedReplayIds(data.result), 'shared-replay')
-        } catch {
-          failures++
-        }
     // Working bulk history takes priority over repeatedly unresolved queue IDs.
     if (!authenticatedHistory || accessBlocked) await processPending()
     const candidates = (await sql`
@@ -500,7 +411,7 @@ export async function runCollector(
         : failures
           ? 'partial'
           : 'completed'
-    const message = `${mode}. Archived ${collected} new replay${collected === 1 ? '' : 's'}. Shared/manual replays are research-only; only qualifying ranked queue/history samples affect ratings.${accessBlocked && authenticatedHistory ? ' Configured history authentication was rejected.' : ''}${history.attempted ? ` History: ${history.responses} successful responses, ${history.fetched.modern} Modern and ${history.fetched.wild} Wild rows; ${history.accepted.modern + history.accepted.wild} passed eligibility checks.` : ''}${failures ? ` ${failures} upstream request(s) failed.` : ''}`
+    const message = `${mode}. Summarized ${collected} new battle${collected === 1 ? '' : 's'}. Shared/manual replays are ignored; only qualifying ranked queue/history samples affect ratings.${accessBlocked && authenticatedHistory ? ' Configured history authentication was rejected.' : ''}${history.attempted ? ` History: ${history.responses} successful responses, ${history.fetched.modern} Modern and ${history.fetched.wild} Wild rows; ${history.accepted.modern + history.accepted.wild} passed eligibility checks.` : ''}${failures ? ` ${failures} upstream request(s) failed.` : ''}`
     await sql`UPDATE rating_job_runs SET status = ${status}, message = ${message}, collected = ${collected}, requests = ${requests}, players = ${players}, finished_at = now() WHERE id = ${runId}::uuid`
     return {
       status,

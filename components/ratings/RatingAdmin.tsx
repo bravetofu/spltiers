@@ -109,8 +109,7 @@ export default function RatingAdmin({
   const [label, setLabel] = useState(''),
     [notes, setNotes] = useState(''),
     [preview, setPreview] = useState<Preview | null>(null)
-  const [players, setPlayers] = useState(''),
-    [replayIds, setReplayIds] = useState('')
+  const [players, setPlayers] = useState('')
   const names = Object.keys(draft.abilities).sort(),
     filteredNames = names.filter((name) => name.toLowerCase().includes(search))
   const pages = Math.max(1, Math.ceil(filteredNames.length / 20)),
@@ -1105,7 +1104,7 @@ export default function RatingAdmin({
             <h2>Battle collection</h2>
             <div className="rating-metrics rating-admin-collection">
               <div>
-                <span>Archived matches</span>
+                <span>Summarized matches</span>
                 <strong>{counts.battles}</strong>
               </div>
               <div>
@@ -1124,13 +1123,10 @@ export default function RatingAdmin({
               </div>
             </div>
             <p className="rating-note">
-              The job samples public queues, follows known replay IDs, and
-              archives publicly shared replays for research. Shared/manual
-              replays are excluded from strength evidence because they are
-              selected examples. Broader ranked history is attempted anonymously
-              first; an upstream 401 is reported separately. Optional
-              server-only data-account credentials enable authenticated history
-              when available.
+              The job samples public ranked queues and authenticated history
+              when available. It retains daily summaries, not replays. Shared
+              and manually selected matches are excluded to reduce selection
+              bias.
             </p>
             <div className="rating-admin-weight-grid">
               <label className="catalogue-filter">
@@ -1142,15 +1138,6 @@ export default function RatingAdmin({
                   placeholder="One account per line"
                 />
               </label>
-              <label className="catalogue-filter">
-                <span>Replay IDs to archive for research (optional)</span>
-                <textarea
-                  aria-label="Research replay IDs"
-                  value={replayIds}
-                  onChange={(e) => setReplayIds(e.target.value)}
-                  placeholder="sl_… or sm_…; one per line"
-                />
-              </label>
             </div>
             <div className="rating-controls">
               <button
@@ -1159,7 +1146,6 @@ export default function RatingAdmin({
                 onClick={async () => {
                   const data = await action('collect', {
                     players: players.split(/[\s,]+/).filter(Boolean),
-                    replayIds: replayIds.split(/[\s,]+/).filter(Boolean),
                   })
                   if (data) {
                     setMessage(data.message)
