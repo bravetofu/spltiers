@@ -53,7 +53,7 @@ const getCardBattleStats = unstable_cache(
 )
 const getScoreIndexRows = unstable_cache(
   async (league: League, format: BattleFormat | 'auto') => {
-    const sql = ratingDatabase()
+    const sql = ratingDatabase(true)
     return await sql`
       SELECT DISTINCT ON (s.subject) s.subject, (s.data->>'score')::float AS score,
         s.data->>'confidence' AS confidence, (s.data->'evidence'->>'battles')::int AS battles, s.format
@@ -93,7 +93,7 @@ export async function getRatingIndex(
   )
 }
 const getCardScoreData = unstable_cache(
-  readCardRatings,
+  (id: number) => readCardRatings(id, true),
   ['card-score-data-v3', ENGINE_VERSION],
   { tags: ['ratings'], revalidate: 86400 },
 )

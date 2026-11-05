@@ -13,8 +13,11 @@ collection frequency or public response shapes. The scoring engine remains
   `rating-collection` tag and a one-hour fallback expiry. Collection invalidates
   them independently. Response composition occurs outside both caches, so fresh
   statistics do not force unchanged score data to be fetched again.
-- Raw Neon fetches are explicitly `no-store`; the enclosing Next data cache owns
-  caching. This prevents an independent HTTP cache from surviving tag invalidation.
+- The enclosing Next data cache owns read caching; its callbacks supply the
+  internal `force-no-store` fetch policy. Fetch options remain implicit inside
+  these callbacks because explicit `no-store` trips a Next 14 prerender bailout
+  that the Neon driver wraps as a connection error. Maintenance calls still use
+  explicit `no-store`. There is no independent persistent HTTP read cache.
 - Price histories use card-and-edition tags and a 24-hour fallback expiry. Each
   successful atomic observation invalidates its own tag immediately, including
   observations committed before another target fails. A busy/no-change batch

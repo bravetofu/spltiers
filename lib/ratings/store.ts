@@ -44,11 +44,15 @@ export async function readCardBattleStats(
 }
 
 neonConfig.fetchEndpoint = (host) => `https://${host}/sql`
-export function ratingDatabase(_cachedRead = false) {
+export function ratingDatabase(cachedRead = false) {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required')
-  // Cache at the enclosing unstable_cache boundary only. An independent fetch
-  // cache would survive tag invalidation and could serve old score/stat rows.
-  return neon(process.env.DATABASE_URL, { fetchOptions: { cache: 'no-store' } })
+  // Next 14 supplies force-no-store inside unstable_cache callbacks. Leave the
+  // fetch option implicit there: an explicit no-store causes a prerender bailout
+  // that the Neon driver wraps as a connection error. Maintenance stays uncached.
+  return neon(
+    process.env.DATABASE_URL,
+    cachedRead ? {} : { fetchOptions: { cache: 'no-store' } },
+  )
 }
 export async function readWorkspace() {
   const sql = ratingDatabase()
@@ -102,8 +106,8 @@ export async function publicScores(
   }
 }
 /** Compress repeated explanations in SQL before Neon sends the result. */
-export async function readCardRatings(id: number) {
-  const sql = ratingDatabase()
+export async function readCardRatings(id: number, cachedRead = false) {
+  const sql = ratingDatabase(cachedRead)
   const rows = await sql`
     SELECT s.data - 'parts' AS data,
       (SELECT jsonb_agg(

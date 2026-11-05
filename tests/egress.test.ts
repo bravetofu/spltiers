@@ -32,7 +32,13 @@ test('score caches survive collection updates while scoped statistics refresh in
   }
   const load = moduleLoader._load
   moduleLoader._load = function (name, ...args) {
-    return name === 'server-only' ? {} : load.call(this, name, ...args)
+    return name === 'server-only'
+      ? {}
+      : load.call(
+          this,
+          name === 'react' ? 'next/dist/compiled/react' : name,
+          ...args,
+        )
   }
   Object.assign(globalThis, { AsyncLocalStorage })
   const priorUrl = process.env.DATABASE_URL
@@ -71,11 +77,7 @@ test('score caches survive collection updates while scoped statistics refresh in
   neonConfig.fetchFunction = async (_input: unknown, init?: RequestInit) => {
     const query = JSON.parse(String(init?.body))
     calls.push(query)
-    assert.equal(
-      init?.cache,
-      'no-store',
-      'No untagged HTTP cache under the data cache',
-    )
+    assert.notEqual(init?.cache, 'force-cache', 'The data cache owns caching')
     let rows: Record<string, unknown>[]
     if (query.query.includes('rating_lifetime_usage')) {
       const [id, , league, , format] = query.params
@@ -174,6 +176,46 @@ test('score caches survive collection updates while scoped statistics refresh in
       null,
       null,
     ])
+    // Exercise actual patched fetch during static generation, not just runtime
+    // cache reads: explicit no-store is a Next 14 build-time bailout.
+    const { patchFetch } = await import('next/dist/server/lib/patch-fetch')
+    const { staticGenerationAsyncStorage } = await import(
+      'next/dist/client/components/static-generation-async-storage.external'
+    )
+    const serverHooks = await import(
+      'next/dist/client/components/hooks-server-context'
+    )
+    const originalFetch = globalThis.fetch
+    const databaseFetch = neonConfig.fetchFunction
+    try {
+      globalThis.fetch = databaseFetch as typeof fetch
+      patchFetch({ serverHooks, staticGenerationAsyncStorage })
+      neonConfig.fetchFunction = (input: string, init?: RequestInit) =>
+        globalThis.fetch(input, init)
+      const staticStore = () => ({
+        isStaticGeneration: true,
+        urlPathname: '/card/test',
+        prerenderState: null,
+      })
+      const rendered = await staticGenerationAsyncStorage.run(
+        staticStore(),
+        () => server.getCardRatings(888),
+      )
+      assert.equal(rendered.ratings[0].score, 8)
+      assert.ok(
+        rendered.battleStats,
+        'Static render must not swallow a statistics fetch failure',
+      )
+      await assert.rejects(
+        staticGenerationAsyncStorage.run(staticStore(), () =>
+          readCardBattleStats(false, { cardId: 888 }),
+        ),
+        /Dynamic server usage/,
+      )
+    } finally {
+      globalThis.fetch = originalFetch
+      neonConfig.fetchFunction = databaseFetch
+    }
   } finally {
     moduleLoader._load = load
     neonConfig.fetchFunction = oldFetch
