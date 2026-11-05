@@ -2,11 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { unstable_cache } from 'next/cache'
 import { getCatalogue } from '@/lib/splinterlands/catalogue-server'
 import { readPriceHistory } from '@/lib/market/store'
+import { priceHistoryTag } from '@/lib/market/cache'
 export const dynamic = 'force-dynamic'
-const history = unstable_cache(readPriceHistory, ['card-price-history-v1'], {
-  tags: ['card-price-history'],
-  revalidate: 300,
-})
+const history = (cardId: number, edition: number) =>
+  unstable_cache(
+    () => readPriceHistory(cardId, edition),
+    ['card-price-history-v2', String(cardId), String(edition)],
+    { tags: [priceHistoryTag(cardId, edition)], revalidate: 86400 },
+  )()
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } },

@@ -8,17 +8,28 @@ import type {
   Evidence,
   PublishedInfo,
   RatingProfile,
+  League,
+  BattleFormat,
 } from './types'
 import { EMPTY_EVIDENCE, ENGINE_VERSION } from './types'
 import type { CardBattleStats } from './battle-stats'
+import { SCORE_NOTES_JSON, expandScoreParts } from './score-notes'
 
 export async function readCardBattleStats(
   cachedRead = false,
+  scope: {
+    cardId?: number
+    league?: League
+    format?: BattleFormat | 'auto'
+  } = {},
 ): Promise<CardBattleStats[]> {
   const sql = ratingDatabase(cachedRead)
   const rows = await sql`
     SELECT card_id,league,format,uses::float AS uses,wins::float AS wins,
       losses::float AS losses,draws::float AS draws FROM rating_lifetime_usage
+    WHERE (${scope.cardId ?? null}::int IS NULL OR card_id=${scope.cardId ?? null})
+      AND (${scope.league ?? null}::text IS NULL OR league=${scope.league ?? null})
+      AND (${scope.format && scope.format !== 'auto' ? scope.format : null}::text IS NULL OR format=${scope.format && scope.format !== 'auto' ? scope.format : null})
     ORDER BY card_id,league,format
   `
   return rows.map((r) => ({
@@ -33,12 +44,11 @@ export async function readCardBattleStats(
 }
 
 neonConfig.fetchEndpoint = (host) => `https://${host}/sql`
-export function ratingDatabase(cachedRead = false) {
+export function ratingDatabase(_cachedRead = false) {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required')
-  return neon(
-    process.env.DATABASE_URL,
-    cachedRead ? {} : { fetchOptions: { cache: 'no-store' } },
-  )
+  // Cache at the enclosing unstable_cache boundary only. An independent fetch
+  // cache would survive tag invalidation and could serve old score/stat rows.
+  return neon(process.env.DATABASE_URL, { fetchOptions: { cache: 'no-store' } })
 }
 export async function readWorkspace() {
   const sql = ratingDatabase()
@@ -89,6 +99,33 @@ export async function publicScores(
     items: rows.map((r) => r.data) as (CardRating | AbilityRating)[],
     publication,
     scoredAt: first?.scored_at as string | undefined,
+  }
+}
+/** Compress repeated explanations in SQL before Neon sends the result. */
+export async function readCardRatings(id: number) {
+  const sql = ratingDatabase()
+  const rows = await sql`
+    SELECT s.data - 'parts' AS data,
+      (SELECT jsonb_agg(
+        CASE WHEN known.key IS NULL THEN part.value
+          ELSE (part.value - 'note') || jsonb_build_object('noteRef',known.key) END
+        ORDER BY part.ordinality)
+       FROM jsonb_array_elements(s.data->'parts') WITH ORDINALITY AS part(value,ordinality)
+       LEFT JOIN jsonb_each_text(${SCORE_NOTES_JSON}::jsonb) known ON known.value=part.value->>'note') AS parts,
+      p.label,p.id::text,p.published_at::text,sn.created_at::text AS scored_at,sn.engine_version
+    FROM rating_workspace w JOIN rating_scores s ON s.snapshot_id=w.active_snapshot_id
+    JOIN rating_profiles p ON p.id=w.active_profile_id JOIN rating_snapshots sn ON sn.id=w.active_snapshot_id
+    WHERE w.singleton AND s.kind='card' AND s.subject=${String(id)}
+  `
+  return {
+    ratings: rows.map((row) => ({
+      ...row.data,
+      parts: expandScoreParts(row.parts ?? []),
+    })) as CardRating[],
+    version: rows[0]
+      ? `${rows[0].engine_version} · ${rows[0].label}`
+      : undefined,
+    scoredAt: rows[0]?.scored_at as string | undefined,
   }
 }
 export async function publishedConfig(cachedRead = false) {

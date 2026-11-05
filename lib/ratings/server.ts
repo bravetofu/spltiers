@@ -7,6 +7,7 @@ import {
   publishedConfig,
   collectorStatus,
   readCardBattleStats,
+  readCardRatings,
 } from './store'
 import { EMPTY_BATTLE_STATS, type BattleStats } from './battle-stats'
 import { summarizeTierRatings, type ScopeScore } from './tier-reference'
@@ -14,7 +15,6 @@ import type {
   AbilityRating,
   AbilityWeight,
   BattleFormat,
-  CardRating,
   Confidence,
   League,
   Synergy,
@@ -35,81 +35,80 @@ export const getTierReferenceRatings = unstable_cache(
     `
     return summarizeTierRatings(rows as ScopeScore[])
   },
-  ['tier-reference-ratings-v1', ENGINE_VERSION],
-  { tags: ['ratings'], revalidate: 300 },
+  ['tier-reference-ratings-v2', ENGINE_VERSION],
+  { tags: ['ratings'], revalidate: 86400 },
 )
-export const getBattleStats = unstable_cache(
-  () => readCardBattleStats(true),
-  ['card-battle-usage-v1'],
-  { tags: ['rating-collection'], revalidate: 300 },
+// Daily score data and hourly lifetime statistics have independent cache tags.
+// Compose them outside the caches so neither clock forces the other to refill.
+const getScopeBattleStats = unstable_cache(
+  (league: League, format: BattleFormat | 'auto') =>
+    readCardBattleStats(true, { league, format }),
+  ['scope-battle-usage-v2'],
+  { tags: ['rating-collection'], revalidate: 3600 },
 )
-export const getRatingIndex = unstable_cache(
-  async (
-    league: League,
-    format: BattleFormat | 'auto',
-  ): Promise<ScoreIndex> => {
-    const sql = ratingDatabase(true)
-    const [rows, stats] = await Promise.all([
-      sql`
-    SELECT DISTINCT ON (s.subject) s.subject, (s.data->>'score')::float AS score,
-      s.data->>'confidence' AS confidence, (s.data->'evidence'->>'battles')::int AS battles, s.format
-    FROM rating_workspace w JOIN rating_scores s ON s.snapshot_id = w.active_snapshot_id
-    WHERE w.singleton AND s.kind = 'card' AND s.league = ${league} AND (${format} = 'auto' OR s.format = ${format})
-    ORDER BY s.subject, s.format
-  `,
-      getBattleStats().catch(() => null),
-    ])
-    const usage = new Map(
-      stats?.map((s) => [`${s.cardId}:${s.league}:${s.format}`, s]),
-    )
-    return Object.fromEntries(
-      rows.map((row) => [
-        row.subject,
-        [
-          row.score,
-          row.confidence,
-          row.battles,
-          row.format,
-          stats === null
-            ? null
-            : (usage.get(`${row.subject}:${league}:${row.format}`) ??
-              EMPTY_BATTLE_STATS),
-        ],
-      ]),
-    )
+const getCardBattleStats = unstable_cache(
+  (cardId: number) => readCardBattleStats(true, { cardId }),
+  ['card-battle-usage-v2'],
+  { tags: ['rating-collection'], revalidate: 3600 },
+)
+const getScoreIndexRows = unstable_cache(
+  async (league: League, format: BattleFormat | 'auto') => {
+    const sql = ratingDatabase()
+    return await sql`
+      SELECT DISTINCT ON (s.subject) s.subject, (s.data->>'score')::float AS score,
+        s.data->>'confidence' AS confidence, (s.data->'evidence'->>'battles')::int AS battles, s.format
+      FROM rating_workspace w JOIN rating_scores s ON s.snapshot_id=w.active_snapshot_id
+      WHERE w.singleton AND s.kind='card' AND s.league=${league} AND (${format}='auto' OR s.format=${format})
+      ORDER BY s.subject,s.format
+    `
   },
-  ['rating-index-v2', ENGINE_VERSION],
-  { tags: ['ratings', 'rating-collection'], revalidate: 300 },
+  ['rating-index-rows-v3', ENGINE_VERSION],
+  { tags: ['ratings'], revalidate: 86400 },
 )
-export const getCardRatings = unstable_cache(
-  async (id: number) => {
-    const sql = ratingDatabase(true)
-    const [rows, stats] = await Promise.all([
-      sql`
-    SELECT s.data, p.label, p.id::text, p.published_at::text, sn.created_at::text AS scored_at, sn.engine_version
-    FROM rating_workspace w JOIN rating_scores s ON s.snapshot_id = w.active_snapshot_id
-    JOIN rating_profiles p ON p.id = w.active_profile_id JOIN rating_snapshots sn ON sn.id = w.active_snapshot_id
-    WHERE w.singleton AND s.kind = 'card' AND s.subject = ${String(id)}
-  `,
-      getBattleStats().catch(() => null),
-    ])
-    return {
-      ratings: rows.map((row) => row.data) as CardRating[],
-      version: rows[0]
-        ? `${rows[0].engine_version} · ${rows[0].label}`
-        : undefined,
-      scoredAt: rows[0]?.scored_at as string | undefined,
-      battleStats: stats?.filter((s) => s.cardId === id) ?? null,
-    }
-  },
-  ['card-ratings-v2', ENGINE_VERSION],
-  { tags: ['ratings', 'rating-collection'], revalidate: 300 },
+export async function getRatingIndex(
+  league: League,
+  format: BattleFormat | 'auto',
+): Promise<ScoreIndex> {
+  const [rows, stats] = await Promise.all([
+    getScoreIndexRows(league, format),
+    getScopeBattleStats(league, format).catch(() => null),
+  ])
+  const usage = new Map(
+    stats?.map((s) => [`${s.cardId}:${s.league}:${s.format}`, s]),
+  )
+  return Object.fromEntries(
+    rows.map((row) => [
+      row.subject,
+      [
+        row.score,
+        row.confidence,
+        row.battles,
+        row.format,
+        stats === null
+          ? null
+          : (usage.get(`${row.subject}:${league}:${row.format}`) ??
+            EMPTY_BATTLE_STATS),
+      ],
+    ]),
+  )
+}
+const getCardScoreData = unstable_cache(
+  readCardRatings,
+  ['card-score-data-v3', ENGINE_VERSION],
+  { tags: ['ratings'], revalidate: 86400 },
 )
+export async function getCardRatings(id: number) {
+  const [scores, battleStats] = await Promise.all([
+    getCardScoreData(id),
+    getCardBattleStats(id).catch(() => null),
+  ])
+  return { ...scores, battleStats }
+}
 export const getAbilityRatings = unstable_cache(
   async (league: League, format: BattleFormat, name?: string) =>
     publicScores('ability', league, format, name, true),
-  ['ability-ratings-v1', ENGINE_VERSION],
-  { tags: ['ratings'], revalidate: 300 },
+  ['ability-ratings-v2', ENGINE_VERSION],
+  { tags: ['ratings'], revalidate: 86400 },
 )
 export const getAbilityDetails = unstable_cache(
   async (name: string) => {
@@ -130,13 +129,13 @@ export const getAbilityDetails = unstable_cache(
       ratings: (rows[0]?.ratings ?? []) as AbilityRating[],
     }
   },
-  ['ability-details-v1', ENGINE_VERSION],
-  { tags: ['ratings'], revalidate: 300 },
+  ['ability-details-v2', ENGINE_VERSION],
+  { tags: ['ratings'], revalidate: 86400 },
 )
 export const getPublishedProfile = unstable_cache(
   () => publishedConfig(true),
-  ['rating-profile-v1', ENGINE_VERSION],
-  { tags: ['ratings'], revalidate: 300 },
+  ['rating-profile-v2', ENGINE_VERSION],
+  { tags: ['ratings'], revalidate: 86400 },
 )
 export const getCollectorStatus = unstable_cache(
   () => collectorStatus(true),

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { authorizeCollector } from '@/lib/ratings/collector-auth'
 import { collectDailyPrices } from '@/lib/market/collector'
+import { priceHistoryTag } from '@/lib/market/cache'
 import { getCatalogue } from '@/lib/splinterlands/catalogue-server'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -23,8 +24,9 @@ export async function GET(request: NextRequest) {
   try {
     const result = await collectDailyPrices(await getCatalogue(), {
       retryFailed: request.nextUrl.searchParams.get('retry') === '1',
+      onSaved: (cardId, edition) =>
+        revalidateTag(priceHistoryTag(cardId, edition)),
     })
-    revalidateTag('card-price-history')
     return NextResponse.json(
       { ...result, deploymentCommit: process.env.VERCEL_GIT_COMMIT_SHA },
       { headers: { 'Cache-Control': 'no-store' } },

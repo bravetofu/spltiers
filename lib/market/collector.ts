@@ -10,6 +10,7 @@ export async function collectDailyPrices(
     durationMs?: number
     fetcher?: typeof fetch
     retryFailed?: boolean
+    onSaved?: (cardId: number, edition: number) => void
   } = {},
 ) {
   const sql = priceDatabase(),
@@ -102,6 +103,7 @@ export async function collectDailyPrices(
             observedAt,
           )
           collected++
+          options.onSaved?.(item.card_id, item.edition)
         } catch (error) {
           const reason =
             error instanceof MarketError ? error.message : 'collection_failed'
