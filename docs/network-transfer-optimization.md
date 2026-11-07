@@ -95,3 +95,50 @@ They also check scoped query parameters, exact explanation expansion, custom-not
 fallback and targeted invalidation after successful price writes amid failures.
 Production SQL verifies lossless expansion across all card scopes. Production
 build, live responses and runtime errors are checked after the main-branch push.
+
+## Further reductions — 2026-11-07
+
+- Deck rankings now use the `editions` data-cache tag and a 24-hour fallback.
+  Repeated deck loads share the result; existing tier edits invalidate it. Ranked
+  cards in inactive sets remain included, as before. The API response is unchanged.
+- Home/admin edition activity is grouped in SQL: one count and latest timestamp
+  per edition instead of transferring every tier entry. Counting still includes
+  the same entries as the previous implementation.
+- The ability directory requests `view=summary` from `/api/ratings`. SQL projects
+  only name, score, confidence and battle count. The default API still returns
+  full ratings. Publication metadata is transferred once per result instead of
+  once per ability. Both views retain daily caching and publication invalidation.
+- Public methodology/directory settings omit private scoring configuration fields
+  they never display. Ability detail queries select only matching synergies.
+- Collector status has a one-hour fallback with existing collection invalidation.
+  Hourly battle collection loads the full profile only when scores are due for
+  refresh (or a refresh is explicitly requested). Concurrent-publication retries
+  still reload the active profile. Collection frequency and scoring are unchanged.
+- Price history transfers one day/timestamp plus populated foil tuples, then
+  reconstructs the existing five-foil response in the app. Completed empty markets
+  remain zero listings; missed days remain gaps. The 365-day window, original first
+  observation date and per-card/edition invalidation are unchanged.
+
+Local PostgreSQL verification used an isolated PGlite instance, saved review
+fixtures for ability/profile data and synthetic price/tier fixtures. It exercised
+the actual queries, compared all retained values and checked absent profiles and
+empty scopes. No dependency or database migration is added to the application.
+
+| Local result payload (JSON; not billed wire bytes) | Full | Reduced |
+| --- | ---: | ---: |
+| 124 Diamond/Modern abilities, metadata already deduplicated | 47,961 B | 9,997 B (79% smaller) |
+| Saved scoring configuration vs public settings | 30,169 B | 9,378 B (69% smaller) |
+| Two synthetic price days, two populated foil rows total | 1,156 B | 177 B (85% smaller) |
+
+The price percentage depends on populated foil count and timestamp lengths; it
+is a fixture measurement, not a production average. At 24 successful hourly runs
+and one daily refresh, skipping 23 unnecessary reads of the saved 30 KB profile
+avoids roughly 0.69 MB/day of result JSON. Actual frequency, cache misses, deployment
+activity and collector operation determine savings. Continue using consecutive
+Neon metadata readings to measure the total; do not apply these percentages to
+the whole database's daily transfer.
+
+Regression tests cover edition invalidation, full/summary response contracts,
+empty/gapped price histories and fresh/due/forced/racing collector refreshes.
+Required pre-push checks: `npm run lint && npm run typecheck && npm test`.
+Commits use `[skip actions]` to avoid GitHub Actions; Vercel deploys independently.

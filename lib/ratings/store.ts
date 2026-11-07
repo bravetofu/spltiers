@@ -81,13 +81,20 @@ export async function publicScores(
   format: string,
   subject?: string,
   cachedRead = false,
+  summaryOnly = false,
 ) {
   const sql = ratingDatabase(cachedRead)
   const rows = await sql`
-    SELECT s.data, p.id::text AS profile_id, p.label, p.notes, p.author, p.published_at::text, sn.created_at::text AS scored_at
+    SELECT jsonb_agg(CASE WHEN ${summaryOnly} THEN jsonb_build_object(
+      'name', s.data->'name', 'score', s.data->'score',
+      'confidence', s.data->'confidence',
+      'evidence', jsonb_build_object('battles', s.data->'evidence'->'battles'))
+      ELSE s.data END ORDER BY s.subject) AS items,
+      p.id::text AS profile_id, p.label, p.notes, p.author, p.published_at::text, sn.created_at::text AS scored_at
     FROM rating_workspace w JOIN rating_profiles p ON p.id = w.active_profile_id
     JOIN rating_snapshots sn ON sn.id = w.active_snapshot_id JOIN rating_scores s ON s.snapshot_id = sn.id
     WHERE w.singleton AND s.kind = ${kind} AND s.league = ${league} AND s.format = ${format} AND (${subject ?? null}::text IS NULL OR s.subject = ${subject ?? null})
+    GROUP BY p.id, sn.id
   `
   const first = rows[0]
   const publication: PublishedInfo | null = first
@@ -100,7 +107,7 @@ export async function publicScores(
       }
     : null
   return {
-    items: rows.map((r) => r.data) as (CardRating | AbilityRating)[],
+    items: (first?.items ?? []) as (CardRating | AbilityRating)[],
     publication,
     scoredAt: first?.scored_at as string | undefined,
   }

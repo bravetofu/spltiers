@@ -378,13 +378,16 @@ export async function runCollector(
     await processPending()
     // Refresh even without new matches: evidence must age out, and game stats or
     // format eligibility can change independently of collection activity.
-    let profile = await publishedConfig()
     const latest =
       await sql`SELECT created_at FROM rating_snapshots WHERE id = (SELECT active_snapshot_id FROM rating_workspace WHERE singleton)`
     const due =
       !latest[0] ||
       Date.now() - new Date(latest[0].created_at).getTime() >= 86400000
-    if (profile && (options.refreshRatings || due)) {
+    // Most hourly runs do not refresh daily scores. Do not transfer the full
+    // scoring configuration until it is needed; optimistic retries stay fresh.
+    let profile =
+      options.refreshRatings || due ? await publishedConfig() : undefined
+    if (profile) {
       ratingsRefreshed = true
       const evidence = await readEvidence()
       const revision = await writeSnapshot(

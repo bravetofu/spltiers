@@ -1,5 +1,6 @@
 import 'server-only'
 import { neon, neonConfig } from '@neondatabase/serverless'
+import { unstable_cache } from 'next/cache'
 
 // Use the database endpoint itself so managed environments can allow one hostname.
 neonConfig.fetchEndpoint = (host) => `https://${host}/sql`
@@ -55,8 +56,11 @@ export async function getCardSet(slug: string, activeOnly = true): Promise<CardS
   return (rows[0] as CardSet | undefined) ?? null
 }
 
-export async function getTierActivity(uncached = true): Promise<{ set_id: string; updated_at: string }[]> {
-  return await database(uncached)`SELECT set_id, updated_at::text FROM tier_entries` as { set_id: string; updated_at: string }[]
+export async function getTierActivity(uncached = true): Promise<{ set_id: string; count: number; updated_at: string }[]> {
+  return await database(uncached)`
+    SELECT set_id, count(*)::int AS count, max(updated_at)::text AS updated_at
+    FROM tier_entries GROUP BY set_id
+  ` as { set_id: string; count: number; updated_at: string }[]
 }
 
 export async function getTierEntries(setId: string, uncached = false): Promise<RankedEntry[]> {
@@ -73,13 +77,16 @@ export async function getAllPublicTierEntries(): Promise<RankedEntry[]> {
   ` as RankedEntry[]
 }
 
-export async function getDeckEntries() {
+export const getDeckEntries = unstable_cache(async () => {
   // Match the existing deck builder: every ranked entry, including inactive sets.
-  return await database(true)`
+  // The enclosing cache owns freshness. Explicit no-store inside its callback
+  // would cause a Next 14 static-render bailout (see ratingDatabase).
+  if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required')
+  return await neon(process.env.DATABASE_URL)`
     SELECT card_id, card_name, edition, cdn_slug, rarity, tier, is_soulbound
     FROM tier_entries WHERE tier IS NOT NULL ORDER BY card_id
   `
-}
+}, ['deck-entries-v1'], { tags: ['editions'], revalidate: 86400 })
 
 export async function createCardSet(input: {
   name: string; slug: string; icon_url: string | null; sort_order: number

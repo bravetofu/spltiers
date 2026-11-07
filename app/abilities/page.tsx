@@ -5,8 +5,7 @@ import Nav from '@/components/Nav'
 import AbilityTooltipProvider from '@/components/catalogue/AbilityTooltipProvider'
 import AbilityDirectory from '@/components/ratings/AbilityDirectory'
 import AbilityTableSkeleton from '@/components/ratings/AbilityTableSkeleton'
-import { getAbilityRatings, getPublishedProfile } from '@/lib/ratings/server'
-import type { AbilityRating } from '@/lib/ratings/types'
+import { getAbilitySummaries, getPublicRatingSettings } from '@/lib/ratings/server'
 import '../cards/catalogue.css'
 export const revalidate = 300
 export const metadata: Metadata = {
@@ -16,20 +15,10 @@ export const metadata: Metadata = {
 }
 export default async function AbilitiesPage() {
   const [scores, profile] = await Promise.all([
-    getAbilityRatings('diamond', 'modern'),
-    getPublishedProfile(),
+    getAbilitySummaries('diamond', 'modern'),
+    getPublicRatingSettings(),
   ])
-  const weights = Object.fromEntries(
-    Object.entries(profile?.config.abilities ?? {}).map(([name, value]) => [
-      name,
-      {
-        standard: value.standard,
-        nonStandard: value.nonStandard,
-        multiplier: value.multiplier,
-        drawback: value.drawback,
-      },
-    ]),
-  )
+  const weights = profile?.abilities ?? {}
   return (
     <>
       <Nav />
@@ -49,7 +38,7 @@ export default async function AbilitiesPage() {
         <AbilityTooltipProvider>
           <Suspense fallback={<AbilityTableSkeleton />}>
             <AbilityDirectory
-              initial={scores.items as AbilityRating[]}
+              initial={scores.items}
               weights={weights}
             />
           </Suspense>

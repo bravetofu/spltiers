@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import Nav from '@/components/Nav'
-import { getCollectorStatus, getPublishedProfile } from '@/lib/ratings/server'
+import { getCollectorStatus, getPublicRatingSettings } from '@/lib/ratings/server'
 import { ENGINE_VERSION } from '@/lib/ratings/types'
 import '../../cards/catalogue.css'
 export const revalidate = 300
@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 export default async function Methodology() {
   const [status, profile] = await Promise.all([
     getCollectorStatus(),
-    getPublishedProfile(),
+    getPublicRatingSettings(),
   ])
   return (
     <>
@@ -144,8 +144,8 @@ export default async function Methodology() {
         <p>
           Published ability priors remain editable. Their Standard/non-standard
           blend is currently{' '}
-          {Math.round((profile?.config.standardWeight ?? 0.2) * 100)}% /
-          {Math.round((1 - (profile?.config.standardWeight ?? 0.2)) * 100)}%.
+          {Math.round((profile?.standardWeight ?? 0.2) * 100)}% /
+          {Math.round((1 - (profile?.standardWeight ?? 0.2)) * 100)}%.
           Quantitatively modeled effects replace their former flat bonuses.
           Other abilities retain prior-based contributions. Overlapping pair and
           stat bonuses are suppressed for modeled effects. Battle-adjusted

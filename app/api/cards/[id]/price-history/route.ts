@@ -6,8 +6,8 @@ import { priceHistoryTag } from '@/lib/market/cache'
 export const dynamic = 'force-dynamic'
 const history = (cardId: number, edition: number) =>
   unstable_cache(
-    () => readPriceHistory(cardId, edition),
-    ['card-price-history-v2', String(cardId), String(edition)],
+    () => readPriceHistory(cardId, edition, true),
+    ['card-price-history-v3', String(cardId), String(edition)],
     { tags: [priceHistoryTag(cardId, edition)], revalidate: 86400 },
   )()
 export async function GET(

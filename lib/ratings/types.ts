@@ -108,6 +108,12 @@ export type AbilityRating = Rating & {
   league: League
   format: BattleFormat
 }
+export type AbilitySummary = Pick<
+  AbilityRating,
+  'name' | 'score' | 'confidence'
+> & {
+  evidence: Pick<Evidence, 'battles'>
+}
 export type PublishedInfo = {
   id: string
   label: string

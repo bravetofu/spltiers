@@ -62,17 +62,10 @@ export default async function AdminPage() {
   }
   const meta: Record<string, SetMeta> = {}
   for (const set of cardSets ?? []) {
-    const entries = (tierCounts ?? []).filter((e) => e.set_id === set.id)
-    const lastUpdated =
-      entries.length > 0
-        ? entries.reduce(
-            (latest, e) => (e.updated_at > latest ? e.updated_at : latest),
-            entries[0].updated_at,
-          )
-        : null
+    const activity = tierCounts.find((e) => e.set_id === set.id)
     meta[set.id] = {
-      rankedCount: entries.length,
-      lastUpdated,
+      rankedCount: activity?.count ?? 0,
+      lastUpdated: activity?.updated_at ?? null,
       totalCards: cardsByEdition?.get(set.name)?.length ?? null,
     }
   }

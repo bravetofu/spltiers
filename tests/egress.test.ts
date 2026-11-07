@@ -106,6 +106,8 @@ test('score caches survive collection updates while scoped statistics refresh in
           format: 'wild',
         },
       ]
+    } else if (query.query.includes('FROM tier_entries')) {
+      rows = [{ card_id: 512, tier: score === 8 ? 'A' : 'S' }]
     } else {
       assert.ok(query.query.includes('jsonb_agg'))
       assert.ok(query.query.includes('ORDER BY part.ordinality'))
@@ -176,6 +178,24 @@ test('score caches survive collection updates while scoped statistics refresh in
       null,
       null,
     ])
+    const { getDeckEntries } = await import('../lib/db')
+    const beforeDeck = calls.length
+    assert.equal((await getDeckEntries())[0].tier, 'A')
+    score = 9
+    assert.equal((await getDeckEntries())[0].tier, 'A')
+    assert.equal(
+      calls.length,
+      beforeDeck + 1,
+      'Deck visits share one database read',
+    )
+    expire('editions')
+    assert.equal((await getDeckEntries())[0].tier, 'S')
+    assert.equal(
+      calls.length,
+      beforeDeck + 2,
+      'Tier edits refresh deck rankings',
+    )
+    score = 8
     // Exercise actual patched fetch during static generation, not just runtime
     // cache reads: explicit no-store is a Next 14 build-time bailout.
     const { patchFetch } = await import('next/dist/server/lib/patch-fetch')

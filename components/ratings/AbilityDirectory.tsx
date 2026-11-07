@@ -7,7 +7,7 @@ import { abilityInfo } from '@/lib/splinterlands/abilities'
 import {
   LEAGUES,
   LEAGUE_NAMES,
-  type AbilityRating,
+  type AbilitySummary,
   type AbilityWeight,
   type BattleFormat,
   type League,
@@ -23,7 +23,7 @@ export default function AbilityDirectory({
   initial,
   weights,
 }: {
-  initial: AbilityRating[]
+  initial: AbilitySummary[]
   weights: Weights
 }) {
   const params = useSearchParams()
@@ -35,7 +35,7 @@ export default function AbilityDirectory({
   const key = `${league}:${format}`
   const [result, setResult] = useState<{
     key: string
-    items: AbilityRating[]
+    items: AbilitySummary[]
     error?: string
   }>({ key: 'diamond:modern', items: initial })
   const [q, setQ] = useState(''),
@@ -48,7 +48,7 @@ export default function AbilityDirectory({
       return
     }
     const abort = new AbortController()
-    fetch(`/api/ratings?kind=ability&league=${league}&format=${format}`, {
+    fetch(`/api/ratings?kind=ability&view=summary&league=${league}&format=${format}`, {
       signal: abort.signal,
     })
       .then(async (response) => {

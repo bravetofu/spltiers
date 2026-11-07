@@ -4,7 +4,6 @@ import { unstable_cache } from 'next/cache'
 import {
   ratingDatabase,
   publicScores,
-  publishedConfig,
   collectorStatus,
   readCardBattleStats,
   readCardRatings,
@@ -13,6 +12,7 @@ import { EMPTY_BATTLE_STATS, type BattleStats } from './battle-stats'
 import { summarizeTierRatings, type ScopeScore } from './tier-reference'
 import type {
   AbilityRating,
+  AbilitySummary,
   AbilityWeight,
   BattleFormat,
   Confidence,
@@ -107,14 +107,34 @@ export async function getCardRatings(id: number) {
 export const getAbilityRatings = unstable_cache(
   async (league: League, format: BattleFormat, name?: string) =>
     publicScores('ability', league, format, name, true),
-  ['ability-ratings-v2', ENGINE_VERSION],
+  ['ability-ratings-v3', ENGINE_VERSION],
+  { tags: ['ratings'], revalidate: 86400 },
+)
+// The directory does not display full evidence or breakdowns. Project in SQL
+// so those fields never cross the Neon connection on a list cache miss.
+export const getAbilitySummaries = unstable_cache(
+  async (league: League, format: BattleFormat) => {
+    const result = await publicScores(
+      'ability',
+      league,
+      format,
+      undefined,
+      true,
+      true,
+    )
+    return { ...result, items: result.items as AbilitySummary[] }
+  },
+  ['ability-summaries-v1', ENGINE_VERSION],
   { tags: ['ratings'], revalidate: 86400 },
 )
 export const getAbilityDetails = unstable_cache(
   async (name: string) => {
     const sql = ratingDatabase(true)
     const rows = await sql`
-      SELECT p.config->'abilities'->${name} AS weight, p.config->'synergies' AS synergies,
+      SELECT p.config->'abilities'->${name} AS weight,
+        (SELECT coalesce(jsonb_agg(s.value ORDER BY s.ordinality), '[]'::jsonb)
+         FROM jsonb_array_elements(p.config->'synergies') WITH ORDINALITY AS s(value,ordinality)
+         WHERE s.value->'abilities' ? ${name}) AS synergies,
         (p.config->>'standardWeight')::float AS standard_weight,
         coalesce((SELECT jsonb_agg(s.data) FROM rating_scores s
           WHERE s.snapshot_id = w.active_snapshot_id AND s.kind = 'ability' AND s.subject = ${name}), '[]'::jsonb) AS ratings
@@ -123,22 +143,43 @@ export const getAbilityDetails = unstable_cache(
     return {
       weight: rows[0]?.weight as AbilityWeight | undefined,
       standardWeight: (rows[0]?.standard_weight ?? 0.2) as number,
-      synergies: ((rows[0]?.synergies ?? []) as Synergy[]).filter((s) =>
-        s.abilities.includes(name),
-      ),
+      synergies: (rows[0]?.synergies ?? []) as Synergy[],
       ratings: (rows[0]?.ratings ?? []) as AbilityRating[],
     }
   },
-  ['ability-details-v2', ENGINE_VERSION],
+  ['ability-details-v3', ENGINE_VERSION],
   { tags: ['ratings'], revalidate: 86400 },
 )
-export const getPublishedProfile = unstable_cache(
-  () => publishedConfig(true),
-  ['rating-profile-v2', ENGINE_VERSION],
+export const getPublicRatingSettings = unstable_cache(
+  async () => {
+    const sql = ratingDatabase(true)
+    const rows = await sql`
+      SELECT p.id::text, (p.config->>'standardWeight')::float AS "standardWeight",
+        (SELECT coalesce(jsonb_object_agg(a.key, jsonb_build_object(
+          'standard', a.value->'standard', 'nonStandard', a.value->'nonStandard',
+          'multiplier', a.value->'multiplier', 'drawback', a.value->'drawback')), '{}'::jsonb)
+         FROM jsonb_each(p.config->'abilities') a) AS abilities
+      FROM rating_workspace w JOIN rating_profiles p ON p.id=w.active_profile_id WHERE w.singleton
+    `
+    return rows[0] as
+      | {
+          id: string
+          standardWeight: number
+          abilities: Record<
+            string,
+            Pick<
+              AbilityWeight,
+              'standard' | 'nonStandard' | 'multiplier' | 'drawback'
+            >
+          >
+        }
+      | undefined
+  },
+  ['public-rating-settings-v1', ENGINE_VERSION],
   { tags: ['ratings'], revalidate: 86400 },
 )
 export const getCollectorStatus = unstable_cache(
   () => collectorStatus(true),
-  ['rating-collector-v1'],
-  { tags: ['ratings', 'rating-collection'], revalidate: 60 },
+  ['rating-collector-v2'],
+  { tags: ['ratings', 'rating-collection'], revalidate: 3600 },
 )

@@ -19,7 +19,7 @@ export default async function HomePage() {
   // Database calls are wrapped in try/catch so the page renders gracefully
   // when env vars are absent (e.g. during `next build` without .env.local).
   let cardSets: CardSet[] = []
-  let tierCounts: { set_id: string }[] = []
+  let tierCounts: { set_id: string; count: number }[] = []
 
   try {
     ;[cardSets, tierCounts] = await Promise.all([getCardSets(), getTierActivity(false)])
@@ -38,7 +38,7 @@ export default async function HomePage() {
   // Build ranked counts map: set_id → count
   const rankedMap: Record<string, number> = {}
   for (const row of tierCounts) {
-    rankedMap[row.set_id] = (rankedMap[row.set_id] ?? 0) + 1
+    rankedMap[row.set_id] = row.count
   }
 
   const setsWithMeta: EditionCardData[] = cardSets.map((s) => ({
