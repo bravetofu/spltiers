@@ -1,11 +1,8 @@
 name: Collect ranked battles
+# Paused at the owner's request. Price collection has its own unchanged workflow.
+# To resume, remove the job guard and restore the hourly/push triggers.
 on:
-  schedule:
-    - cron: '7 * * * *'
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths: ['.github/workflows/collect-battles.yml', 'lib/ratings/**', 'app/api/cron/**']
 permissions:
   id-token: write
   contents: read
@@ -14,6 +11,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   collect:
+    if: ${{ false }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
